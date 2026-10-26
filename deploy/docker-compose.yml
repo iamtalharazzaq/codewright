@@ -1,0 +1,116 @@
+# MonoShift: `docker compose up` from the repo root (COMPOSE_FILE in .env points here).
+# Everything binds to 127.0.0.1 only: single user, no login (README Sections 3 and 9.4).
+#
+# Optional profiles:
+#   docker compose --profile llamacpp-cpu up # bundled llama.cpp on CPU, serving a GGUF from MONOSHIFT_MODELS_DIR
+#   docker compose --profile ollama-cpu up   # bundled Ollama on CPU (port 11435; your host Ollama keeps 11434)
+#   docker compose --profile langfuse up     # self-hosted Langfuse (see deploy/docker-compose.langfuse.yml)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-monoshift}
+    ports:
+      - "127.0.0.1:${MONOSHIFT_POSTGRES_PORT:-5442}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: monoshift-api:dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MONOSHIFT_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-monoshift}
+      MONOSHIFT_LOG_LEVEL: ${MONOSHIFT_LOG_LEVEL:-info}
+      MONOSHIFT_EXTERNAL_LLM_ENABLED: ${MONOSHIFT_EXTERNAL_LLM_ENABLED:-false}
+      MONOSHIFT_REMOTE_GPU_API_KEY: ${MONOSHIFT_REMOTE_GPU_API_KEY:-}
+      MONOSHIFT_LOCAL_CPU_API_KEY: ${MONOSHIFT_LOCAL_CPU_API_KEY:-}
+    ports:
+      - "127.0.0.1:${MONOSHIFT_API_PORT:-8000}:8000"
+    volumes:
+      - ../config:/app/config:ro
+      - workspaces:/app/workspaces
+    extra_hosts:
+      # Lets the API reach model servers on the host (local_cpu profile). See ADR 0002.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        MONOSHIFT_API_URL: http://api:8000
+    image: monoshift-web:dev
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${MONOSHIFT_WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  llamacpp-cpu:
+    profiles: ["llamacpp-cpu"]
+    image: ghcr.io/ggml-org/llama.cpp:server-b9744
+    restart: unless-stopped
+    # The GGUF is mounted read-only from the host, never copied (models are several GB).
+    volumes:
+      - ${MONOSHIFT_MODELS_DIR:-../models}:/models:ro
+    command:
+      - --model
+      - /models/${MONOSHIFT_GGUF_FILE:-Qwen3.5-9B-Q4_K_M.gguf}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "8192"
+      - --parallel
+      - "1"            # max_parallel_llm_jobs = 1
+      - --no-mmproj    # text only: skip the vision projector
+      - --jinja
+    ports:
+      - "127.0.0.1:${MONOSHIFT_LLAMACPP_PORT:-8090}:8080"
+
+  ollama-cpu:
+    profiles: ["ollama-cpu"]
+    image: ollama/ollama:0.40.3
+    restart: unless-stopped
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"     # max_parallel_llm_jobs = 1 (README Section 8.1)
+      OLLAMA_CONTEXT_LENGTH: "8192"
+    ports:
+      - "127.0.0.1:${MONOSHIFT_OLLAMA_PORT:-11435}:11434"
+    volumes:
+      - ollama:/root/.ollama
+    # The model is not pulled automatically (about 6.6 GB). After start:
+    #   docker compose exec ollama-cpu ollama pull qwen3.5:9b-q4_K_M
+
+volumes:
+  pgdata:
+  workspaces:
+  ollama:
