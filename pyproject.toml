@@ -1,0 +1,54 @@
+# MonoShift Python workspace root (uv). Members are the Python apps/packages; this root only holds dev tooling.
+[project]
+name = "monoshift"
+version = "0.0.0"
+description = "Self-hosted AI software house that converts monoliths into microservices"
+requires-python = ">=3.12,<3.13"
+dependencies = ["monoshift-api"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18",
+    "pre-commit>=4",
+    "pytest>=8.4",
+    "ruff>=0.14",
+    "types-pyyaml",
+]
+
+[tool.uv]
+package = false
+# Supply-chain guard (ADR 0006): ignore distributions uploaded in the last 14 days.
+exclude-newer = "14 days"
+
+[tool.uv.workspace]
+members = ["apps/api"]
+
+[tool.uv.sources]
+monoshift-api = { workspace = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["apps/web", "*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL"]
+ignore = ["PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["monoshift_api"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "PLR2004"]
+"apps/api/migrations/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["apps/api/src", "apps/api/tests"]
+mypy_path = "apps/api/src"
+
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests"]
+addopts = "-ra"

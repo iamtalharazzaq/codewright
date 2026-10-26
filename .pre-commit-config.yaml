@@ -1,0 +1,42 @@
+# Install once: uv run pre-commit install
+# Uses the repo's own pinned tools (uv / pnpm) so hooks match CI.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-toml
+      - id: detect-private-key
+      - id: end-of-file-fixer
+        exclude: ^README\.md$|^PROMPT\.md$
+      - id: trailing-whitespace
+        exclude: ^README\.md$|^PROMPT\.md$
+
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: web-lint
+        name: web lint + typecheck + format
+        entry: bash -c 'cd apps/web && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm format:check'
+        language: system
+        files: ^apps/web/
+        pass_filenames: false
