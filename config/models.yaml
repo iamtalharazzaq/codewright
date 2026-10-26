@@ -1,0 +1,25 @@
+# LLM endpoints (README Section 8). Both profiles serve the same model through an OpenAI-compatible API.
+# Verified in Phase 0 (V1, docs/adr/0002-llm-model-qwen3-5-9b.md):
+#   Ollama tag:   qwen3.5:9b-q4_K_M          (6.6 GB, includes the vision projector)
+#   GGUF file:    Qwen3.5-9B-Q4_K_M.gguf     (5.7 GB; run llama.cpp with --no-mmproj for text only)
+# Secrets never go here: `api_key_env` names an environment variable instead.
+profiles:
+  remote_gpu:
+    server: ollama                     # or llamacpp; set up per docs/setup/remote-gpu.md (Phase 1)
+    base_url: http://gpu-box.tailnet:11434/v1   # placeholder: your tunnel address (Tailscale/SSH)
+    model: qwen3.5:9b-q4_K_M
+    num_ctx: 16384                     # starting point; measured and tuned on the RTX 3080 in Phase 1
+    max_parallel_llm_jobs: 1
+    api_key_env: MONOSHIFT_REMOTE_GPU_API_KEY
+  local_cpu:
+    server: llamacpp
+    base_url: http://host.docker.internal:8080/v1
+    model: Qwen3.5-9B-Q4_K_M
+    num_ctx: 8192
+    max_parallel_llm_jobs: 1
+    api_key_env: MONOSHIFT_LOCAL_CPU_API_KEY
+embeddings:
+  server: llamacpp
+  base_url: http://host.docker.internal:8081/v1
+  model: Qwen3-Embedding-0.6B          # already running on this machine; README suggests nomic-embed-text "or similar"
+default_profile: remote_gpu
