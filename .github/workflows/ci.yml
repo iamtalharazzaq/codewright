@@ -1,3 +1,4 @@
+# Not run yet: the repository has no GitHub remote. `make check` runs the same checks locally in Docker.
 name: CI
 
 on:
@@ -21,15 +22,15 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg17
         env:
-          POSTGRES_USER: monoshift
+          POSTGRES_USER: codewright
           POSTGRES_PASSWORD: ci-only-password
-          POSTGRES_DB: monoshift_test
+          POSTGRES_DB: codewright_test
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U monoshift"
+          --health-cmd "pg_isready -U codewright"
           --health-interval 3s --health-timeout 3s --health-retries 20
     env:
-      MONOSHIFT_TEST_DATABASE_URL: postgresql://monoshift:ci-only-password@localhost:5432/monoshift_test
+      TEST_DATABASE_URL: postgresql://codewright:ci-only-password@localhost:5432/codewright_test
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -78,6 +79,6 @@ jobs:
           docker compose up -d --wait --wait-timeout 180
           curl -fsS http://127.0.0.1:8000/api/health/ready
           curl -fsS http://127.0.0.1:3000/api/projects
-          curl -fsS http://127.0.0.1:3000/ | grep -q "Projects"
+          curl -fsS http://127.0.0.1:3000/ | grep -q "What are we building today?"
       - if: always()
         run: docker compose logs --no-color | tail -200 && docker compose down -v

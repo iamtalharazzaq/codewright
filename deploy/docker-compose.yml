@@ -1,22 +1,25 @@
-# MonoShift: `docker compose up` from the repo root (COMPOSE_FILE in .env points here).
-# Everything binds to 127.0.0.1 only: single user, no login (README Sections 3 and 9.4).
+# Codewright: `docker compose up` from the repo root (COMPOSE_FILE in .env points here).
+# Everything binds to 127.0.0.1 only: single user, no login (README Section 11).
 #
 # Optional profiles:
-#   docker compose --profile llamacpp-cpu up # bundled llama.cpp on CPU, serving a GGUF from MONOSHIFT_MODELS_DIR
+#   docker compose --profile llamacpp-cpu up # bundled llama.cpp on CPU, serving a GGUF from MODELS_DIR
 #   docker compose --profile host-llm-bridge up  # lets containers reach a llama-server bound to 127.0.0.1 on the host
 #   docker compose --profile ollama-cpu up   # bundled Ollama on CPU (port 11435; your host Ollama keeps 11434)
 #   docker compose --profile langfuse up     # self-hosted Langfuse (see deploy/docker-compose.langfuse.yml)
+#   make check                               # profile `checks`: lint, types and tests in containers
+
+name: codewright
 
 services:
   postgres:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-codewright}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-monoshift}
+      POSTGRES_DB: ${POSTGRES_DB:-codewright}
     ports:
-      - "127.0.0.1:${MONOSHIFT_POSTGRES_PORT:-5442}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5442}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,25 +32,25 @@ services:
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
-    image: monoshift-api:dev
+    image: codewright-api:dev
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      MONOSHIFT_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-monoshift}
-      MONOSHIFT_LOG_LEVEL: ${MONOSHIFT_LOG_LEVEL:-info}
-      MONOSHIFT_EXTERNAL_LLM_ENABLED: ${MONOSHIFT_EXTERNAL_LLM_ENABLED:-false}
-      MONOSHIFT_REMOTE_GPU_API_KEY: ${MONOSHIFT_REMOTE_GPU_API_KEY:-}
-      MONOSHIFT_LOCAL_CPU_API_KEY: ${MONOSHIFT_LOCAL_CPU_API_KEY:-}
-      MONOSHIFT_LLM_REMOTE_GPU_URL: ${MONOSHIFT_LLM_REMOTE_GPU_URL:-}
-      MONOSHIFT_LLM_LOCAL_CPU_URL: ${MONOSHIFT_LLM_LOCAL_CPU_URL:-}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-codewright}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-codewright}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EXTERNAL_LLM_ENABLED: ${EXTERNAL_LLM_ENABLED:-false}
+      REMOTE_GPU_API_KEY: ${REMOTE_GPU_API_KEY:-}
+      LOCAL_CPU_API_KEY: ${LOCAL_CPU_API_KEY:-}
+      LLM_REMOTE_GPU_URL: ${LLM_REMOTE_GPU_URL:-}
+      LLM_LOCAL_CPU_URL: ${LLM_LOCAL_CPU_URL:-}
       # Optional Langfuse (profile `langfuse`): traces go there too when all three are set.
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
     ports:
-      - "127.0.0.1:${MONOSHIFT_API_PORT:-8000}:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - ../config:/app/config:ro
       - workspaces:/app/workspaces
@@ -66,14 +69,14 @@ services:
       context: ..
       dockerfile: apps/web/Dockerfile
       args:
-        MONOSHIFT_API_URL: http://api:8000
-    image: monoshift-web:dev
+        API_URL: http://api:8000
+    image: codewright-web:dev
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${MONOSHIFT_WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 5s
@@ -92,10 +95,10 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        socat TCP-LISTEN:${MONOSHIFT_HOST_LLM_PORT:-8080},bind=${MONOSHIFT_DOCKER_BRIDGE_IP:-172.17.0.1},reuseaddr,fork
-        TCP:127.0.0.1:${MONOSHIFT_HOST_LLM_PORT:-8080} &
-        exec socat TCP-LISTEN:${MONOSHIFT_HOST_EMBED_PORT:-8081},bind=${MONOSHIFT_DOCKER_BRIDGE_IP:-172.17.0.1},reuseaddr,fork
-        TCP:127.0.0.1:${MONOSHIFT_HOST_EMBED_PORT:-8081}
+        socat TCP-LISTEN:${HOST_LLM_PORT:-8080},bind=${DOCKER_BRIDGE_IP:-172.17.0.1},reuseaddr,fork
+        TCP:127.0.0.1:${HOST_LLM_PORT:-8080} &
+        exec socat TCP-LISTEN:${HOST_EMBED_PORT:-8081},bind=${DOCKER_BRIDGE_IP:-172.17.0.1},reuseaddr,fork
+        TCP:127.0.0.1:${HOST_EMBED_PORT:-8081}
 
   llamacpp-cpu:
     profiles: ["llamacpp-cpu"]
@@ -103,10 +106,10 @@ services:
     restart: unless-stopped
     # The GGUF is mounted read-only from the host, never copied (models are several GB).
     volumes:
-      - ${MONOSHIFT_MODELS_DIR:-../models}:/models:ro
+      - ${MODELS_DIR:-../models}:/models:ro
     command:
       - --model
-      - /models/${MONOSHIFT_GGUF_FILE:-Qwen3.5-9B-Q4_K_M.gguf}
+      - /models/${GGUF_FILE:-Qwen3.5-9B-Q4_K_M.gguf}
       - --host
       - 0.0.0.0
       - --port
@@ -118,7 +121,7 @@ services:
       - --no-mmproj    # text only: skip the vision projector
       - --jinja
     ports:
-      - "127.0.0.1:${MONOSHIFT_LLAMACPP_PORT:-8090}:8080"
+      - "127.0.0.1:${LLAMACPP_PORT:-8090}:8080"
 
   ollama-cpu:
     profiles: ["ollama-cpu"]
@@ -128,11 +131,33 @@ services:
       OLLAMA_NUM_PARALLEL: "1"     # max_parallel_llm_jobs = 1 (README Section 8.1)
       OLLAMA_CONTEXT_LENGTH: "8192"
     ports:
-      - "127.0.0.1:${MONOSHIFT_OLLAMA_PORT:-11435}:11434"
+      - "127.0.0.1:${OLLAMA_PORT:-11435}:11434"
     volumes:
       - ollama:/root/.ollama
     # The model is not pulled automatically (about 6.6 GB). After start:
     #   docker compose exec ollama-cpu ollama pull qwen3.5:9b-q4_K_M
+
+  # `make check`: every lint/type/test check, in Docker. Run with `docker compose --profile checks run --rm <name>`.
+  api-checks:
+    profiles: ["checks"]
+    build:
+      context: ..
+      dockerfile: deploy/checks/api.Dockerfile
+    image: codewright-api-checks:dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # A throwaway database next to the app's own; it is created if missing, then migrated down/up and wiped.
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-codewright}:${POSTGRES_PASSWORD}@postgres:5432/codewright_test
+
+  web-checks:
+    profiles: ["checks"]
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      target: check
+    image: codewright-web-checks:dev
 
 volumes:
   pgdata:

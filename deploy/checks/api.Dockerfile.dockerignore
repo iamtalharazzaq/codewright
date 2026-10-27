@@ -1,0 +1,13 @@
+# Same as the root .dockerignore, but the tests are included.
+**/.git
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+.env
+workspaces
+models
+apps/web
