@@ -14,6 +14,7 @@ import contextlib
 import logging
 import uuid
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
@@ -188,6 +189,8 @@ class RunManager:
         self._graphs: dict[str, CompiledStateGraph[Any, Any, Any, Any]] = {}
         self._llm: EffectiveLLM | None = None
         self.langfuse: Any | None = langfuse_client()
+        # Called after every status change (the chat posts run updates and the Done card).
+        self.status_listeners: list[Callable[[uuid.UUID, str], Awaitable[None]]] = []
 
     # ── lifecycle ────────────────────────────────────────────────────────────
     async def start(self) -> None:
@@ -248,6 +251,11 @@ class RunManager:
             await session.execute(update(Run).where(Run.id == run_id).values(status=status, **values))
             await session.commit()
         await self.record_event(run_id, "run_status", data={"status": status, **_jsonable(values)})
+        for listener in self.status_listeners:
+            try:
+                await listener(run_id, status)
+            except Exception:
+                log.exception("run status listener failed for %s", run_id)
 
     # ── commands ─────────────────────────────────────────────────────────────
     async def create_run(
@@ -258,6 +266,7 @@ class RunManager:
         project_name: str | None = None,
         llm_profile: ProfileName | None = None,
         tier: int | None = None,
+        conversation_id: uuid.UUID | None = None,
     ) -> Run:
         """Start a playbook. `tier` may raise the playbook's default tier (more approvals), never lower it."""
         pb: Playbook = get_playbook(playbook)
@@ -279,6 +288,7 @@ class RunManager:
                 status="created",
                 llm_profile=llm_profile or self.llm.active_profile,
                 inputs=validated,
+                conversation_id=conversation_id,
             )
             session.add(run)
             await session.commit()

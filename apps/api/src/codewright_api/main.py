@@ -9,8 +9,9 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 
 from codewright_api import __version__
+from codewright_api.chat import ChatService
 from codewright_api.db import get_engine, get_sessionmaker
-from codewright_api.routes import health, playbooks, projects, runs, settings, traces
+from codewright_api.routes import conversations, health, playbooks, projects, runs, settings, traces
 from codewright_api.runs import RunManager
 from codewright_api.settings import get_settings
 
@@ -24,11 +25,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
         app.state.run_manager = manager
+        app.state.chat = ChatService(manager)
     except Exception:
         # Keep serving /api/health so the problem is visible; /api/health/ready reports it.
         log.exception("run manager failed to start")
         app.state.run_manager = None
+        app.state.chat = None
     yield
+    if app.state.chat is not None:
+        await app.state.chat.stop_all()
     if app.state.run_manager is not None:
         await manager.stop()
     await get_engine().dispose()
@@ -50,6 +55,7 @@ def create_app() -> FastAPI:
     api.include_router(playbooks.router)
     api.include_router(runs.router)
     api.include_router(traces.router)
+    api.include_router(conversations.router)
     app.include_router(api)
     return app
 

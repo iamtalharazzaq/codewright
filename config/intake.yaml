@@ -1,0 +1,97 @@
+# Missing-info check (CODEWRIGHT.md Section 3.4, EXAMPLES.md). For each intent: what the Clarifier must know before
+# work starts, and whether the request makes something new (then the language is always asked, C18).
+# Read by agent/chat/intake.py. `languages` lists the options offered for new work, recommended first per kind.
+
+languages:
+  supported: [Python, TypeScript, JavaScript, Go, C++]   # C12: exactly these five
+  # Closest supported language for a declined one (CODEWRIGHT.md Section 4).
+  suggest:
+    java: [Go, TypeScript]
+    kotlin: [Go, TypeScript]
+    scala: [Go, TypeScript]
+    "c#": [TypeScript, Go]
+    csharp: [TypeScript, Go]
+    ".net": [TypeScript, Go]
+    php: [TypeScript, Python]
+    ruby: [Python, TypeScript]
+    rust: [C++, Go]
+    swift: [TypeScript, Go]
+    dart: [TypeScript, JavaScript]
+    perl: [Python, Go]
+    elixir: [Go, Python]
+    haskell: [Python, Go]
+    "objective-c": [C++, TypeScript]
+    "visual basic": [TypeScript, Python]
+
+intents:
+  write_code:
+    new: true
+    required:
+      - language (Python, Go, C++, TypeScript or JavaScript)
+      - input/output format or function signature
+      - edge cases to handle
+      - whether to explain the approach
+    deliver: code in the chat, tests and their results, a short explanation with complexity
+  new_app:
+    new: true
+    required:
+      - language or stack (browser apps TypeScript/JavaScript + React; terminal apps Python, Go or C++)
+      - purpose and main users
+      - platform (web, terminal, API)
+      - core features for the first version
+      - style or look
+    deliver: a working app in Preview, tests, GUIDE.md and a Done card
+  add_feature:
+    required: [what the feature does, who uses it, where it appears]
+    deliver: the feature with tests, a diff to review and a guide
+  fix_bug:
+    required: [what happens, what should happen, steps to reproduce or logs]
+    deliver: the fix, a test that reproduces the bug and a diff to review
+  write_tests:
+    required: [which code to test, test framework preference]
+    deliver: tests, their results and coverage
+  write_docs:
+    required: [which part to document, audience (users or developers)]
+    deliver: Markdown docs
+  security_review:
+    required: [scope (whole project or a part), whether to apply fixes]
+    deliver: findings by severity, and fixes if asked
+  refactor:
+    required: [which code, the goal (readability, structure, duplication)]
+    deliver: a refactor plan, the diff and proof that behavior is unchanged
+  improve_performance:
+    required: [what is slow, how it is measured or a target]
+    deliver: before/after measurements and the diff
+  upgrade:
+    required: [what to upgrade, target version]
+    deliver: the upgrade diff, migration notes and test results
+  database_change:
+    required: [the change (index, schema, engine move), data that must be kept]
+    deliver: a migration with a rollback plan
+  frontend_modernize:
+    required: [target framework or look, pages in scope]
+    deliver: the new frontend with screenshots and a guide
+  devops_deploy:
+    required: [what to set up (Docker, CI/CD, deploy target)]
+    deliver: Dockerfiles or pipelines and a guide
+  translate_language:
+    required: [source code to translate, target language (one of the five)]
+    deliver: the translated code with tests proving the same behavior
+  change_architecture:
+    required: [target architecture (modules, modular monolith, microservices, merge, serverless, event-driven), project]
+    deliver: an As-Is/To-Be design, then the change in steps you approve
+  review_code:
+    required: [which code to review]
+    deliver: findings by severity with suggested fixes
+  explain_code:
+    required: [which code or flow]
+    deliver: an explanation with a diagram
+  analyze_audit:
+    required: [project and scope]
+    deliver: an audit report
+  project_manage:
+    required: []
+    deliver: the requested project action
+  general_help:
+    required: []
+    deliver: an answer

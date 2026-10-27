@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Annotated, Any, ClassVar
 
 from fastapi import Depends
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -53,7 +53,57 @@ class Run(Base):
     # The open interrupt (gate card or "model server unavailable" prompt), if the run is waiting.
     pending: Mapped[dict[str, Any] | None] = mapped_column()
     error: Mapped[str | None] = mapped_column(Text)
+    # The chat that started the run, if any: its run card and Done card live there.
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Conversation(Base):
+    """A chat (CODEWRIGHT.md Section 2.2). Messages form a tree; `head_id` is the leaf of the branch shown."""
+
+    __tablename__ = "conversations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"))
+    title: Mapped[str] = mapped_column(String(200))
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False)
+    head_id: Mapped[uuid.UUID | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Message(Base):
+    """One chat message. Editing a message or regenerating a reply adds a sibling (same parent): a new branch."""
+
+    __tablename__ = "messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("messages.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(10))  # user | assistant
+    kind: Mapped[str] = mapped_column(String(20), default="text")  # text | questions | confirm | run | done | ...
+    content: Mapped[str] = mapped_column(Text, default="")
+    data: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="complete")  # complete | streaming | stopped | error
+    run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("runs.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MemoryItem(Base):
+    """Project memory or user preferences (project_id None), e.g. answers from the missing-info check."""
+
+    __tablename__ = "memory_items"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    key: Mapped[str] = mapped_column(String(200))
+    value: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(40), default="chat")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
