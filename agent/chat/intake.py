@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -26,11 +26,14 @@ class Question(BaseModel):
     options: list[str] = Field(default_factory=list, max_length=6, description="Choices, if it's a pick-one.")
 
 
+Short = Annotated[str, Field(max_length=70)]
+
+
 class ConfirmCard(BaseModel):
-    what: str = Field(description="One sentence: what I'll make or do.")
-    stack: str = Field(description="Language/stack, e.g. 'Python 3.12 + pytest' or 'TypeScript + React'.")
-    features: list[str] = Field(min_length=1, max_length=6, description="Main features or steps, 2-8 words each.")
-    deliver: str = Field(description="What the user gets at the end.")
+    what: str = Field(max_length=160, description="One sentence: what I'll make or do.")
+    stack: str = Field(max_length=50, description="Only language and tools, e.g. 'Python 3.12 + pytest'.")
+    features: list[Short] = Field(min_length=1, max_length=5, description="Main features or steps, 2-8 words each.")
+    deliver: str = Field(max_length=120, description="What the user gets at the end, in a few words.")
 
 
 class IntakeOutput(BaseModel):

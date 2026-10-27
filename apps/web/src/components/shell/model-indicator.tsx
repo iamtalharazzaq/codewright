@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { LLM_CHANGED } from "@/components/chat/model-picker";
 import { checkHealth, getSettings, PROFILE_LABEL, type HealthView, type ProfileName } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,14 @@ const DOT: Record<HealthView["status"], string> = {
 export function ModelIndicator() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setVersion((v) => v + 1);
+    window.addEventListener(LLM_CHANGED, bump);
+    return () => window.removeEventListener(LLM_CHANGED, bump);
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     (async () => {
@@ -36,7 +45,7 @@ export function ModelIndicator() {
       if (!controller.signal.aborted) setState({ kind: "error" });
     });
     return () => controller.abort();
-  }, []);
+  }, [version]);
 
   const status = state.kind === "ready" ? (state.health?.status ?? "loading") : null;
   const label =

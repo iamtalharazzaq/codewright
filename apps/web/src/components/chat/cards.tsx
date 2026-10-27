@@ -1,0 +1,203 @@
+"use client";
+
+import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { Markdown } from "@/components/chat/markdown";
+import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { answerConfirm, answerRun, getRun, type ChatMessage, type RunDetail } from "@/lib/api";
+
+const CARD = "my-1 flex flex-col gap-3 rounded-xl border bg-card p-4";
+
+/** Questions from the missing-info check, with a one-click "use the defaults". */
+export function QuestionsCard({
+  message,
+  canAnswer,
+  onSend,
+}: {
+  message: ChatMessage;
+  canAnswer: boolean;
+  onSend: (text: string) => void;
+}) {
+  return (
+    <div className={CARD}>
+      <Markdown>{message.content}</Markdown>
+      {canAnswer && (
+        <div>
+          <Button size="sm" variant="outline" onClick={() => onSend("Defaults are fine.")}>
+            Use the defaults
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Here's what I'll make" with [Start] [Change something] (Section 3.4). Nothing is made before Start. */
+export function ConfirmCard({ message, onChange }: { message: ChatMessage; onChange: () => void }) {
+  const card = message.data.card;
+  const state = message.data.state ?? "open";
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!card) return <Markdown>{message.content}</Markdown>;
+
+  async function choose(choice: "start" | "change") {
+    setBusy(true);
+    setError(null);
+    try {
+      await answerConfirm(message.conversation_id, message.id, choice);
+      if (choice === "change") onChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={CARD}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Here&apos;s what I&apos;ll make</p>
+        {message.data.label && <Badge variant="secondary">{message.data.label}</Badge>}
+      </div>
+      <p>{card.what}</p>
+      <dl className="grid gap-2 text-sm sm:grid-cols-[6rem_1fr]">
+        <dt className="text-muted-foreground">Stack</dt>
+        <dd>{card.stack}</dd>
+        <dt className="text-muted-foreground">Features</dt>
+        <dd>
+          <ul className="list-disc pl-4">
+            {card.features.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </dd>
+        <dt className="text-muted-foreground">You get</dt>
+        <dd>{card.deliver}</dd>
+      </dl>
+      {state === "open" ? (
+        <div className="flex gap-2">
+          <Button size="sm" disabled={busy} onClick={() => void choose("start")}>
+            {busy && <Loader2 className="animate-spin" aria-hidden="true" />}
+            Start
+          </Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => void choose("change")}>
+            Change something
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {state === "started" ? "Started." : state === "changing" ? "Tell me what to change." : "Changed below."}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A run started from the chat: status, current step and the open approval. The run page has the details. */
+export function RunCard({ runId, tick }: { runId: string; tick: number }) {
+  const [run, setRun] = useState<RunDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void getRun(runId).then(setRun);
+    // Poll while it runs: step changes don't reach the chat's event stream, only status changes do.
+    const timer = setInterval(() => void getRun(runId).then(setRun), 3000);
+    return () => clearInterval(timer);
+  }, [runId, tick]);
+
+  if (!run) return <div className={CARD}>Loading run…</div>;
+  const gate = run.status === "waiting" && run.pending?.kind === "gate" ? run.pending : null;
+  const done = run.plan.filter((p) => p.status === "done").length;
+
+  async function decide(decision: "approve" | "reject") {
+    setBusy(true);
+    try {
+      await answerRun(runId, { decision });
+      setRun(await getRun(runId));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={CARD}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Working on it</p>
+        <StatusBadge status={run.status} />
+      </div>
+      {run.plan.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {done} of {run.plan.length} steps done
+          {run.current_step
+            ? ` · now: ${run.plan.find((p) => p.id === run.current_step)?.title ?? run.current_step}`
+            : ""}
+        </p>
+      )}
+      {gate && (
+        <div className="flex flex-col gap-2 rounded-lg bg-muted/50 p-3">
+          <p className="text-sm font-medium">{gate.title}</p>
+          <p className="text-sm text-muted-foreground">{gate.question}</p>
+          <div className="flex gap-2">
+            <Button size="sm" disabled={busy} onClick={() => void decide("approve")}>
+              Approve
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void decide("reject")}>
+              Reject
+            </Button>
+          </div>
+        </div>
+      )}
+      {run.status === "waiting" && !gate && <p className="text-sm">The run needs your answer on the run page.</p>}
+      <Link href={`/runs/${run.id}`} className="flex items-center gap-1 text-sm text-primary hover:underline">
+        Open the run <ExternalLink className="size-3.5" aria-hidden="true" />
+      </Link>
+    </div>
+  );
+}
+
+/** Done card (Section 3.5): what was done, what changed, the guide and next steps. */
+export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (text: string) => void }) {
+  const { summary, changed = [], guide, suggestions = [] } = message.data;
+  return (
+    <div className={CARD}>
+      <p className="flex items-center gap-2 font-medium">
+        <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
+        {summary ?? message.content}
+      </p>
+      {changed.length > 0 && (
+        <div className="text-sm">
+          <p className="text-muted-foreground">What changed</p>
+          <ul className="list-disc pl-5 font-mono text-xs">
+            {changed.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {guide && (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Guide</summary>
+          <Markdown>{guide}</Markdown>
+        </details>
+      )}
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {suggestions.map((s) => (
+            <Button key={s} size="sm" variant="outline" className="rounded-full font-normal" onClick={() => onSend(s)}>
+              {s}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

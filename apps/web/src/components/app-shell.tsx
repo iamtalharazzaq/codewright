@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
 
 import { ModelIndicator } from "@/components/shell/model-indicator";
+import { SidebarChats } from "@/components/shell/sidebar-chats";
 import { SidebarProjects } from "@/components/shell/sidebar-projects";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -132,7 +133,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <SectionHeading>
               <span id="sidebar-chats">Chats</span>
             </SectionHeading>
-            <p className="px-2 text-xs text-muted-foreground">Your conversations will appear here.</p>
+            <SidebarChats onNavigate={close} />
           </section>
 
           <section aria-labelledby="sidebar-dev" className="mt-auto flex flex-col">

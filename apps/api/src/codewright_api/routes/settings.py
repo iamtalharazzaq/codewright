@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from agent.llm.budgets import limits_for_tier
 from agent.llm.client import HealthReport
 from agent.llm.config import PROFILE_NAMES, ProfileName, ProfileOverride
 from codewright_api.db import SessionDep
@@ -135,3 +136,9 @@ async def llm_health(manager: ManagerDep, profile: ProfileName | None = None) ->
         raise HTTPException(404, f"Unknown profile {unknown[0]}")
     reports = await asyncio.gather(*(llm.client(n).health() for n in names))
     return [_health_view(r) for r in reports]
+
+
+@router.get("/settings/budgets")
+async def budgets() -> dict[int, Any]:
+    """Run budgets per tier from `config/budgets.yaml` (read-only here; edit the file to change them)."""
+    return {tier: limits_for_tier(tier) for tier in range(4)}

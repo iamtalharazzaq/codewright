@@ -200,6 +200,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
     }
     throw new ApiError(detail, res.status);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -232,3 +233,95 @@ export const listTraces = (runId: string, signal?: AbortSignal) =>
   request<Trace[]>("GET", `/traces?run_id=${encodeURIComponent(runId)}`, undefined, signal);
 
 export const PROFILE_LABEL: Record<ProfileName, string> = { remote_gpu: "Remote GPU", local_cpu: "Local CPU" };
+
+// ── Chat (CODEWRIGHT.md Sections 2.2 and 3) ─────────────────────────────────
+
+export interface Conversation {
+  id: string;
+  title: string;
+  pinned: boolean;
+  project_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Question {
+  question: string;
+  default: string;
+  options: string[];
+}
+
+export interface ConfirmCardData {
+  what: string;
+  stack: string;
+  features: string[];
+  deliver: string;
+}
+
+export type MessageKind = "text" | "questions" | "confirm" | "run" | "done" | "decline" | "error";
+
+export interface ChatMessage {
+  id: string;
+  conversation_id: string;
+  parent_id: string | null;
+  role: "user" | "assistant";
+  kind: MessageKind;
+  content: string;
+  data: {
+    intent?: string | null;
+    label?: string;
+    questions?: Question[];
+    card?: ConfirmCardData;
+    state?: "open" | "started" | "changing" | "changed";
+    summary?: string;
+    changed?: string[];
+    guide?: string | null;
+    suggestions?: string[];
+    [key: string]: unknown;
+  };
+  status: "complete" | "streaming" | "stopped" | "error";
+  run_id: string | null;
+  created_at: string;
+  siblings: string[];
+}
+
+export interface ConversationDetail {
+  conversation: Conversation;
+  messages: ChatMessage[];
+  busy: boolean;
+}
+
+export interface SendResult {
+  conversation: Conversation;
+  user: ChatMessage;
+  reply: ChatMessage;
+}
+
+export interface SlashCommand {
+  command: string;
+  intent: string;
+  description: string;
+}
+
+export const listConversations = (q?: string, signal?: AbortSignal) =>
+  request<Conversation[]>("GET", q ? `/conversations?q=${encodeURIComponent(q)}` : "/conversations", undefined, signal);
+export const getConversation = (id: string, signal?: AbortSignal) =>
+  request<ConversationDetail>("GET", `/conversations/${id}`, undefined, signal);
+export const startConversation = (content: string) => request<SendResult>("POST", "/conversations", { content });
+export const sendMessage = (id: string, content: string, editOf?: string) =>
+  request<SendResult>("POST", `/conversations/${id}/messages`, { content, edit_of: editOf });
+export const patchConversation = (id: string, body: { title?: string; pinned?: boolean }) =>
+  request<Conversation>("PATCH", `/conversations/${id}`, body);
+export const deleteConversation = (id: string) => request<void>("DELETE", `/conversations/${id}`);
+export const stopConversation = (id: string) => request<void>("POST", `/conversations/${id}/stop`);
+export const regenerateMessage = (id: string, messageId: string) =>
+  request<ChatMessage>("POST", `/conversations/${id}/messages/${messageId}/regenerate`);
+export const switchBranch = (id: string, messageId: string) =>
+  request<void>("POST", `/conversations/${id}/messages/${messageId}/switch`);
+export const answerConfirm = (id: string, messageId: string, choice: "start" | "change") =>
+  request<ChatMessage | null>("POST", `/conversations/${id}/messages/${messageId}/confirm`, { choice });
+export const listCommands = (signal?: AbortSignal) => request<SlashCommand[]>("GET", "/commands", undefined, signal);
+
+/** Tells the sidebar's chat list to reload (a chat was created, renamed, pinned or deleted). */
+export const CONVERSATIONS_CHANGED = "codewright:conversations-changed";
+export const notifyConversationsChanged = () => window.dispatchEvent(new Event(CONVERSATIONS_CHANGED));

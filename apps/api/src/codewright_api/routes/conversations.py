@@ -203,6 +203,8 @@ async def conversation_events(conversation_id: uuid.UUID, request: Request) -> A
     key = chat.key(conversation_id)
     queue = chat.manager.bus.subscribe(key)
     try:
+        # Sent at once: the client knows it is connected and loads the thread (it subscribed first, so nothing is lost).
+        yield ServerSentEvent(event="ready", data={})
         while not await request.is_disconnected():
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=5)

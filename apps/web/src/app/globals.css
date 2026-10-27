@@ -141,3 +141,92 @@
     @apply font-sans;
   }
 }
+
+/* Chat replies (components/chat/markdown.tsx): readable Markdown without a typography plugin. */
+@layer components {
+  .prose-chat {
+    @apply text-[15px] leading-7 break-words;
+  }
+  .prose-chat > :first-child {
+    @apply mt-0;
+  }
+  .prose-chat p,
+  .prose-chat ul,
+  .prose-chat ol,
+  .prose-chat table,
+  .prose-chat blockquote {
+    @apply my-3;
+  }
+  .prose-chat h1,
+  .prose-chat h2,
+  .prose-chat h3 {
+    @apply mt-5 mb-2 font-heading font-semibold;
+  }
+  .prose-chat h1 {
+    @apply text-xl;
+  }
+  .prose-chat h2 {
+    @apply text-lg;
+  }
+  .prose-chat h3 {
+    @apply text-base;
+  }
+  .prose-chat ul {
+    @apply list-disc pl-6;
+  }
+  .prose-chat ol {
+    @apply list-decimal pl-6;
+  }
+  .prose-chat li {
+    @apply my-1;
+  }
+  .prose-chat blockquote {
+    @apply border-l-2 pl-4 text-muted-foreground;
+  }
+  .prose-chat :not(pre) > code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+  }
+  .prose-chat table {
+    @apply block overflow-x-auto text-sm;
+  }
+  .prose-chat th,
+  .prose-chat td {
+    @apply border px-3 py-1.5 text-left;
+  }
+  .prose-chat th {
+    @apply bg-muted font-medium;
+  }
+  .prose-chat hr {
+    @apply my-4;
+  }
+
+  /* highlight.js token colors (rehype-highlight), light and dark. */
+  .hljs-comment,
+  .hljs-quote {
+    @apply text-muted-foreground italic;
+  }
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-built_in,
+  .hljs-meta {
+    @apply text-violet-700 dark:text-violet-300;
+  }
+  .hljs-string,
+  .hljs-attr,
+  .hljs-regexp {
+    @apply text-emerald-700 dark:text-emerald-300;
+  }
+  .hljs-number,
+  .hljs-literal {
+    @apply text-amber-700 dark:text-amber-300;
+  }
+  .hljs-title,
+  .hljs-function,
+  .hljs-section {
+    @apply text-sky-700 dark:text-sky-300;
+  }
+  .hljs-type,
+  .hljs-class {
+    @apply text-rose-700 dark:text-rose-300;
+  }
+}

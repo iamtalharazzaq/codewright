@@ -139,6 +139,8 @@ export function SettingsView() {
         />
       ))}
 
+      <BudgetsCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Privacy</CardTitle>
@@ -230,6 +232,51 @@ function ProfileCard({
             ))}
           </ul>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BudgetsCard() {
+  const [budgets, setBudgets] = useState<Record<string, Record<string, number>> | null>(null);
+  useEffect(() => {
+    fetch("/api/settings/budgets")
+      .then((r) => r.json() as Promise<Record<string, Record<string, number>>>)
+      .then(setBudgets)
+      .catch(() => setBudgets(null));
+  }, []);
+  if (!budgets) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Budgets</CardTitle>
+        <CardDescription>
+          Limits per run tier. A run that reaches one pauses and asks. Edit config/budgets.yaml.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-left text-muted-foreground">
+            <tr>
+              <th className="py-1 font-normal">Tier</th>
+              <th className="py-1 font-normal">Tokens per step</th>
+              <th className="py-1 font-normal">LLM calls per step</th>
+              <th className="py-1 font-normal">Tokens per run</th>
+              <th className="py-1 font-normal">Hours per run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(budgets).map(([tier, b]) => (
+              <tr key={tier} className="border-t">
+                <td className="py-1">{tier}</td>
+                <td className="py-1">{b.step_max_tokens.toLocaleString()}</td>
+                <td className="py-1">{b.step_max_llm_calls}</td>
+                <td className="py-1">{b.run_max_tokens.toLocaleString()}</td>
+                <td className="py-1">{b.run_max_hours}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   );

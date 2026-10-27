@@ -8,6 +8,9 @@ const apiUrl = process.env.API_URL ?? "http://127.0.0.1:8000";
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // Gzip would buffer the proxied Server-Sent Events (chat replies, run timelines) until the stream ends.
+  // Codewright is self-hosted, so uncompressed responses cost little.
+  compress: false,
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

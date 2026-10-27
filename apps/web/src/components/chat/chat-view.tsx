@@ -1,15 +1,26 @@
 "use client";
 
 import { PanelRight } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { Composer } from "@/components/chat/composer";
+import { MessageView, type MessageActions } from "@/components/chat/message";
+import { ModelPicker } from "@/components/chat/model-picker";
 import { SidePanel } from "@/components/chat/side-panel";
+import { useConversation } from "@/components/chat/use-conversation";
 import { Button } from "@/components/ui/button";
+import {
+  notifyConversationsChanged,
+  regenerateMessage,
+  sendMessage,
+  startConversation,
+  stopConversation,
+  switchBranch,
+} from "@/lib/api";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
-// Examples from README Section 1.2: one per kind of work, so the empty chat shows the range.
 // Requests from EXAMPLES.md: a question, a snippet, a small app and a review.
 const SUGGESTIONS = [
   "What's a saga pattern?",
@@ -21,24 +32,67 @@ const SUGGESTIONS = [
 type PanelMode = "auto" | "open" | "closed";
 
 /**
- * The main chat screen (README Section 2.1): conversation in the middle, artifacts panel on the right.
- * Phase 0 is the layout only; streaming replies, conversations and approval cards arrive in Phase 2.
+ * The main chat screen (CODEWRIGHT.md Section 2.1): conversation in the middle, artifacts panel on the right.
+ * Without `conversationId` it is a new chat; the first message creates the conversation and moves to its URL.
  */
-export function ChatView() {
+export function ChatView({ conversationId = null }: { conversationId?: string | null }) {
+  const router = useRouter();
   const [draft, setDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const { detail, error: loadError, reload, runTick } = useConversation(conversationId);
   // "auto": shown beside the chat on wide screens, hidden on small ones. A toggle makes it explicit.
   const [panel, setPanel] = useState<PanelMode>("auto");
   const wide = useMediaQuery("(min-width: 64rem)");
   const panelVisible = panel === "open" || (panel === "auto" && wide);
+  const bottom = useRef<HTMLDivElement>(null);
+  const messages = detail?.messages ?? [];
+  const busy = detail?.busy ?? false;
+  const lastText = messages.at(-1)?.content.length ?? 0;
+
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: "end" });
+  }, [messages.length, lastText]);
+
+  async function act(fn: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await fn();
+      await reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  function send(text: string) {
+    setDraft("");
+    if (!conversationId) {
+      void act(async () => {
+        const res = await startConversation(text);
+        notifyConversationsChanged();
+        router.push(`/c/${res.conversation.id}`);
+      });
+      return;
+    }
+    void act(() => sendMessage(conversationId, text));
+  }
+
+  const actions: MessageActions = {
+    onSend: send,
+    onEdit: (id, text) => conversationId && void act(() => sendMessage(conversationId, text, id)),
+    onRegenerate: (id) => conversationId && void act(() => regenerateMessage(conversationId, id)),
+    onSwitch: (id) => conversationId && void act(() => switchBranch(conversationId, id)),
+    onChangeRequested: () => document.querySelector<HTMLTextAreaElement>("#chat-composer textarea")?.focus(),
+  };
 
   return (
     <div className="flex h-full min-h-0">
       <section aria-label="Chat" className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-2 border-b px-4 py-2.5">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-medium">New chat</h1>
+            <h1 className="truncate text-sm font-medium">{detail?.conversation.title ?? "New chat"}</h1>
             <p className="truncate text-xs text-muted-foreground">No project · general software questions</p>
           </div>
+          <ModelPicker />
           <Button
             variant="ghost"
             size="icon"
@@ -52,32 +106,64 @@ export function ChatView() {
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-6 px-4 py-10 text-center">
-            <h2 className="font-heading text-3xl font-semibold tracking-tight text-balance">
-              What are we building today?
-            </h2>
-            <p className="max-w-lg text-sm text-pretty text-muted-foreground">
-              Ask anything about software, or connect a project and let the team explain, fix, improve or extend it.
-              Nothing changes without your approval.
-            </p>
-            <ul aria-label="Suggestions" className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <li key={s}>
-                  <Button variant="outline" size="sm" className="rounded-full font-normal" onClick={() => setDraft(s)}>
-                    {s}
-                  </Button>
-                </li>
+          {conversationId ? (
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6" aria-live="polite">
+              {loadError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {loadError}
+                </p>
+              )}
+              {messages.map((m, i) => (
+                <MessageView
+                  key={m.id}
+                  message={m}
+                  isLast={i === messages.length - 1}
+                  busy={busy}
+                  runTick={runTick}
+                  actions={actions}
+                />
               ))}
-            </ul>
-          </div>
+              <div ref={bottom} />
+            </div>
+          ) : (
+            <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-6 px-4 py-10 text-center">
+              <h2 className="font-heading text-3xl font-semibold tracking-tight text-balance">
+                What are we building today?
+              </h2>
+              <p className="max-w-lg text-sm text-pretty text-muted-foreground">
+                Ask anything about software, or connect a project and let the team explain, fix, improve or extend it.
+                Nothing changes without your approval.
+              </p>
+              <ul aria-label="Suggestions" className="flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS.map((s) => (
+                  <li key={s}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-full font-normal"
+                      onClick={() => setDraft(s)}
+                    >
+                      {s}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
-        <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-4">
+        <div id="chat-composer" className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-4">
+          {error && (
+            <p role="alert" className="pb-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
           <Composer
             value={draft}
             onChange={setDraft}
-            onSend={() => {}}
-            disabledReason="Chat replies arrive in Phase 2. The layout is ready."
+            onSend={send}
+            busy={busy}
+            onStop={conversationId ? () => void act(() => stopConversation(conversationId)) : undefined}
           />
         </div>
       </section>
