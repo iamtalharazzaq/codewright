@@ -29,15 +29,17 @@ class MicroservicesInputs(BaseModel):
         title="Target architecture",
         default="microservices",
         description="Clean modules, modular monolith, microservices, merge services, serverless or event-driven.",
+        json_schema_extra={"x-available": list(BUILT_TARGETS)},
     )
     mode: Literal["conversion", "audit"] = Field(
-        title="Mode", default="audit", description="conversion: all 10 steps; audit: steps 1-5, report, delivery."
+        title="Mode", default="audit", description="Audit: analyse and report only. Conversion: all 10 steps."
     )
     services: list[str] = Field(title="Services", default_factory=lambda: ["notification", "payment"], max_length=10)
-    stub_delay_s: float = Field(
-        default=2.0, ge=0, le=60, title="Seconds per stub step", description="How long each stub step takes."
+    # Test knob: how long each simulated step takes. Hidden in the UI (x-advanced).
+    stub_delay_s: float = Field(default=2.0, ge=0, le=60, json_schema_extra={"x-advanced": True})
+    use_llm: bool = Field(
+        default=False, title="Use the model", description="Make one real model call at intake; the rest is simulated."
     )
-    use_llm: bool = Field(default=False, title="Use the model", description="Make one real LLM call at intake.")
 
     @model_validator(mode="after")
     def _target_is_built(self) -> MicroservicesInputs:

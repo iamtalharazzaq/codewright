@@ -19,7 +19,15 @@ describe("ChatView", () => {
   it("has a side panel with the seven artifact tabs that can be hidden and shown", () => {
     render(<ChatView />);
     const tabs = within(screen.getByRole("tablist", { name: "Artifacts" })).getAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual(["Plan", "Diff", "Graph", "Diagram", "Tests", "Preview", "Report"]);
+    expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Plan",
+      "Diff",
+      "Graph",
+      "Diagram",
+      "Tests",
+      "Preview",
+      "Report",
+    ]);
     expect(PANEL_TABS).toHaveLength(7);
 
     fireEvent.click(screen.getByRole("tab", { name: "Graph" }));

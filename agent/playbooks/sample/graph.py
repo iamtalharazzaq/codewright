@@ -43,11 +43,12 @@ class SampleInputs(BaseModel):
         max_length=2000,
     )
     use_llm: bool = Field(
-        default=True, title="Use the model", description="Use the model; off runs stub steps (no model server needed)."
+        default=True,
+        title="Use the model",
+        description="Turn off for a dry run: steps are simulated and no model server is needed.",
     )
-    stub_delay_s: float = Field(
-        default=1.0, ge=0, le=60, title="Seconds per stub step", description="How long each stub step takes."
-    )
+    # Test knob: how long each simulated step takes when the model is off. Hidden in the UI (x-advanced).
+    stub_delay_s: float = Field(default=1.0, ge=0, le=60, json_schema_extra={"x-advanced": True})
 
 
 class Outline(BaseModel):

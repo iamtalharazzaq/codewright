@@ -49,6 +49,20 @@ const ROLE_LABEL: Record<string, string> = {
 
 type ItemState = "done" | "running" | "waiting" | "todo";
 
+function unknownPlaybook(name: string): Playbook {
+  return {
+    name,
+    title: name,
+    description: "This playbook is no longer available; the run's history is shown as recorded.",
+    intent: null,
+    lead_role: "project_manager",
+    tier: 0,
+    steps: [],
+    gates: [],
+    inputs_schema: {},
+  };
+}
+
 export function RunView({ runId }: { runId: string }) {
   const [run, setRun] = useState<RunDetail | null>(null);
   const [playbook, setPlaybook] = useState<Playbook | null>(null);
@@ -64,9 +78,10 @@ export function RunView({ runId }: { runId: string }) {
   const playbookName = run?.playbook;
   useEffect(() => {
     if (!playbookName) return;
+    // A run whose playbook was removed or renamed still opens, with a plain step list.
     getPlaybook(playbookName)
       .then(setPlaybook)
-      .catch(() => undefined);
+      .catch(() => setPlaybook(unknownPlaybook(playbookName)));
   }, [playbookName]);
 
   // Every new event may change status, pending prompt or usage.

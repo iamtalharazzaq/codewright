@@ -3,11 +3,13 @@
 import { Loader2, Play } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { FormSelect, type SelectOption } from "@/components/form-select";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +23,18 @@ import {
   type Run,
 } from "@/lib/api";
 
-const SELECT_CLASS = "h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm dark:bg-input/30";
+const TIERS: SelectOption[] = [
+  { value: "0", label: "Tier 0", hint: "Answer only, no approvals" },
+  { value: "1", label: "Tier 1", hint: "Approve the result" },
+  { value: "2", label: "Tier 2", hint: "Approve the plan and the result" },
+  { value: "3", label: "Tier 3", hint: "Every gate the playbook defines" },
+];
+
+const MODELS: SelectOption[] = [
+  { value: "", label: "Active profile", hint: "The model chosen in Settings" },
+  { value: "remote_gpu", label: "Remote GPU" },
+  { value: "local_cpu", label: "Local CPU" },
+];
 
 interface SchemaProp {
   type?: string;
@@ -30,9 +43,11 @@ interface SchemaProp {
   description?: string;
   title?: string;
   items?: { type?: string };
+  "x-advanced"?: boolean;
+  "x-available"?: string[];
 }
 
-/** Which of a run's inputs to show; resolves `$ref`-style enums Pydantic emits for Literal fields. */
+/** A run's inputs; resolves `$ref`-style enums Pydantic emits for Literal fields. */
 function inputProps(pb: Playbook): Array<[string, SchemaProp]> {
   const schema = pb.inputs_schema as {
     properties?: Record<string, SchemaProp & { $ref?: string }>;
@@ -44,6 +59,8 @@ function inputProps(pb: Playbook): Array<[string, SchemaProp]> {
   });
 }
 
+const humanize = (v: string) => (v.charAt(0).toUpperCase() + v.slice(1)).replaceAll("_", " ");
+
 function defaults(pb: Playbook): Record<string, unknown> {
   return Object.fromEntries(inputProps(pb).map(([k, p]) => [k, p.default]));
 }
@@ -51,9 +68,11 @@ function defaults(pb: Playbook): Record<string, unknown> {
 export function runTitle(run: Pick<Run, "playbook" | "inputs">): string {
   const request = run.inputs.request;
   if (typeof request === "string") return request.length > 60 ? `${request.slice(0, 57)}…` : request;
-  if (run.playbook === "architecture_change")
-    return run.inputs.mode === "conversion" ? "Full conversion" : "Architecture audit";
-  return run.playbook;
+  if (run.playbook === "architecture_change") {
+    const target = humanize(String(run.inputs.target ?? "microservices"));
+    return `${target}: ${run.inputs.mode === "conversion" ? "conversion" : "audit"}`;
+  }
+  return humanize(run.playbook);
 }
 
 export function RunsView() {
@@ -95,7 +114,7 @@ export function RunsView() {
                         <span className="ml-2 font-mono text-xs text-muted-foreground">{r.id.slice(0, 8)}</span>
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {r.playbook} · tier {r.tier} · {new Date(r.created_at).toLocaleString()} ·{" "}
+                        {humanize(r.playbook)} · tier {r.tier} · {new Date(r.created_at).toLocaleString()} ·{" "}
                         {PROFILE_LABEL[r.llm_profile]}
                         {r.current_step ? ` · ${r.current_step}` : ""}
                       </span>
@@ -137,21 +156,22 @@ function StartRunCard() {
 
   const pb = useMemo(() => playbooks?.find((p) => p.name === name), [playbooks, name]);
   const set = (key: string, value: unknown) => setInputs((prev) => ({ ...prev, [key]: value }));
+  // Test knobs (x-advanced) keep their defaults and aren't shown.
+  const fields = pb ? inputProps(pb).filter(([, p]) => !p["x-advanced"]) : [];
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Start a run</CardTitle>
         <CardDescription>
-          Pick a playbook. The sample playbook plans and writes a short brief with a real agent team; turn off “use llm”
-          to try the flow without a model server. Tier sets how many approvals you get (it can only go up).
+          Pick a playbook and fill in its inputs. The tier sets how many approvals you give.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {!playbooks && !error && <p className="text-sm text-muted-foreground">Loading playbooks…</p>}
         {pb && (
           <form
-            className="grid gap-4 sm:grid-cols-3"
+            className="flex flex-col gap-5"
             onSubmit={async (e) => {
               e.preventDefault();
               setBusy(true);
@@ -170,63 +190,49 @@ function StartRunCard() {
               }
             }}
           >
-            <div className="grid gap-1.5">
-              <Label htmlFor="run-playbook">Playbook</Label>
-              <select
-                id="run-playbook"
-                className={SELECT_CLASS}
-                value={pb.name}
-                onChange={(e) => {
-                  const next = playbooks?.find((p) => p.name === e.target.value);
-                  if (!next) return;
-                  setName(next.name);
-                  setInputs(defaults(next));
-                  setTier(null);
-                }}
-              >
-                {playbooks?.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.title}
-                  </option>
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <Field id="run-playbook" label="Playbook">
+                <FormSelect
+                  id="run-playbook"
+                  value={pb.name}
+                  options={(playbooks ?? []).map((p) => ({ value: p.name, label: p.title }))}
+                  onChange={(v) => {
+                    const next = playbooks?.find((p) => p.name === v);
+                    if (!next) return;
+                    setName(next.name);
+                    setInputs(defaults(next));
+                    setTier(null);
+                  }}
+                />
+              </Field>
+              <Field id="run-tier" label="Tier">
+                <FormSelect
+                  id="run-tier"
+                  value={String(tier ?? pb.tier)}
+                  options={TIERS.filter((t) => Number(t.value) >= pb.tier).map((t) =>
+                    Number(t.value) === pb.tier ? { ...t, label: `${t.label} (default)` } : t,
+                  )}
+                  onChange={(v) => setTier(Number(v))}
+                />
+              </Field>
+              <Field id="run-profile" label="Model">
+                <FormSelect
+                  id="run-profile"
+                  value={profile}
+                  options={MODELS}
+                  onChange={(v) => setProfile(v as ProfileName | "")}
+                />
+              </Field>
+            </div>
+            <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">{pb.description}</p>
+            {fields.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {fields.map(([key, prop]) => (
+                  <InputField key={key} id={key} prop={prop} value={inputs[key]} onChange={(v) => set(key, v)} />
                 ))}
-              </select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="run-tier">Tier</Label>
-              <select
-                id="run-tier"
-                className={SELECT_CLASS}
-                value={tier ?? pb.tier}
-                onChange={(e) => setTier(Number(e.target.value))}
-              >
-                {[0, 1, 2, 3]
-                  .filter((t) => t >= pb.tier)
-                  .map((t) => (
-                    <option key={t} value={t}>
-                      Tier {t}
-                      {t === pb.tier ? " (default)" : ""}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="run-profile">Model</Label>
-              <select
-                id="run-profile"
-                className={SELECT_CLASS}
-                value={profile}
-                onChange={(e) => setProfile(e.target.value as ProfileName | "")}
-              >
-                <option value="">Active profile (Settings)</option>
-                <option value="remote_gpu">Remote GPU</option>
-                <option value="local_cpu">Local CPU</option>
-              </select>
-            </div>
-            <p className="text-sm text-muted-foreground sm:col-span-3">{pb.description}</p>
-            {inputProps(pb).map(([key, prop]) => (
-              <InputField key={key} id={key} prop={prop} value={inputs[key]} onChange={(v) => set(key, v)} />
-            ))}
-            <div className="sm:col-span-3">
+              </div>
+            )}
+            <div>
               <Button type="submit" disabled={busy}>
                 {busy ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Play aria-hidden="true" />}
                 Start run
@@ -244,6 +250,28 @@ function StartRunCard() {
   );
 }
 
+function Field({
+  id,
+  label,
+  hint,
+  className,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
 function InputField({
   id,
   prop,
@@ -255,55 +283,55 @@ function InputField({
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
-  const label = prop.title ?? id;
+  const label = prop.title ?? humanize(id);
   const fieldId = `run-input-${id}`;
   if (prop.type === "boolean") {
     return (
-      <label className="flex items-center gap-2 text-sm sm:col-span-3" title={prop.description}>
-        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
-        {label}
-        {prop.description && <span className="text-xs text-muted-foreground">{prop.description}</span>}
+      <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50 has-data-checked:border-primary/40 sm:col-span-2">
+        <Checkbox id={fieldId} className="mt-0.5" checked={Boolean(value)} onCheckedChange={(c) => onChange(c)} />
+        <span className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium">{label}</span>
+          {prop.description && <span className="text-xs text-muted-foreground">{prop.description}</span>}
+        </span>
       </label>
     );
   }
   if (prop.enum) {
+    const available = prop["x-available"];
     return (
-      <div className="grid gap-1.5">
-        <Label htmlFor={fieldId}>{label}</Label>
-        <select
+      <Field id={fieldId} label={label} hint={prop.description}>
+        <FormSelect
           id={fieldId}
-          className={SELECT_CLASS}
           value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          {prop.enum.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-      </div>
+          options={prop.enum.map((v) => ({
+            value: v,
+            label: humanize(v),
+            disabled: available ? !available.includes(v) : false,
+          }))}
+          onChange={onChange}
+        />
+      </Field>
     );
   }
   if (prop.type === "number" || prop.type === "integer") {
     return (
-      <div className="grid gap-1.5">
-        <Label htmlFor={fieldId}>{label}</Label>
+      <Field id={fieldId} label={label} hint={prop.description}>
         <Input
           id={fieldId}
           type="number"
+          className="h-9"
           value={String(value ?? "")}
           onChange={(e) => onChange(Number(e.target.value))}
         />
-      </div>
+      </Field>
     );
   }
   if (prop.type === "array") {
     return (
-      <div className="grid gap-1.5 sm:col-span-2">
-        <Label htmlFor={fieldId}>{label} (comma-separated)</Label>
+      <Field id={fieldId} label={label} hint={prop.description ?? "Separate with commas."} className="sm:col-span-2">
         <Input
           id={fieldId}
+          className="h-9"
           value={Array.isArray(value) ? value.join(", ") : ""}
           onChange={(e) =>
             onChange(
@@ -314,13 +342,12 @@ function InputField({
             )
           }
         />
-      </div>
+      </Field>
     );
   }
   return (
-    <div className="grid gap-1.5 sm:col-span-3">
-      <Label htmlFor={fieldId}>{label}</Label>
+    <Field id={fieldId} label={label} hint={prop.description} className="sm:col-span-2">
       <Textarea id={fieldId} rows={3} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} />
-    </div>
+    </Field>
   );
 }
