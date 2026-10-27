@@ -3,7 +3,7 @@
 import { PanelRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Composer } from "@/components/chat/composer";
 import { MessageView, type MessageActions } from "@/components/chat/message";
@@ -12,6 +12,7 @@ import { SidePanel } from "@/components/chat/side-panel";
 import { useConversation } from "@/components/chat/use-conversation";
 import { Button } from "@/components/ui/button";
 import {
+  getGraph,
   getProject,
   notifyConversationsChanged,
   regenerateMessage,
@@ -58,6 +59,17 @@ export function ChatView({
   const busy = detail?.busy ?? false;
   const lastText = messages.at(-1)?.content.length ?? 0;
   const activeProject = detail?.conversation.project_id ?? projectId;
+  // Modules the last reply talks about ("internal/order", "order/service/..."), highlighted in the Graph tab.
+  const lastReply = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+  const [modules, setModules] = useState<string[]>([]);
+  const mentioned = useMemo(() => modules.filter((m) => lastReply.includes(m)), [modules, lastReply]);
+
+  useEffect(() => {
+    if (!activeProject) return;
+    getGraph(activeProject)
+      .then((g) => setModules(g.graph?.nodes.map((n) => n.id).filter((id) => id.includes("/")) ?? []))
+      .catch(() => setModules([]));
+  }, [activeProject]);
 
   useEffect(() => {
     if (!activeProject) return;
@@ -203,7 +215,12 @@ export function ChatView({
           panel === "closed" && "hidden",
         )}
       >
-        <SidePanel onClose={() => setPanel("closed")} />
+        <SidePanel
+          key={activeProject ?? "none"}
+          onClose={() => setPanel("closed")}
+          projectId={activeProject}
+          highlight={mentioned}
+        />
       </aside>
     </div>
   );

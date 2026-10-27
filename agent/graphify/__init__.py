@@ -123,6 +123,9 @@ class GraphStore:
             hygiene=hygiene(raw, modules, work),
         )
         shutil.copyfile(out, self.raw)
+        unchanged = not any(version.diff.values()) if previous is not None else not modules["nodes"]
+        if unchanged and versions:
+            return Version(**versions[-1])  # nothing new to show on the timeline
         (self.dir / f"v{number}.json").write_text(json.dumps(modules), encoding="utf-8")
         versions.append(version.as_dict())
         (self.dir / "versions.json").write_text(json.dumps(versions), encoding="utf-8")

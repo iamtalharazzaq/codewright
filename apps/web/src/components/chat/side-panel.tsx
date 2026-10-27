@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { GraphView } from "@/components/graph/graph-view";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -31,9 +32,20 @@ export const PANEL_TABS: Array<{ id: string; label: string; icon: LucideIcon; em
   { id: "report", label: "Report", icon: FileText, empty: "Audits, verification and final reports appear here." },
 ];
 
-/** The artifacts panel beside the chat (CODEWRIGHT.md Section 2.2). Tabs are empty until playbooks produce artifacts. */
-export function SidePanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState("plan");
+/**
+ * The artifacts panel beside the chat (CODEWRIGHT.md Section 2.2). In a project chat the Graph tab shows the live
+ * project graph, with the modules the last reply mentions highlighted; other tabs fill as playbooks produce artifacts.
+ */
+export function SidePanel({
+  onClose,
+  projectId = null,
+  highlight = [],
+}: {
+  onClose: () => void;
+  projectId?: string | null;
+  highlight?: string[];
+}) {
+  const [tab, setTab] = useState(projectId ? "graph" : "plan");
   const active = PANEL_TABS.find((t) => t.id === tab) ?? PANEL_TABS[0];
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex h-full min-h-0 flex-col gap-0">
@@ -61,7 +73,12 @@ export function SidePanel({ onClose }: { onClose: () => void }) {
           </TabsTrigger>
         ))}
       </TabsList>
-      {PANEL_TABS.map(({ id, icon: Icon, empty }) => (
+      {projectId && (
+        <TabsContent value="graph" className="min-h-0 flex-1">
+          <GraphView projectId={projectId} compact highlight={highlight} />
+        </TabsContent>
+      )}
+      {PANEL_TABS.filter((t) => !(projectId && t.id === "graph")).map(({ id, icon: Icon, empty }) => (
         <TabsContent key={id} value={id} className="min-h-0 flex-1 overflow-y-auto p-6">
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
             <span className="flex size-10 items-center justify-center rounded-full bg-muted">

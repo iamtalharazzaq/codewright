@@ -308,6 +308,69 @@ export function uploadFile(file: File) {
   form.set("file", file);
   return postForm<UploadInfo>("/uploads", form);
 }
+export interface GraphModule {
+  id: string;
+  label: string;
+  files: string[];
+  file_count: number;
+  symbols: number;
+  languages: Record<string, number>;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  weight: number;
+  relations: Record<string, number>;
+  sources: { source: string; confidence: string | number; commits?: number }[];
+}
+
+export interface GraphDiff {
+  added: string[];
+  changed: string[];
+  removed: string[];
+  edges_added: string[];
+  edges_removed: string[];
+}
+
+export interface GraphVersion {
+  number: number;
+  created_at: number;
+  reason: string;
+  nodes: number;
+  edges: number;
+  modules: number;
+  diff: GraphDiff;
+  hygiene: {
+    code_files: number;
+    files_without_symbols: string[];
+    isolated_modules: string[];
+    mutual_dependencies: string[];
+  };
+}
+
+export interface ProjectGraph {
+  versions: GraphVersion[];
+  version: number | null;
+  graph: { nodes: GraphModule[]; edges: GraphEdge[] } | null;
+  building: boolean;
+}
+
+export interface SearchHit {
+  path: string;
+  start_line: number;
+  end_line: number;
+  content: string;
+  score: number;
+  match: "semantic" | "keyword";
+}
+
+export const getGraph = (id: string, version?: number | null, signal?: AbortSignal) =>
+  request<ProjectGraph>("GET", `/projects/${id}/graph${version ? `?version=${version}` : ""}`, undefined, signal);
+export const refreshGraph = (id: string) => request<{ queued: boolean }>("POST", `/projects/${id}/graph`, {});
+export const searchCode = (id: string, q: string) =>
+  request<SearchHit[]>("GET", `/projects/${id}/search?q=${encodeURIComponent(q)}`);
+
 export const PROJECTS_CHANGED = "codewright:projects-changed";
 export const notifyProjectsChanged = () => window.dispatchEvent(new Event(PROJECTS_CHANGED));
 

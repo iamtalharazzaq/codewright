@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { GraphView } from "@/components/graph/graph-view";
 import { DeliverPanel } from "@/components/projects/deliver-panel";
 import { StatusBadge } from "@/components/projects/project-status";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -150,6 +151,21 @@ export function ProjectHome({ projectId }: { projectId: string }) {
 
           <Instructions project={project} onSaved={load} />
           <Memory project={project} onChanged={load} />
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Graph</CardTitle>
+              <CardDescription>
+                How the modules depend on each other.{" "}
+                <Link href={`/projects/${project.id}/graph`} className="underline underline-offset-2">
+                  Open the explorer
+                </Link>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="h-96">
+              <GraphView projectId={project.id} compact />
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
