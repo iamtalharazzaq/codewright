@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { GatePrompt, LLMUnavailablePrompt } from "@/lib/api";
+import type { BudgetPrompt, GatePrompt, LLMUnavailablePrompt } from "@/lib/api";
 
-import { GateCard, LLMUnavailableCard } from "./pending-card";
+import { BudgetCard, GateCard, LLMUnavailableCard } from "./pending-card";
 
 const gate: GatePrompt = {
   kind: "gate",
@@ -12,6 +12,8 @@ const gate: GatePrompt = {
   title: "Confirm As-Is",
   question: "Does this match how your system works today?",
   subject: null,
+  playbook: "microservices",
+  tier: 3,
   summary: { as_is: { stub: true } },
   options: ["approve", "edit", "reject"],
 };
@@ -80,5 +82,25 @@ describe("LLMUnavailableCard", () => {
     );
     expect(screen.queryByRole("button", { name: "Switch to local CPU" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+});
+
+describe("BudgetCard", () => {
+  const prompt: BudgetPrompt = {
+    kind: "budget_exceeded",
+    step: "work",
+    reason: "Used 20 of 20 LLM calls in step work.",
+    used: { llm_calls: 20 },
+    options: ["continue", "stop"],
+  };
+
+  it("shows the reason and stops the run on request", async () => {
+    const fetch = okFetch();
+    render(<BudgetCard runId="r1" prompt={prompt} onAnswered={vi.fn()} />);
+    expect(screen.getByText("Budget reached at step work")).toBeInTheDocument();
+    expect(screen.getByText(/Used 20 of 20 LLM calls/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Stop run" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ choice: "stop" });
   });
 });

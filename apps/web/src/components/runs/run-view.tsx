@@ -1,9 +1,21 @@
 "use client";
 
-import { Ban, CheckCircle2, Circle, Loader2, PauseCircle, ShieldCheck, Wifi, WifiOff } from "lucide-react";
+import {
+  Ban,
+  CheckCircle2,
+  Circle,
+  CircleDot,
+  FileText,
+  Loader2,
+  PauseCircle,
+  ShieldCheck,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { GateCard, LLMUnavailableCard } from "@/components/runs/pending-card";
+import { BudgetCard, GateCard, LLMUnavailableCard } from "@/components/runs/pending-card";
+import { runTitle } from "@/components/runs/runs-view";
 import { useRunEvents } from "@/components/runs/use-run-events";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -11,46 +23,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   cancelRun,
+  getPlaybook,
   getRun,
-  getWorkflow,
   listTraces,
   PROFILE_LABEL,
+  type Playbook,
   type RunDetail,
   type RunEvent,
   type Trace,
-  type Workflow,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const AUDIT_FLOW = [
-  "intake",
-  "gate1",
-  "baseline",
-  "as_is",
-  "gate2",
-  "to_be",
-  "gate3",
-  "languages",
-  "gate4",
-  "audit_report",
-  "gate8",
-  "deliver",
-];
-const CONVERSION_FLOW = [
-  ...AUDIT_FLOW.slice(0, 9),
-  "foundation",
-  "build_service",
-  "gate5",
-  "db_split",
-  "gate6",
-  "frontend",
-  "gate7",
-  "report",
-  "gate8",
-  "deliver",
-];
-
 const ROLE_LABEL: Record<string, string> = {
+  project_manager: "Project Manager",
   business_analyst: "Business Analyst",
   qa_engineer: "QA Engineer",
   solution_architect: "Solution Architect",
@@ -66,9 +51,9 @@ type ItemState = "done" | "running" | "waiting" | "todo";
 
 export function RunView({ runId }: { runId: string }) {
   const [run, setRun] = useState<RunDetail | null>(null);
-  const [workflow, setWorkflow] = useState<Workflow | null>(null);
+  const [playbook, setPlaybook] = useState<Playbook | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { events, connected } = useRunEvents(runId);
+  const { events, connected, live } = useRunEvents(runId);
 
   const refresh = useCallback(() => {
     getRun(runId)
@@ -76,11 +61,13 @@ export function RunView({ runId }: { runId: string }) {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [runId]);
 
+  const playbookName = run?.playbook;
   useEffect(() => {
-    getWorkflow()
-      .then(setWorkflow)
+    if (!playbookName) return;
+    getPlaybook(playbookName)
+      .then(setPlaybook)
       .catch(() => undefined);
-  }, []);
+  }, [playbookName]);
 
   // Every new event may change status, pending prompt or usage.
   const lastEventId = events.at(-1)?.id;
@@ -95,7 +82,7 @@ export function RunView({ runId }: { runId: string }) {
       </p>
     );
   }
-  if (!run || !workflow) {
+  if (!run || !playbook) {
     return (
       <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" aria-hidden="true" /> Loading run…
@@ -109,12 +96,13 @@ export function RunView({ runId }: { runId: string }) {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">
-            {run.mode === "audit" ? "Architecture audit" : "Full conversion"}
-          </h1>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">{runTitle(run)}</h1>
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-mono">{run.id.slice(0, 8)}</span>
             <StatusBadge status={run.status} />
+            <span>
+              {playbook.title} · tier {run.tier}
+            </span>
             <span>{PROFILE_LABEL[run.llm_profile]}</span>
             <span className="flex items-center gap-1" title={connected ? "Live updates connected" : "Reconnecting…"}>
               {connected ? (
@@ -154,18 +142,26 @@ export function RunView({ runId }: { runId: string }) {
       {run.status === "waiting" && run.pending?.kind === "llm_unavailable" && (
         <LLMUnavailableCard runId={run.id} prompt={run.pending} onAnswered={refresh} />
       )}
+      {run.status === "waiting" && run.pending?.kind === "budget_exceeded" && (
+        <BudgetCard runId={run.id} prompt={run.pending} onAnswered={refresh} />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Timeline run={run} workflow={workflow} events={events} />
+        <div className="flex flex-col gap-6">
+          <Timeline run={run} playbook={playbook} events={events} />
+          <PlanCard run={run} />
+          {run.artifacts.length > 0 && <ArtifactsCard run={run} />}
+        </div>
         <div className="flex flex-col gap-6">
           <UsageCard run={run} />
+          {(live || run.status === "running") && <LiveOutput live={live} />}
           <Tabs defaultValue="activity">
             <TabsList>
               <TabsTrigger value="activity">Activity</TabsTrigger>
               <TabsTrigger value="traces">LLM traces</TabsTrigger>
             </TabsList>
             <TabsContent value="activity">
-              <ActivityFeed events={events} workflow={workflow} />
+              <ActivityFeed events={events} playbook={playbook} />
             </TabsContent>
             <TabsContent value="traces">
               <TraceList runId={run.id} refreshKey={run.usage.llm_calls} />
@@ -177,60 +173,66 @@ export function RunView({ runId }: { runId: string }) {
   );
 }
 
-function Timeline({ run, workflow, events }: { run: RunDetail; workflow: Workflow; events: RunEvent[] }) {
-  const flow = run.mode === "audit" ? AUDIT_FLOW : CONVERSION_FLOW;
-  const steps = useMemo(() => Object.fromEntries(workflow.steps.map((s) => [s.id, s])), [workflow]);
-  const gates = useMemo(() => Object.fromEntries(workflow.gates.map((g) => [g.id, g])), [workflow]);
+function Timeline({ run, playbook, events }: { run: RunDetail; playbook: Playbook; events: RunEvent[] }) {
+  const steps = useMemo(() => Object.fromEntries(playbook.steps.map((s) => [s.id, s])), [playbook]);
+  const gates = useMemo(() => Object.fromEntries(playbook.gates.map((g) => [g.id, g])), [playbook]);
   const completed = new Set(events.filter((e) => e.type === "step_completed").map((e) => e.step));
   const decided = new Set(run.approvals.filter((a) => a.decision === "approve").map((a) => a.gate));
-  const services = run.options.services ?? [];
-  const builtServices = new Set(
-    events.filter((e) => e.type === "step_completed" && e.step === "build_service").map((e) => String(e.data.subject)),
-  );
+  // Steps that run once per subject (e.g. one build per service) record results as "<step>:<subject>".
+  const subjects = (id: string) =>
+    Object.keys(run.steps)
+      .filter((k) => k.startsWith(`${id}:`))
+      .map((k) => k.slice(id.length + 1));
+  const plannedSubjects = Array.isArray(run.inputs.services) ? (run.inputs.services as string[]) : [];
 
   function stateOf(id: string): ItemState {
-    if (run.status === "waiting" && run.pending?.kind === "gate" && run.pending.gate === id) return "waiting";
-    if (run.status === "waiting" && run.pending?.kind === "llm_unavailable" && run.pending.step === id)
-      return "waiting";
+    const p = run.pending;
+    if (run.status === "waiting" && p?.kind === "gate" && p.gate === id) return "waiting";
+    if (run.status === "waiting" && p && p.kind !== "gate" && p.step === id) return "waiting";
     if (run.status === "running" && run.current_step === id) return "running";
-    if (id.startsWith("gate")) return decided.has(id) ? "done" : "todo";
-    if (id === "build_service")
-      return services.length > 0 && services.every((s) => builtServices.has(s))
-        ? "done"
-        : completed.has(id)
-          ? "running"
-          : "todo";
-    return completed.has(id) || run.status === "completed" ? "done" : "todo";
+    if (gates[id]) return decided.has(id) ? "done" : "todo";
+    const done = subjects(id);
+    if (done.length > 0 && plannedSubjects.length > 0)
+      return plannedSubjects.every((s) => done.includes(s)) ? "done" : "running";
+    return completed.has(id) || run.steps[id]?.status === "done" || run.status === "completed" ? "done" : "todo";
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Workflow</CardTitle>
-        <CardDescription>
-          {run.mode === "audit" ? "Mode B: steps 1–5, audit report, delivery." : "Mode A: all 10 steps."}
-        </CardDescription>
+        <CardTitle>Timeline</CardTitle>
+        <CardDescription>{playbook.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <ol className="flex flex-col">
-          {flow.map((id, i) => {
+          {run.flow.map((id, i) => {
             const state = stateOf(id);
-            const isGate = id.startsWith("gate");
-            const label = isGate ? `Gate ${gates[id]?.number}: ${gates[id]?.title}` : steps[id]?.title;
+            const gate = gates[id];
+            const step = steps[id];
+            const label = gate
+              ? gate.number != null
+                ? `Gate ${gate.number}: ${gate.title}`
+                : gate.title
+              : `${step?.number ? `${step.number}. ` : ""}${step?.title ?? id}`;
+            const done = subjects(id);
             return (
-              <li key={`${id}-${i}`} className={cn("flex items-start gap-3 py-1.5", isGate && "pl-6")}>
-                <StateIcon state={state} gate={isGate} />
+              <li key={`${id}-${i}`} className={cn("flex items-start gap-3 py-1.5", gate && "pl-6")}>
+                <StateIcon state={state} gate={Boolean(gate)} />
                 <span className="flex flex-col">
                   <span className={cn("text-sm", state === "todo" ? "text-muted-foreground" : "font-medium")}>
-                    {!isGate && steps[id]?.number ? `${steps[id].number}. ` : ""}
                     {label}
                   </span>
-                  {!isGate && state !== "todo" && (
-                    <span className="text-xs text-muted-foreground">{ROLE_LABEL[steps[id]?.role ?? ""]}</span>
-                  )}
-                  {id === "build_service" && services.length > 0 && (
+                  {step && state !== "todo" && (
                     <span className="text-xs text-muted-foreground">
-                      {services.map((s) => `${s}${builtServices.has(s) ? " ✓" : ""}`).join(" · ")}
+                      {ROLE_LABEL[step.role] ?? step.role}
+                      {run.steps[id]?.summary ? ` · ${run.steps[id].summary}` : ""}
+                    </span>
+                  )}
+                  {done.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {(plannedSubjects.length ? plannedSubjects : done)
+                        .map((s) => `${s}${done.includes(s) ? " ✓" : ""}`)
+                        .join(" · ")}
                     </span>
                   )}
                 </span>
@@ -238,6 +240,89 @@ function Timeline({ run, workflow, events }: { run: RunDetail; workflow: Workflo
             );
           })}
         </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlanCard({ run }: { run: RunDetail }) {
+  if (run.plan.length === 0) return null;
+  const done = run.plan.filter((p) => p.status === "done").length;
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>
+          Plan{" "}
+          <span className="font-mono text-sm text-muted-foreground">
+            {done}/{run.plan.length}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col gap-1.5">
+          {run.plan.map((item) => (
+            <li key={item.id} className="flex items-start gap-2 text-sm">
+              {item.status === "done" ? (
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+              ) : item.status === "in_progress" ? (
+                <CircleDot className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" />
+              ) : (
+                <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              )}
+              <span className="sr-only">{item.status.replace("_", " ")}:</span>
+              <span className={cn(item.status === "done" && "text-muted-foreground line-through")}>{item.title}</span>
+              <span className="ml-auto text-xs text-muted-foreground">{ROLE_LABEL[item.role] ?? item.role}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ArtifactsCard({ run }: { run: RunDetail }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>Artifacts</CardTitle>
+        <CardDescription>Files in the run workspace (opened in the side panel from Phase 2).</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col gap-1.5">
+          {run.artifacts.map((a, i) => (
+            <li key={`${a.path}-${i}`} className="flex items-center gap-2 text-sm">
+              <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="font-medium">{a.title}</span>
+              <span className="font-mono text-xs text-muted-foreground">{a.path}</span>
+              <span className="ml-auto text-xs text-muted-foreground">{a.kind}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LiveOutput({ live }: { live: { agent: string; text: string } | null }) {
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Live output
+          {live && <span className="text-xs font-normal text-muted-foreground">{live.agent}</span>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {live ? (
+          <pre
+            className="max-h-64 overflow-auto rounded bg-muted p-2 font-mono text-xs whitespace-pre-wrap"
+            aria-live="off"
+          >
+            {live.text}
+          </pre>
+        ) : (
+          <p className="text-sm text-muted-foreground">Waiting for the model…</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -293,8 +378,8 @@ function UsageCard({ run }: { run: RunDetail }) {
   );
 }
 
-function describe(event: RunEvent, workflow: Workflow): string {
-  const step = workflow.steps.find((s) => s.id === event.step);
+function describe(event: RunEvent, playbook: Playbook): string {
+  const step = playbook.steps.find((s) => s.id === event.step);
   const role = ROLE_LABEL[String(event.data.role ?? step?.role ?? "")] ?? "";
   const subject = event.data.subject ? ` (${String(event.data.subject)})` : "";
   switch (event.type) {
@@ -303,11 +388,25 @@ function describe(event: RunEvent, workflow: Workflow): string {
     case "step_completed":
       return `${role} finished ${step?.title ?? event.step}${subject}`;
     case "waiting":
-      return event.data.kind === "gate"
-        ? `Waiting for you at Gate ${String(event.data.number)}: ${String(event.data.title)}`
-        : `Paused: the ${String(event.data.profile)} model server is unavailable`;
-    case "answered":
-      return `You answered: ${JSON.stringify(event.data.answer)}`;
+      if (event.data.kind === "gate")
+        return `Waiting for you at ${event.data.number != null ? `Gate ${String(event.data.number)}: ` : ""}${String(event.data.title)}`;
+      if (event.data.kind === "budget_exceeded") return `Paused: budget reached (${String(event.data.reason)})`;
+      return `Paused: the ${String(event.data.profile)} model server is unavailable`;
+    case "plan_updated":
+      return "Plan updated";
+    case "agent_activity": {
+      const agent = String(event.data.agent);
+      if (Array.isArray(event.data.tool_calls))
+        return `${agent}: ${(event.data.tool_calls as Array<{ name: string; target?: string | null }>)
+          .map((c) => (c.target ? `${c.name} → ${c.target}` : c.name))
+          .join(", ")}`;
+      return `${agent}: ${String(event.data.tool_result)} ${event.data.status === "error" ? "failed" : "done"}`;
+    }
+    case "answered": {
+      const answer = event.data.answer as string | { decision: string; comment?: string };
+      if (typeof answer === "string") return `You chose: ${answer.replaceAll("_", " ")}`;
+      return `You chose ${answer.decision}${answer.comment ? `: “${answer.comment}”` : ""}`;
+    }
     case "run_status":
       return `Run ${String(event.data.status)}`;
     case "llm_health":
@@ -321,8 +420,11 @@ function describe(event: RunEvent, workflow: Workflow): string {
   }
 }
 
-function ActivityFeed({ events, workflow }: { events: RunEvent[]; workflow: Workflow }) {
-  const recent = events.slice(-40).reverse();
+function ActivityFeed({ events, playbook }: { events: RunEvent[]; playbook: Playbook }) {
+  const recent = events
+    .filter((e) => e.type !== "plan_updated")
+    .slice(-60)
+    .reverse();
   return (
     <Card size="sm">
       <CardContent>
@@ -335,7 +437,7 @@ function ActivityFeed({ events, workflow }: { events: RunEvent[]; workflow: Work
                 <time className="shrink-0 font-mono text-xs text-muted-foreground" dateTime={e.created_at}>
                   {new Date(e.created_at).toLocaleTimeString()}
                 </time>
-                <span>{describe(e, workflow)}</span>
+                <span>{describe(e, playbook)}</span>
               </li>
             ))}
           </ol>
@@ -355,9 +457,7 @@ function TraceList({ runId, refreshKey }: { runId: string; refreshKey: number })
 
   if (!traces) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (traces.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No LLM calls in this run. Start a run with “One real LLM call”.</p>
-    );
+    return <p className="text-sm text-muted-foreground">No LLM calls in this run yet.</p>;
   }
   return (
     <ul className="flex flex-col gap-3">

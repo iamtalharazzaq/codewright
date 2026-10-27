@@ -1,13 +1,33 @@
 "use client";
 
-import { AlertTriangle, Check, Cpu, Loader2, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Cpu,
+  Gauge,
+  Loader2,
+  Pencil,
+  Play,
+  RotateCcw,
+  ShieldCheck,
+  Square,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { answerRun, PROFILE_LABEL, type Decision, type GatePrompt, type LLMUnavailablePrompt } from "@/lib/api";
+import {
+  answerRun,
+  PROFILE_LABEL,
+  type BudgetPrompt,
+  type Choice,
+  type Decision,
+  type GatePrompt,
+  type LLMUnavailablePrompt,
+} from "@/lib/api";
 
 /** A gate card: what was decided, the data behind it, and Approve / Edit / Reject (README 9.1). */
 export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt: GatePrompt; onAnswered: () => void }) {
@@ -38,7 +58,7 @@ export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt:
       <CardHeader>
         <CardTitle id="gate-title" className="flex items-center gap-2">
           <ShieldCheck className="size-4 text-warning" aria-hidden="true" />
-          Gate {prompt.number}: {prompt.title}
+          {prompt.number != null ? `Gate ${prompt.number}: ${prompt.title}` : prompt.title}
           {prompt.subject && <span className="font-mono text-sm text-muted-foreground">({prompt.subject})</span>}
         </CardTitle>
         <CardDescription>{prompt.question}</CardDescription>
@@ -84,20 +104,10 @@ export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt:
   );
 }
 
-/** Shown when the model server can't be reached (README 8.1: checkpoint, pause and ask). */
-export function LLMUnavailableCard({
-  runId,
-  prompt,
-  onAnswered,
-}: {
-  runId: string;
-  prompt: LLMUnavailablePrompt;
-  onAnswered: () => void;
-}) {
+function useChoice(runId: string, onAnswered: () => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function choose(choice: "retry" | "switch_to_cpu") {
+  async function choose(choice: Choice) {
     setBusy(true);
     setError(null);
     try {
@@ -109,6 +119,62 @@ export function LLMUnavailableCard({
       setBusy(false);
     }
   }
+  return { busy, error, choose };
+}
+
+/** Shown when a step hits its budget (README Section 8.4): continue with more budget, or stop the run. */
+export function BudgetCard({
+  runId,
+  prompt,
+  onAnswered,
+}: {
+  runId: string;
+  prompt: BudgetPrompt;
+  onAnswered: () => void;
+}) {
+  const { busy, error, choose } = useChoice(runId, onAnswered);
+  return (
+    <Card className="ring-2 ring-warning/40" role="alert">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gauge className="size-4 text-warning" aria-hidden="true" />
+          Budget reached at step {prompt.step}
+        </CardTitle>
+        <CardDescription>
+          {prompt.reason}. The run is paused and saved. Continue doubles the limits once more; Stop ends the run.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <pre className="rounded-md bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+          {JSON.stringify(prompt.used, null, 2)}
+        </pre>
+        {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      </CardContent>
+      <CardFooter className="flex flex-wrap gap-2">
+        <Button onClick={() => void choose("continue")} disabled={busy}>
+          <Play aria-hidden="true" />
+          Continue
+        </Button>
+        <Button variant="destructive" onClick={() => void choose("stop")} disabled={busy}>
+          <Square aria-hidden="true" />
+          Stop run
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+/** Shown when the model server can't be reached (README 8.1: checkpoint, pause and ask). */
+export function LLMUnavailableCard({
+  runId,
+  prompt,
+  onAnswered,
+}: {
+  runId: string;
+  prompt: LLMUnavailablePrompt;
+  onAnswered: () => void;
+}) {
+  const { busy, error, choose } = useChoice(runId, onAnswered);
 
   return (
     <Card className="ring-2 ring-destructive/40" role="alert">

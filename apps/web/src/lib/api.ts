@@ -1,7 +1,5 @@
 // Typed client for the Codewright API. All calls go through the `/api` rewrite (next.config.ts).
 
-// Variant of the microservices playbook (the only playbook with a run skeleton so far).
-export type MicroservicesMode = "conversion" | "audit";
 export type ProfileName = "remote_gpu" | "local_cpu";
 export type RunStatus = "created" | "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type Decision = "approve" | "edit" | "reject";
@@ -17,10 +15,12 @@ export interface Project {
 export interface GatePrompt {
   kind: "gate";
   gate: string;
-  number: number;
+  number: number | null;
   title: string;
   question: string;
   subject: string | null;
+  playbook: string;
+  tier: number;
   summary: Record<string, unknown>;
   options: Decision[];
 }
@@ -33,17 +33,63 @@ export interface LLMUnavailablePrompt {
   options: Array<"retry" | "switch_to_cpu">;
 }
 
-export type Pending = GatePrompt | LLMUnavailablePrompt;
+export interface BudgetPrompt {
+  kind: "budget_exceeded";
+  step: string;
+  reason: string;
+  used: Record<string, unknown>;
+  options: Array<"continue" | "stop">;
+}
+
+export type Pending = GatePrompt | LLMUnavailablePrompt | BudgetPrompt;
+export type Choice = "retry" | "switch_to_cpu" | "continue" | "stop";
+
+export interface PlanItem {
+  id: string;
+  title: string;
+  role: string;
+  status: "pending" | "in_progress" | "done";
+}
+
+export interface ArtifactRef {
+  kind: "plan" | "diff" | "graph" | "diagram" | "tests" | "preview" | "report" | "file";
+  title: string;
+  path: string;
+  step: string;
+}
+
+export interface BudgetState {
+  run: { llm_calls: number; tokens: number };
+  steps: Record<string, { llm_calls: number; tokens: number }>;
+  extensions: number;
+}
+
+export interface Playbook {
+  name: string;
+  title: string;
+  description: string;
+  intent: string | null;
+  lead_role: string;
+  tier: number;
+  steps: Array<{ id: string; title: string; role: string; number: number | null }>;
+  gates: Array<{
+    id: string;
+    title: string;
+    kind: "plan" | "result" | "custom";
+    number: number | null;
+    reworks: string;
+  }>;
+  inputs_schema: Record<string, unknown>;
+}
 
 export interface Run {
   id: string;
-  project_id: string;
+  project_id: string | null;
   playbook: string;
   tier: 0 | 1 | 2 | 3;
-  mode: MicroservicesMode;
   status: RunStatus;
   llm_profile: ProfileName;
-  options: { stub_delay_s?: number; use_llm?: boolean; services?: string[] };
+  inputs: Record<string, unknown>;
   current_step: string | null;
   pending: Pending | null;
   error: string | null;
@@ -54,6 +100,11 @@ export interface Run {
 export interface RunDetail extends Run {
   usage: { prompt_tokens: number; completion_tokens: number; llm_calls: number; llm_time_ms: number };
   approvals: Array<{ gate: string; subject: string | null; decision: Decision; comment: string; at: string }>;
+  flow: string[];
+  plan: PlanItem[];
+  steps: Record<string, { status?: string; summary?: string; subject?: string }>;
+  artifacts: ArtifactRef[];
+  budget: BudgetState | null;
 }
 
 export interface RunEvent {
@@ -65,9 +116,11 @@ export interface RunEvent {
   created_at: string;
 }
 
-export interface Workflow {
-  steps: Array<{ id: string; title: string; role: string; number: number | null }>;
-  gates: Array<{ id: string; number: number; title: string; reworks: string }>;
+/** A live-only LLM token (not stored, not replayed on reconnect). */
+export interface TokenEvent {
+  agent: string;
+  node: string | null;
+  text: string;
 }
 
 export interface LLMProfileView {
@@ -160,19 +213,20 @@ export const updateLLMSettings = (body: {
 export const checkHealth = (signal?: AbortSignal, profile?: ProfileName) =>
   request<HealthView[]>("GET", profile ? `/llm/health?profile=${profile}` : "/llm/health", undefined, signal);
 
-export const getWorkflow = (signal?: AbortSignal) => request<Workflow>("GET", "/runs/workflow", undefined, signal);
+export const listPlaybooks = (signal?: AbortSignal) => request<Playbook[]>("GET", "/playbooks", undefined, signal);
+export const getPlaybook = (name: string, signal?: AbortSignal) =>
+  request<Playbook>("GET", `/playbooks/${encodeURIComponent(name)}`, undefined, signal);
 export const listRuns = (signal?: AbortSignal) => request<Run[]>("GET", "/runs", undefined, signal);
 export const getRun = (id: string, signal?: AbortSignal) => request<RunDetail>("GET", `/runs/${id}`, undefined, signal);
 export const createRun = (body: {
-  project_name: string;
-  mode: MicroservicesMode;
+  playbook: string;
+  inputs: Record<string, unknown>;
+  project_name?: string;
   llm_profile?: ProfileName;
-  options: { stub_delay_s: number; use_llm: boolean; services?: string[] };
+  tier?: number;
 }) => request<Run>("POST", "/runs", body);
-export const answerRun = (
-  id: string,
-  body: { decision?: Decision; comment?: string; choice?: "retry" | "switch_to_cpu" },
-) => request<{ status: string }>("POST", `/runs/${id}/answer`, body);
+export const answerRun = (id: string, body: { decision?: Decision; comment?: string; choice?: Choice }) =>
+  request<{ status: string }>("POST", `/runs/${id}/answer`, body);
 export const cancelRun = (id: string) => request<{ status: string }>("POST", `/runs/${id}/cancel`);
 export const listTraces = (runId: string, signal?: AbortSignal) =>
   request<Trace[]>("GET", `/traces?run_id=${encodeURIComponent(runId)}`, undefined, signal);
