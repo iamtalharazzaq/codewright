@@ -32,6 +32,9 @@ export function useProjectGraph(projectId: string) {
   );
 
   useEffect(() => {
+    // Load now, and again whenever the stream (re)connects so nothing missed while offline stays missed.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loading data on mount
+    void load(null);
     const source = new EventSource(`/api/projects/${projectId}/events`);
     source.addEventListener("ready", () => void load(liveRef.current ? null : undefined));
     source.addEventListener("working", (e) => setWorking((JSON.parse(e.data) as { modules: string[] }).modules));

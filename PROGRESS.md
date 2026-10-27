@@ -22,6 +22,30 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
+## Phase 4: Graphify, knowledge graph, code search, done (ADR 0019)
+
+| Task | Result |
+|---|---|
+| 1. Graphify wrapper | `agent/graphify`: Graphify 0.9.88 offline (tree-sitter, no LLM), built after every import and on request; versions per project with diff and graph checks (empty files, isolated modules, two-way dependencies); `explain` / `query` / `path` through `/api/projects/{id}/graph/ask`. |
+| 2. Enrichment | Module edges carry their sources with a confidence: Graphify links and git co-change. |
+| 3. Code search | `code_chunks` (migration 0008): masked 60-line chunks, full-text now, vectors when the embedding server is up. `/api/projects/{id}/search`. Project chats get the module map and the best 3 hits. |
+| 4. Graph tab + explorer | Graph tab in project chats (modules named in the last reply highlighted), graph card on the project home, full-screen explorer with filter, "hide tests/scripts", module details (depends on / used by / files), graph checks and code search. |
+| 5. Live build graph | Throttled updates (≤ 1 per 3 s) streamed as diffs; new / changed / removed colors, "being worked on" ring, stable positions, timeline slider with Live. Demo: `docker compose exec api python -m codewright_api.demo_build <folder>`. |
+
+### Acceptance results (2026-10-27)
+
+| Check | Result |
+|---|---|
+| GoShop graph shows user, product, order, payment, notification and their links | ✅ 27 modules, 93 links; e.g. payment → order (64 refs), order → notification, order → user, order → product, server → all five. |
+| Graph queries correct on fixtures | ✅ Tests on a small shop fixture: `explain place_order()` names its calls, `path pay() → notify()` goes through `place_order`, a new file changes the right module and adds a version. |
+| Scripted build shows the graph growing live | ✅ 140 GoShop files copied one by one: 14 versions, modules appear green, change orange, the module being written has a blue ring; the timeline scrubs back to any version. |
+| `make check` | ✅ pytest **131 passed**, Vitest **21 passed**, lint/types/format clean. |
+| UI reviewed by you | ⏳ |
+
+Found on the way: `git log --format=@@` is read by git as a format name and returned nothing (git co-change was
+silently empty); fixed with `tformat:`. The remote GPU tunnel (ngrok) returned 404 at the end of the phase, so the last
+live chat check couldn't run; the graph and search context it would get was checked directly.
+
 ## Phase 3: Projects, uploads, connectors, delivery, done (ADR 0018)
 
 | Task | Result |

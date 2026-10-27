@@ -97,7 +97,7 @@ def module_graph(raw: dict[str, Any]) -> ModuleGraph:
 def git_cochange(work: Path, max_commits: int = 500) -> Counter[tuple[str, str]]:
     """Modules changed in the same commit, a hint of hidden coupling. Empty for a shallow clone or a new repo."""
     try:
-        log = git(work, "log", f"-{max_commits}", "--name-only", "--format=@@", check=False, timeout=60)
+        log = git(work, "log", f"-{max_commits}", "--name-only", "--format=tformat:@@", check=False, timeout=60)
     except (OSError, subprocess.TimeoutExpired):
         return Counter()
     pairs: Counter[tuple[str, str]] = Counter()
