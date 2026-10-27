@@ -24,6 +24,7 @@ class Question(BaseModel):
     question: str = Field(description="One short question.")
     default: str = Field(description="The answer used if the user says defaults are fine.")
     options: list[str] = Field(default_factory=list, max_length=6, description="Choices, if it's a pick-one.")
+    hint: str = Field(default="", max_length=80, description="Optional: why the default fits, under 10 words.")
 
 
 Short = Annotated[str, Field(max_length=70)]
@@ -31,7 +32,7 @@ Short = Annotated[str, Field(max_length=70)]
 
 class ConfirmCard(BaseModel):
     what: str = Field(max_length=160, description="One sentence: what I'll make or do.")
-    stack: str = Field(max_length=50, description="Only language and tools, e.g. 'Python 3.12 + pytest'.")
+    stack: str = Field(max_length=80, description="Language and main tools in 2-6 words, e.g. 'Python 3.12 + pytest'.")
     features: list[Short] = Field(min_length=1, max_length=5, description="Main features or steps, 2-8 words each.")
     deliver: str = Field(max_length=120, description="What the user gets at the end, in a few words.")
 
@@ -122,6 +123,7 @@ def _language_question(recommended: str, reason: str) -> Question:
     others = [lang for lang in ("Python", "TypeScript", "JavaScript", "Go", "C++") if lang != recommended]
     return Question(
         question="Which language?",
-        default=f"{recommended} (recommended: {reason.rstrip('.')})",
+        default=recommended,
         options=[recommended, *others],
+        hint=reason.rstrip("."),
     )

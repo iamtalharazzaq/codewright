@@ -68,7 +68,8 @@ def _questions_markdown(questions: list[intake.Question]) -> str:
     lines = ["Before I start, a few quick questions:"]
     for i, q in enumerate(questions, 1):
         options = f" {' · '.join(q.options)}" if q.options else ""
-        lines.append(f"{i}. **{q.question}**{options} *(default: {q.default})*")
+        why = f": {q.hint}" if q.hint else ""
+        lines.append(f"{i}. **{q.question}**{options} *(default: {q.default}{why})*")
     lines.append("\nAnswer in one message, or say “defaults are fine”.")
     return "\n".join(lines)
 

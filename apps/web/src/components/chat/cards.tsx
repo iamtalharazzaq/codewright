@@ -8,11 +8,22 @@ import { Markdown } from "@/components/chat/markdown";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { answerConfirm, answerRun, getRun, type ChatMessage, type RunDetail } from "@/lib/api";
+import { Input } from "@/components/ui/input";
+import { answerConfirm, answerRun, getRun, type ChatMessage, type Question, type RunDetail } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const CARD = "my-1 flex flex-col gap-3 rounded-xl border bg-card p-4";
 
-/** Questions from the missing-info check, with a one-click "use the defaults". */
+/** The option a question's default points at ("Python" for "Python (recommended)"), if any. */
+function defaultOption(q: Question): string | undefined {
+  const d = q.default.toLowerCase();
+  return q.options.find((o) => d === o.toLowerCase()) ?? q.options.find((o) => d.startsWith(o.toLowerCase()));
+}
+
+/**
+ * Questions from the missing-info check: pick-one questions as option buttons (the default pre-selected and marked
+ * "Recommended"), the others as a short text box. One click sends all answers; "Use the defaults" skips them.
+ */
 export function QuestionsCard({
   message,
   canAnswer,
@@ -22,11 +33,73 @@ export function QuestionsCard({
   canAnswer: boolean;
   onSend: (text: string) => void;
 }) {
+  const questions = message.data.questions ?? [];
+  const [answers, setAnswers] = useState<string[]>(() => questions.map((q) => defaultOption(q) ?? ""));
+  if (questions.length === 0) return <Markdown>{message.content}</Markdown>;
+
+  const set = (i: number, value: string) => setAnswers((prev) => prev.map((a, j) => (j === i ? value : a)));
+  const send = () => onSend(questions.map((q, i) => `${q.question} ${answers[i].trim() || q.default}`).join("\n"));
+
   return (
     <div className={CARD}>
-      <Markdown>{message.content}</Markdown>
+      <p className="text-sm font-medium">Before I start, a few quick questions</p>
+      <ol className="flex flex-col gap-4">
+        {questions.map((q, i) => {
+          const recommended = defaultOption(q);
+          return (
+            <li key={q.question} className="flex flex-col gap-2">
+              <p className="text-sm">
+                <span className="text-muted-foreground">{i + 1}.</span> {q.question}
+              </p>
+              {q.options.length > 0 ? (
+                <div role="radiogroup" aria-label={q.question} className="flex flex-wrap gap-2">
+                  {q.options.map((o) => {
+                    const selected = answers[i] === o;
+                    return (
+                      <button
+                        key={o}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        disabled={!canAnswer}
+                        onClick={() => set(i, o)}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+                          "hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent",
+                          selected && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+                        )}
+                      >
+                        {o}
+                        {o === recommended && (
+                          <span className={cn("text-xs", selected ? "opacity-80" : "text-muted-foreground")}>
+                            · Recommended
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Input
+                  aria-label={q.question}
+                  value={answers[i]}
+                  disabled={!canAnswer}
+                  placeholder={`Default: ${q.default}`}
+                  onChange={(e) => set(i, e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && canAnswer && send()}
+                  className="h-9"
+                />
+              )}
+              {q.hint && <p className="text-xs text-muted-foreground">{q.hint}</p>}
+            </li>
+          );
+        })}
+      </ol>
       {canAnswer && (
-        <div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={send}>
+            Send answers
+          </Button>
           <Button size="sm" variant="outline" onClick={() => onSend("Defaults are fine.")}>
             Use the defaults
           </Button>

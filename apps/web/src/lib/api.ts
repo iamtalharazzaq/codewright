@@ -249,6 +249,7 @@ export interface Question {
   question: string;
   default: string;
   options: string[];
+  hint?: string;
 }
 
 export interface ConfirmCardData {
