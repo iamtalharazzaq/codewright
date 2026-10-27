@@ -3,8 +3,8 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 1 (LLM layer and harness core), complete except the VRAM table, then the v2 reconciliation
-step (ADR 0016). Waiting for review ("next" starts Phase 2: the chat app).
+**Current phase:** Phase 2 (the chat app), done; waiting for your UI review ("next" starts Phase 3: projects, uploads,
+connectors, delivery). Phase 1 VRAM table still pending.
 **Last updated:** 2026-10-27
 **Branch:** `codewright-phase-0`
 
@@ -21,6 +21,31 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 2: The chat app, done (ADR 0017)
+
+| Task | Result |
+|---|---|
+| 1. Conversations | Create, list, search (titles and messages), rename, pin, delete; messages stored as a tree; replies streamed over SSE (`/api/conversations/...`). Chat list in the sidebar, each chat at `/c/<id>`. |
+| 2. Intent Router | `agent/chat/router.py`: 20 intents, tiers from `config/tiers.yaml` (new app 1-3 by size, microservices 3), confidence → clarifying question, non-software decline. Slash commands and unsupported languages are decided by rule, without the model (`agent/chat/intents.py`). |
+| 3. Missing-info check + Confirm card | `agent/chat/intake.py` + `config/intake.yaml`: required info per intent, at most 3 questions plus the language question for anything new (C18), defaults, two rounds max, then the confirm card. Nothing starts before **Start**. Language answers saved to memory (`memory_items`). |
+| 4. Answer playbook | `agent/chat/answer.py`: streamed reply as the Project Manager, last 6 turns as context. |
+| 5. In-chat cards | Questions (with "Use the defaults"), Confirm, a small Run card (status, steps, Approve/Reject, link), Done card with guide and next-step chips. Request types whose playbook isn't built yet say which phase builds it. |
+| 6. Side panel | Seven tabs, aligned; filled by later phases. |
+| 7. Edit / regenerate / branch / stop | Edit adds a sibling (‹ 1/2 › to switch), regenerate, Stop keeps the text so far and cancels the chat's run. Markdown, highlighted code with copy, Mermaid diagrams. |
+| 8. Settings | LLM profiles and health (Phase 1), budgets per tier, theme; model picker in the chat header. |
+
+### Acceptance results (2026-10-27, live on your GPU)
+
+| Check | Result |
+|---|---|
+| Chat works end to end for software Q&A | ✅ Driven in a real browser: streamed answers with code and Mermaid; Java/PHP declined; questions → defaults → confirm → Start; microservices audit run from chat → Done card. |
+| Router accuracy | ✅ **118/121 (98%)**, 1.5 s per message (`uv run python -m evals.router --url ...`, cases in `evals/data/router_cases.jsonl`, all of EXAMPLES.md). Misses: photo-rename script → write_code, dark mode → frontend, "clean modules" → refactor. |
+| `make check` | ✅ pytest **103 passed**, Vitest **18 passed**, lint/types/format clean. |
+| UI reviewed by you | ⏳ |
+
+Fixed on the way: Next.js gzipped the proxied event streams, so the browser saw nothing until a stream ended (also hit
+the run page's live output). Compression is off (`next.config.ts`).
 
 ## Phase 1: LLM layer and harness core, done (VRAM table pending)
 

@@ -1,0 +1,121 @@
+{"text": "Write code to reverse a linked list", "intent": "write_code"}
+{"text": "Check if a string is a palindrome", "intent": "write_code"}
+{"text": "FizzBuzz from 1 to 100", "intent": "write_code"}
+{"text": "Binary search in a sorted array", "intent": "write_code"}
+{"text": "Two Sum: indices of two numbers adding to a target", "intent": "write_code"}
+{"text": "Merge two sorted linked lists", "intent": "write_code"}
+{"text": "Detect a cycle in a linked list", "intent": "write_code"}
+{"text": "Check balanced parentheses", "intent": "write_code"}
+{"text": "Implement an LRU cache", "intent": "write_code"}
+{"text": "Merge sort / quick sort", "intent": "write_code"}
+{"text": "Fibonacci with memoization", "intent": "write_code"}
+{"text": "Group anagrams", "intent": "write_code"}
+{"text": "BFS and DFS on a graph", "intent": "write_code"}
+{"text": "Implement a stack and a queue", "intent": "write_code"}
+{"text": "Implement a Trie with insert/search/startsWith", "intent": "write_code"}
+{"text": "Dijkstra's shortest path", "intent": "write_code"}
+{"text": "Rotate a matrix 90 degrees", "intent": "write_code"}
+{"text": "Debounce function", "intent": "write_code"}
+{"text": "Reverse a linked list in Go", "intent": "write_code"}
+{"text": "Matrix multiplication, as fast as possible", "intent": "write_code"}
+{"text": "Write a SQL query: top 5 customers by total orders", "intent": "write_code"}
+{"text": "Reverse a linked list in Java", "intent": "decline"}
+{"text": "Make a calculator in PHP", "intent": "decline"}
+{"text": "Review my Java project", "intent": "decline"}
+{"text": "Write a REST API in C#", "intent": "decline"}
+{"text": "Rewrite this service in Rust", "intent": "decline"}
+{"text": "Make a tic-tac-toe game", "intent": "new_app"}
+{"text": "Make a calculator", "intent": "new_app"}
+{"text": "Make a to-do list app", "intent": "new_app"}
+{"text": "Make a stopwatch and timer", "intent": "new_app"}
+{"text": "Make a unit converter", "intent": "new_app"}
+{"text": "Make a password generator", "intent": "new_app"}
+{"text": "Make a quiz app", "intent": "new_app"}
+{"text": "Make a BMI calculator", "intent": "new_app"}
+{"text": "Make rock-paper-scissors", "intent": "new_app"}
+{"text": "Make a memory card matching game", "intent": "new_app"}
+{"text": "Make a snake game", "intent": "new_app"}
+{"text": "Make a Pomodoro timer", "intent": "new_app"}
+{"text": "Make a Markdown previewer", "intent": "new_app"}
+{"text": "Make a simple expense tracker", "intent": "new_app"}
+{"text": "Make a personal portfolio website", "intent": "new_app"}
+{"text": "Make a landing page for my bakery", "intent": "new_app"}
+{"text": "Make a number guessing game in the terminal", "intent": "new_app"}
+{"text": "Make a script that renames photos by date", "intent": "new_app"}
+{"text": "Make a console bank account simulator", "intent": "new_app"}
+{"text": "Make a QR code generator", "intent": "new_app"}
+{"text": "Make a blog with an admin panel", "intent": "new_app"}
+{"text": "Make an inventory app for my shop", "intent": "new_app"}
+{"text": "Make a simple online store", "intent": "new_app"}
+{"text": "Make a library management system", "intent": "new_app"}
+{"text": "Make a student attendance system", "intent": "new_app"}
+{"text": "Make a restaurant menu and order app", "intent": "new_app"}
+{"text": "Make an appointment booking app for a salon", "intent": "new_app"}
+{"text": "Make a URL shortener", "intent": "new_app"}
+{"text": "Make a real-time chat app", "intent": "new_app"}
+{"text": "Make a job board", "intent": "new_app"}
+{"text": "Make a recipe app", "intent": "new_app"}
+{"text": "Make a mini Trello / Kanban board", "intent": "new_app"}
+{"text": "Make a polling / voting app", "intent": "new_app"}
+{"text": "Make a REST API for a to-do app with auth", "intent": "new_app"}
+{"text": "Make a clinic management system: patients, doctors, appointments, prescriptions, billing", "intent": "new_app"}
+{"text": "Make a food delivery platform: customers, restaurants, riders, orders, payments", "intent": "new_app"}
+{"text": "Make a multi-vendor marketplace", "intent": "new_app"}
+{"text": "Review my payment module", "intent": "review_code"}
+{"text": "/review-code internal/payment", "intent": "review_code"}
+{"text": "Find bugs in my calculator", "intent": "review_code"}
+{"text": "Review my pull request", "intent": "review_code"}
+{"text": "My calculator gives the wrong result for 0.1 + 0.2", "intent": "fix_bug"}
+{"text": "Login fails with 500", "intent": "fix_bug"}
+{"text": "/fix-bug checkout crashes on empty cart", "intent": "fix_bug"}
+{"text": "The app crashes when I upload a big file", "intent": "fix_bug"}
+{"text": "Add a score counter to my tic-tac-toe", "intent": "add_feature"}
+{"text": "Add a wishlist to my store", "intent": "add_feature"}
+{"text": "Add dark mode to my notes app", "intent": "add_feature"}
+{"text": "Write tests for my inventory app", "intent": "write_tests"}
+{"text": "/write-tests", "intent": "write_tests"}
+{"text": "Add tests for orders", "intent": "write_tests"}
+{"text": "Refactor the order code", "intent": "refactor"}
+{"text": "/refactor src/orders", "intent": "refactor"}
+{"text": "Clean up duplicated code in the payment service", "intent": "refactor"}
+{"text": "My API is slow when listing products", "intent": "improve_performance"}
+{"text": "/optimize", "intent": "improve_performance"}
+{"text": "Checkout is slow", "intent": "improve_performance"}
+{"text": "Is my store app secure?", "intent": "security_review"}
+{"text": "/security-review", "intent": "security_review"}
+{"text": "Check my login code for vulnerabilities", "intent": "security_review"}
+{"text": "Upgrade my Next.js app to the latest version", "intent": "upgrade"}
+{"text": "Upgrade to Django 5", "intent": "upgrade"}
+{"text": "Make the to-do app look modern", "intent": "frontend_modernize"}
+{"text": "Move my React app to Next.js", "intent": "frontend_modernize"}
+{"text": "Dockerize my blog", "intent": "devops_deploy"}
+{"text": "/dockerize", "intent": "devops_deploy"}
+{"text": "Set up CI/CD for my API", "intent": "devops_deploy"}
+{"text": "Organize my Flask app into clean modules", "intent": "change_architecture"}
+{"text": "Turn my app into a modular monolith", "intent": "change_architecture"}
+{"text": "Split my monolith into microservices", "intent": "change_architecture"}
+{"text": "I have 8 tiny services, merge them back into one app", "intent": "change_architecture"}
+{"text": "Move my API to serverless", "intent": "change_architecture"}
+{"text": "Rewrite this Python CLI in Go", "intent": "translate_language"}
+{"text": "/translate cli.py go", "intent": "translate_language"}
+{"text": "Port my Go service to TypeScript", "intent": "translate_language"}
+{"text": "What's a saga pattern?", "intent": "general_help"}
+{"text": "What is a linked list?", "intent": "general_help"}
+{"text": "What can you do?", "intent": "general_help"}
+{"text": "Explain the difference between REST and GraphQL", "intent": "general_help"}
+{"text": "When should I use Redis?", "intent": "general_help"}
+{"text": "What is dependency injection?", "intent": "general_help"}
+{"text": "How does checkout work?", "intent": "explain_code"}
+{"text": "Explain how authentication works in my project", "intent": "explain_code"}
+{"text": "/explain src/payment", "intent": "explain_code"}
+{"text": "Audit my architecture", "intent": "analyze_audit"}
+{"text": "Give me a quality report of my project", "intent": "analyze_audit"}
+{"text": "Document this API", "intent": "write_docs"}
+{"text": "Write a README for my project", "intent": "write_docs"}
+{"text": "Add an index on orders.created_at", "intent": "database_change"}
+{"text": "Move from MySQL to Postgres", "intent": "database_change"}
+{"text": "Connect my GoShop repo", "intent": "project_manage"}
+{"text": "What's the status of my project?", "intent": "project_manage"}
+{"text": "Deliver it to GitHub", "intent": "project_manage"}
+{"text": "What's a good pasta recipe?", "intent": "off_topic"}
+{"text": "Who will win the next election?", "intent": "off_topic"}
