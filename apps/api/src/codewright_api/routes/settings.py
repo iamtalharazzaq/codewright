@@ -9,10 +9,10 @@ from pydantic import BaseModel, Field, field_validator
 
 from agent.llm.client import HealthReport
 from agent.llm.config import PROFILE_NAMES, ProfileName, ProfileOverride
-from monoshift_api.db import SessionDep
-from monoshift_api.deps import ManagerDep
-from monoshift_api.llm_settings import EffectiveLLM, effective_llm, load_stored, save_stored
-from monoshift_api.settings import Settings, get_settings
+from codewright_api.db import SessionDep
+from codewright_api.deps import ManagerDep
+from codewright_api.llm_settings import EffectiveLLM, effective_llm, load_stored, save_stored
+from codewright_api.settings import Settings, get_settings
 
 router = APIRouter(tags=["settings"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]

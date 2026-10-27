@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent.llm.client import LLMClient, TraceSink
 from agent.llm.config import ModelsConfig, ProfileName, ProfileOverride
-from monoshift_api.db import AppSetting
-from monoshift_api.settings import Settings
+from codewright_api.db import AppSetting
+from codewright_api.settings import Settings
 
 LLM_SETTINGS_KEY = "llm"
 

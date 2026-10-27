@@ -24,14 +24,14 @@ from langgraph.types import Command
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agent.graph.state import MonoShiftState
+from agent.graph.state import WorkflowState
 from agent.graph.workflow import build_workflow
 from agent.llm.client import LLMClient, TraceSink
 from agent.llm.config import ProfileName
-from monoshift_api.db import Approval, Project, Run, RunEvent
-from monoshift_api.llm_settings import EffectiveLLM, effective_llm
-from monoshift_api.settings import Settings
-from monoshift_api.tracing import FanOutTraceSink, LangfuseTraceSink, PostgresTraceSink, langfuse_client
+from codewright_api.db import Approval, Project, Run, RunEvent
+from codewright_api.llm_settings import EffectiveLLM, effective_llm
+from codewright_api.settings import Settings
+from codewright_api.tracing import FanOutTraceSink, LangfuseTraceSink, PostgresTraceSink, langfuse_client
 
 log = logging.getLogger(__name__)
 
@@ -165,9 +165,9 @@ class RunManager:
         async with self.sessions() as session:
             active = await session.scalar(select(Run.id).where(Run.status.in_(ACTIVE_STATUSES)).limit(1))
             if active:
-                raise RunConflict(f"Run {active} is still active. MonoShift runs one project at a time.")
+                raise RunConflict(f"Run {active} is still active. Codewright runs one job at a time.")
             profile = llm_profile or self.llm.active_profile
-            project = Project(name=project_name, mode=mode, status="active")
+            project = Project(name=project_name, status="active")
             session.add(project)
             await session.flush()
             run = Run(project_id=project.id, mode=mode, status="created", llm_profile=profile, options=options)
@@ -180,7 +180,7 @@ class RunManager:
             run.id, "llm_health", data={"profile": profile, "status": health.status, "warnings": list(health.warnings)}
         )
         workspace = self.settings.workspaces_dir / str(project.id)
-        initial: MonoShiftState = {
+        initial: WorkflowState = {
             "project_id": str(project.id),
             "run_id": str(run.id),
             "mode": mode,  # type: ignore[typeddict-item]
@@ -270,7 +270,7 @@ class RunManager:
             # Nothing checkpointed yet: the process died before the first step; start from the initial state.
             self._spawn(run_id, None if snapshot.values else await self._initial_state(run_id))
 
-    async def _initial_state(self, run_id: uuid.UUID) -> MonoShiftState:
+    async def _initial_state(self, run_id: uuid.UUID) -> WorkflowState:
         async with self.sessions() as session:
             run = await session.get(Run, run_id)
             if run is None:

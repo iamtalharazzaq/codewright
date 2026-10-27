@@ -33,9 +33,9 @@ def services() -> FakeServices:
 
 @pytest.fixture
 async def pg_url() -> AsyncIterator[str]:
-    url = os.environ.get("MONOSHIFT_TEST_DATABASE_URL")
+    url = os.environ.get("TEST_DATABASE_URL")
     if not url:
-        if os.environ.get("MONOSHIFT_SKIP_DB_TESTS") == "1":
-            pytest.skip("MONOSHIFT_SKIP_DB_TESTS=1")
-        pytest.fail("Postgres tests need MONOSHIFT_TEST_DATABASE_URL (or set MONOSHIFT_SKIP_DB_TESTS=1)")
+        if os.environ.get("SKIP_DB_TESTS") == "1":
+            pytest.skip("SKIP_DB_TESTS=1")
+        pytest.fail("Postgres tests need TEST_DATABASE_URL (or set SKIP_DB_TESTS=1)")
     yield url

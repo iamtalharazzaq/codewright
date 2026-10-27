@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from monoshift_api import __version__
+from codewright_api import __version__
 
 
 def test_liveness(client: TestClient) -> None:
@@ -12,7 +12,7 @@ def test_liveness(client: TestClient) -> None:
 
 
 def test_readiness_reports_unreachable_database(client: TestClient) -> None:
-    # conftest points MONOSHIFT_DATABASE_URL at a closed port.
+    # conftest points DATABASE_URL at a closed port.
     res = client.get("/api/health/ready")
     assert res.status_code == 503
     body = res.json()

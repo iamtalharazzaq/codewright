@@ -130,8 +130,8 @@ def exposure_warnings(base_url: str) -> list[str]:
         internal_suffixes = (".internal", ".local", ".lan", ".ts.net", ".tailnet", "localhost")
         if "." in host and not host.endswith(internal_suffixes):
             warnings.append(
-                f"{host} looks like a public hostname. Reach the model server through a secure tunnel "
-                "(Tailscale/WireGuard/SSH), never over the open internet."
+                f"{host} is a public URL (e.g. an ngrok tunnel): anyone who has it can reach the model server. "
+                "Fine if intended; otherwise use Tailscale/WireGuard/SSH or a llama-server --api-key."
             )
         return warnings
     cgnat = ipaddress.ip_network("100.64.0.0/10")  # Tailscale addresses

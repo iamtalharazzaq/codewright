@@ -14,11 +14,11 @@ from fastapi.testclient import TestClient
 API_DIR = Path(__file__).resolve().parents[1]
 UNREACHABLE_DB = "postgresql://unused:unused@localhost:1/unused"
 
-# Unit tests never need a real database; DB tests read MONOSHIFT_TEST_DATABASE_URL instead.
-os.environ["MONOSHIFT_DATABASE_URL"] = UNREACHABLE_DB
+# Unit tests never need a real database; DB tests read TEST_DATABASE_URL instead.
+os.environ["DATABASE_URL"] = UNREACHABLE_DB
 
-from monoshift_api import db, settings  # noqa: E402
-from monoshift_api.main import create_app  # noqa: E402
+from codewright_api import db, settings  # noqa: E402
+from codewright_api.main import create_app  # noqa: E402
 
 
 def _clear_caches() -> None:
@@ -36,13 +36,12 @@ def client() -> Iterator[TestClient]:
 
 
 def _test_database_url() -> str:
-    url = os.environ.get("MONOSHIFT_TEST_DATABASE_URL")
+    url = os.environ.get("TEST_DATABASE_URL")
     if not url:
-        if os.environ.get("MONOSHIFT_SKIP_DB_TESTS") == "1":
-            pytest.skip("MONOSHIFT_SKIP_DB_TESTS=1")
+        if os.environ.get("SKIP_DB_TESTS") == "1":
+            pytest.skip("SKIP_DB_TESTS=1")
         pytest.fail(
-            "DB tests need MONOSHIFT_TEST_DATABASE_URL (a throwaway database; it is wiped). "
-            "Set MONOSHIFT_SKIP_DB_TESTS=1 to skip them."
+            "DB tests need TEST_DATABASE_URL (a throwaway database; it is wiped). Set SKIP_DB_TESTS=1 to skip them."
         )
     return url
 
@@ -72,11 +71,11 @@ def app_factory(migrated_db: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     """Builds TestClients for the real app (run manager included) on the test database.
 
     Each call creates a fresh app, like a restarted API process. Use it as a context manager."""
-    monkeypatch.setenv("MONOSHIFT_DATABASE_URL", migrated_db)
-    monkeypatch.setenv("MONOSHIFT_WORKSPACES_DIR", str(tmp_path / "workspaces"))
+    monkeypatch.setenv("DATABASE_URL", migrated_db)
+    monkeypatch.setenv("WORKSPACES_DIR", str(tmp_path / "workspaces"))
     # Model servers that can't be reached: tests never depend on a real LLM.
-    monkeypatch.setenv("MONOSHIFT_LLM_LOCAL_CPU_URL", "http://127.0.0.1:9/v1")
-    monkeypatch.setenv("MONOSHIFT_LLM_REMOTE_GPU_URL", "http://127.0.0.1:9/v1")
+    monkeypatch.setenv("LLM_LOCAL_CPU_URL", "http://127.0.0.1:9/v1")
+    monkeypatch.setenv("LLM_REMOTE_GPU_URL", "http://127.0.0.1:9/v1")
 
     def factory() -> TestClient:
         _clear_caches()

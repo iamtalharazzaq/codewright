@@ -1,6 +1,7 @@
-// Typed client for the MonoShift API. All calls go through the `/api` rewrite (next.config.ts).
+// Typed client for the Codewright API. All calls go through the `/api` rewrite (next.config.ts).
 
-export type ProjectMode = "conversion" | "audit";
+// Variant of the microservices playbook (the only playbook with a run skeleton so far).
+export type MicroservicesMode = "conversion" | "audit";
 export type ProfileName = "remote_gpu" | "local_cpu";
 export type RunStatus = "created" | "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type Decision = "approve" | "edit" | "reject";
@@ -8,7 +9,6 @@ export type Decision = "approve" | "edit" | "reject";
 export interface Project {
   id: string;
   name: string;
-  mode: ProjectMode;
   status: string;
   created_at: string;
   updated_at: string;
@@ -38,7 +38,9 @@ export type Pending = GatePrompt | LLMUnavailablePrompt;
 export interface Run {
   id: string;
   project_id: string;
-  mode: ProjectMode;
+  playbook: string;
+  tier: 0 | 1 | 2 | 3;
+  mode: MicroservicesMode;
   status: RunStatus;
   llm_profile: ProfileName;
   options: { stub_delay_s?: number; use_llm?: boolean; services?: string[] };
@@ -155,14 +157,15 @@ export const updateLLMSettings = (body: {
   active_profile?: ProfileName;
   profiles?: Partial<Record<ProfileName, { base_url?: string; model?: string; num_ctx?: number }>>;
 }) => request<SettingsView>("PUT", "/settings/llm", body);
-export const checkHealth = (signal?: AbortSignal) => request<HealthView[]>("GET", "/llm/health", undefined, signal);
+export const checkHealth = (signal?: AbortSignal, profile?: ProfileName) =>
+  request<HealthView[]>("GET", profile ? `/llm/health?profile=${profile}` : "/llm/health", undefined, signal);
 
 export const getWorkflow = (signal?: AbortSignal) => request<Workflow>("GET", "/runs/workflow", undefined, signal);
 export const listRuns = (signal?: AbortSignal) => request<Run[]>("GET", "/runs", undefined, signal);
 export const getRun = (id: string, signal?: AbortSignal) => request<RunDetail>("GET", `/runs/${id}`, undefined, signal);
 export const createRun = (body: {
   project_name: string;
-  mode: ProjectMode;
+  mode: MicroservicesMode;
   llm_profile?: ProfileName;
   options: { stub_delay_s: number; use_llm: boolean; services?: string[] };
 }) => request<Run>("POST", "/runs", body);

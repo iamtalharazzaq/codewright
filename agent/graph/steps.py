@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from agent.graph.llm_recovery import call_with_recovery
 from agent.graph.services import RunServices
-from agent.graph.state import MonoShiftState, Node
+from agent.graph.state import Node, WorkflowState
 from agent.llm.structured import structured
 
 
@@ -53,10 +53,10 @@ class IntakeSummary(BaseModel):
     """Phase 1's single real LLM task, used to exercise the LLM path (structured output, tracing, GPU-lost pause)."""
 
     summary: str = Field(description="One or two sentences.")
-    next_step: str = Field(description="What MonoShift does next, in a few words.")
+    next_step: str = Field(description="What Codewright does next, in a few words.")
 
 
-def _stub_output(step: str, state: MonoShiftState) -> dict[str, Any]:  # noqa: PLR0911  (one branch per step)
+def _stub_output(step: str, state: WorkflowState) -> dict[str, Any]:  # noqa: PLR0911  (one branch per step)
     if step == "intake":
         return {"stack": {"stub": True}, "goals": {"stub": True}}
     if step == "baseline":
@@ -80,7 +80,7 @@ def _stub_output(step: str, state: MonoShiftState) -> dict[str, Any]:  # noqa: P
 def stub_step(step: str, services: RunServices) -> Node:
     definition = STEPS[step]
 
-    async def node(state: MonoShiftState) -> dict[str, Any]:
+    async def node(state: WorkflowState) -> dict[str, Any]:
         run_id = state["run_id"]
         subject = state.get("current_service") if step == "build_service" else None
         await services.emit(run_id, "step_started", step=step, data={"role": definition.role, "subject": subject})
@@ -100,14 +100,14 @@ def stub_step(step: str, services: RunServices) -> Node:
     return node
 
 
-async def _intake_with_llm(state: MonoShiftState, services: RunServices) -> dict[str, Any]:
+async def _intake_with_llm(state: WorkflowState, services: RunServices) -> dict[str, Any]:
     async def task(profile: str) -> dict[str, Any]:
         client = services.llm(profile, run_id=state["run_id"], step="intake", role="business_analyst")  # type: ignore[arg-type]
         result = await structured(
             client,
             IntakeSummary,
             [
-                {"role": "system", "content": "You are the Business Analyst of MonoShift. Answer in JSON only."},
+                {"role": "system", "content": "You are the Business Analyst of Codewright. Answer in JSON only."},
                 {
                     "role": "user",
                     "content": f"A new {state['mode']} project was created. Summarize what intake will check "

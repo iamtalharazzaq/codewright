@@ -10,11 +10,6 @@ import { listProjects, type Project } from "@/lib/api";
 
 type State = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; projects: Project[] };
 
-const MODE_LABEL: Record<Project["mode"], string> = {
-  conversion: "Full conversion",
-  audit: "Architecture audit",
-};
-
 export function ProjectsView() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -50,7 +45,7 @@ export function ProjectsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="size-4 text-destructive" aria-hidden="true" />
-            Can&apos;t reach the MonoShift API
+            Can&apos;t reach the Codewright API
           </CardTitle>
           <CardDescription>
             Check that the <code>api</code> service is running (<code>docker compose ps</code>). Details:{" "}
@@ -75,12 +70,12 @@ export function ProjectsView() {
           </span>
           <CardTitle>No projects yet</CardTitle>
           <CardDescription className="max-w-md">
-            A project is one monolith you want to audit or convert. You&apos;ll be able to import one from GitHub, a ZIP
-            file, Google Drive or a local folder.
+            A project is a codebase Codewright works on. You&apos;ll be able to connect one from GitHub, a ZIP file,
+            Google Drive or a local folder, or create a new one from a chat.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button disabled title="Available in Phase 2">
+          <Button disabled title="Available in Phase 3">
             New project
           </Button>
         </CardContent>
@@ -98,7 +93,6 @@ export function ProjectsView() {
               <CardDescription>Updated {new Date(p.updated_at).toLocaleString()}</CardDescription>
             </CardHeader>
             <CardContent className="flex gap-2">
-              <Badge variant="secondary">{MODE_LABEL[p.mode]}</Badge>
               <Badge variant="outline">{p.status}</Badge>
             </CardContent>
           </Card>

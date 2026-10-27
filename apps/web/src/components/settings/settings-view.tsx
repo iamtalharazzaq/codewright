@@ -20,7 +20,7 @@ import {
 
 const PROFILES: ProfileName[] = ["remote_gpu", "local_cpu"];
 const HINT: Record<ProfileName, string> = {
-  remote_gpu: "llama.cpp on your RTX 3080 box, through a secure tunnel (Tailscale or SSH). Fast.",
+  remote_gpu: "llama.cpp on your RTX 3080 box, through a tunnel (ngrok, Tailscale or SSH). Fast.",
   local_cpu: "llama.cpp on this machine. Slow, but always available.",
 };
 

@@ -15,7 +15,7 @@ CTXS=("${@:-8192 16384 32768}")
 [[ ${#CTXS[@]} -eq 1 ]] && read -r -a CTXS <<<"${CTXS[0]}"
 IMAGE=${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda-b9744}
 PORT=${PORT:-18080}
-NAME=monoshift-vram-test
+NAME=codewright-vram-test
 
 command -v nvidia-smi >/dev/null || { echo "nvidia-smi not found: run this on the GPU machine" >&2; exit 1; }
 command -v python3 >/dev/null || { echo "python3 is needed to build the test prompt" >&2; exit 1; }
@@ -58,7 +58,7 @@ PY
 )
   PEAK=$LOADED
   curl -s "http://127.0.0.1:${PORT}/v1/chat/completions" -H 'Content-Type: application/json' -d "$BODY" \
-    > /tmp/monoshift-vram-response.json &
+    > /tmp/codewright-vram-response.json &
   REQ=$!
   while kill -0 "$REQ" 2>/dev/null; do
     NOW=$(vram); (( NOW > PEAK )) && PEAK=$NOW
@@ -66,7 +66,7 @@ PY
   done
   read -r PP TG < <(python3 -c '
 import json
-t = json.load(open("/tmp/monoshift-vram-response.json")).get("timings", {})
+t = json.load(open("/tmp/codewright-vram-response.json")).get("timings", {})
 print(round(t.get("prompt_per_second", 0), 1), round(t.get("predicted_per_second", 0), 1))')
   echo "| $CTX | $LOADED | $PEAK | $PP | $TG |"
 done

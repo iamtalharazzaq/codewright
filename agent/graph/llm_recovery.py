@@ -13,7 +13,7 @@ from typing import Any, Literal, TypedDict
 from langgraph.types import interrupt
 
 from agent.graph.services import RunServices
-from agent.graph.state import MonoShiftState
+from agent.graph.state import WorkflowState
 from agent.llm.client import LLMUnavailable
 
 MAX_RECOVERY_ROUNDS = 5
@@ -34,7 +34,7 @@ class RecoveryAbandoned(Exception):
 
 
 async def call_with_recovery(
-    state: MonoShiftState,
+    state: WorkflowState,
     services: RunServices,
     *,
     step: str,

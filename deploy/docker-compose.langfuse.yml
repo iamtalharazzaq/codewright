@@ -2,7 +2,7 @@
 # Off by default. Start with: docker compose --profile langfuse up
 # Derived from the official file (https://github.com/langfuse/langfuse/blob/main/docker-compose.yml, Langfuse v4),
 # trimmed to the required settings, all ports bound to 127.0.0.1, telemetry off, and no default passwords:
-# set every LANGFUSE_* secret in .env first (see .env.example). MonoShift's built-in trace store works without it.
+# set every LANGFUSE_* secret in .env first (see .env.example). Codewright's built-in trace store works without it.
 
 x-langfuse-env: &langfuse-env
   NEXTAUTH_URL: http://localhost:${LANGFUSE_PORT:-3001}
@@ -57,11 +57,11 @@ services:
     environment:
       <<: *langfuse-env
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-}
-      # First start: create the MonoShift project with the same API keys the MonoShift API uses, and your login.
-      LANGFUSE_INIT_ORG_ID: monoshift
-      LANGFUSE_INIT_ORG_NAME: MonoShift
-      LANGFUSE_INIT_PROJECT_ID: monoshift
-      LANGFUSE_INIT_PROJECT_NAME: MonoShift
+      # First start: create the Codewright project with the same API keys the Codewright API uses, and your login.
+      LANGFUSE_INIT_ORG_ID: codewright
+      LANGFUSE_INIT_ORG_NAME: Codewright
+      LANGFUSE_INIT_PROJECT_ID: codewright
+      LANGFUSE_INIT_PROJECT_NAME: Codewright
       LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}

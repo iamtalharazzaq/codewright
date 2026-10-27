@@ -7,8 +7,8 @@ from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import text
 
-from monoshift_api import __version__
-from monoshift_api.db import SessionDep
+from codewright_api import __version__
+from codewright_api.db import SessionDep
 
 router = APIRouter(prefix="/health", tags=["health"])
 log = logging.getLogger(__name__)

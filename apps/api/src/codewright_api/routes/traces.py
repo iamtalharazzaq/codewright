@@ -8,7 +8,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
-from monoshift_api.db import SessionDep, Trace
+from codewright_api.db import SessionDep, Trace
 
 router = APIRouter(prefix="/traces", tags=["traces"])
 

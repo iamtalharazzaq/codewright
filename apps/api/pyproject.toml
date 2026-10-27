@@ -1,10 +1,10 @@
 [project]
-name = "monoshift-api"
+name = "codewright-api"
 version = "0.0.0"
-description = "MonoShift backend API (FastAPI)"
+description = "Codewright backend API (FastAPI)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "monoshift[langfuse]",
+    "codewright[langfuse]",
     "alembic>=1.16",
     "fastapi>=0.120",
     "psycopg[binary]>=3.2",
@@ -19,11 +19,11 @@ dependencies = [
 dev = ["httpx>=0.28"]
 
 [tool.uv.sources]
-monoshift = { workspace = true }
+codewright = { workspace = true }
 
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/monoshift_api"]
+packages = ["src/codewright_api"]

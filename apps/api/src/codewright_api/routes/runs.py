@@ -14,9 +14,9 @@ from sqlalchemy import func, select
 from agent.graph.gates import GATES
 from agent.graph.steps import STEPS
 from agent.llm.config import ProfileName
-from monoshift_api.db import Approval, Run, RunEvent, SessionDep, Trace, get_sessionmaker
-from monoshift_api.deps import ManagerDep
-from monoshift_api.runs import TERMINAL_STATUSES, RunConflict, event_dict
+from codewright_api.db import Approval, Run, RunEvent, SessionDep, Trace, get_sessionmaker
+from codewright_api.deps import ManagerDep
+from codewright_api.runs import TERMINAL_STATUSES, RunConflict, event_dict
 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
@@ -46,6 +46,8 @@ class RunOut(BaseModel):
 
     id: uuid.UUID
     project_id: uuid.UUID
+    playbook: str
+    tier: int
     mode: str
     status: str
     llm_profile: str

@@ -8,7 +8,7 @@ from typing import Any, Literal, TypedDict, cast
 
 from langgraph.types import interrupt
 
-from agent.graph.state import ApprovalRecord, Decision, MonoShiftState, Node
+from agent.graph.state import ApprovalRecord, Decision, Node, WorkflowState
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,7 @@ class GateAnswer(TypedDict, total=False):
     edits: dict[str, Any]
 
 
-def _summary(gate: GateDef, state: MonoShiftState) -> dict[str, Any]:
+def _summary(gate: GateDef, state: WorkflowState) -> dict[str, Any]:
     """What the gate card shows: the state the decision is about (stub data in Phase 1)."""
     keys = {
         "gate1": ("stack", "goals"),
@@ -70,7 +70,7 @@ def _summary(gate: GateDef, state: MonoShiftState) -> dict[str, Any]:
 def gate_node(gate_id: str) -> Node:
     gate = GATES[gate_id]
 
-    async def node(state: MonoShiftState) -> dict[str, Any]:
+    async def node(state: WorkflowState) -> dict[str, Any]:
         subject = state.get("current_service") if gate_id == "gate5" else None
         prompt: GatePrompt = {
             "kind": "gate",
@@ -103,7 +103,7 @@ def gate_node(gate_id: str) -> Node:
     return node
 
 
-def last_decision(state: MonoShiftState, gate_id: str) -> Decision:
+def last_decision(state: WorkflowState, gate_id: str) -> Decision:
     for record in reversed(state.get("approvals", [])):
         if record["gate"] == gate_id:
             decision: Decision = record["decision"]

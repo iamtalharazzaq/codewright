@@ -2,7 +2,7 @@
 # OpenAI-compatible API, so switching between them only changes the URL.
 #
 # Precedence (highest first): Settings page (stored in the database) > environment variables
-#   MONOSHIFT_LLM_REMOTE_GPU_URL / MONOSHIFT_LLM_LOCAL_CPU_URL > this file.
+#   LLM_REMOTE_GPU_URL / LLM_LOCAL_CPU_URL > this file.
 #
 # Verified in Phase 0 (V1, docs/adr/0002-llm-model-qwen3-5-9b.md):
 #   GGUF file:  Qwen3.5-9B-Q4_K_M.gguf (5.7 GB; run llama-server with --no-mmproj for text only)
@@ -10,21 +10,21 @@
 profiles:
   remote_gpu:
     server: llamacpp
-    base_url: null                     # not configured yet: set it in Settings when the RTX 3080 box is ready
+    base_url: null                     # set LLM_REMOTE_GPU_URL in .env or the URL in Settings (it changes with ngrok)
     model: Qwen3.5-9B-Q4_K_M
     num_ctx: 16384                     # starting point; measure and tune on the RTX 3080 (docs/setup/remote-gpu.md)
     max_parallel_llm_jobs: 1
-    api_key_env: MONOSHIFT_REMOTE_GPU_API_KEY
+    api_key_env: REMOTE_GPU_API_KEY
   local_cpu:
     server: llamacpp
     base_url: http://host.docker.internal:8080/v1
     model: Qwen3.5-9B-Q4_K_M
     num_ctx: 4096                      # must not exceed the server's per-slot context (llama-server -c / -np)
     max_parallel_llm_jobs: 1
-    api_key_env: MONOSHIFT_LOCAL_CPU_API_KEY
+    api_key_env: LOCAL_CPU_API_KEY
 embeddings:
   server: llamacpp
   base_url: http://host.docker.internal:8081/v1
   model: Qwen3-Embedding-0.6B
   dimensions: 1024
-default_profile: local_cpu             # the remote GPU isn't available yet
+default_profile: remote_gpu            # README Section 10; switch in the chat's model picker or Settings

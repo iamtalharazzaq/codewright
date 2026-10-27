@@ -12,8 +12,8 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: { default: "MonoShift", template: "%s · MonoShift" },
-  description: "Self-hosted AI software house that converts monoliths into microservices.",
+  title: { default: "Codewright", template: "%s · Codewright" },
+  description: "A self-hosted AI software house in a chat app.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

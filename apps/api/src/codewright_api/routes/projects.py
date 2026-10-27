@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
-from monoshift_api.db import Project, SessionDep
+from codewright_api.db import Project, SessionDep
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -18,7 +17,6 @@ class ProjectOut(BaseModel):
 
     id: uuid.UUID
     name: str
-    mode: Literal["conversion", "audit"]
     status: str
     created_at: datetime
     updated_at: datetime

@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MONOSHIFT_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: SecretStr
     models_config: Path = REPO_ROOT / "config" / "models.yaml"

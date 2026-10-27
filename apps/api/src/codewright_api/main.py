@@ -1,4 +1,4 @@
-"""FastAPI application entry point: `uvicorn monoshift_api.main:app`."""
+"""FastAPI application entry point: `uvicorn codewright_api.main:app`."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 
-from monoshift_api import __version__
-from monoshift_api.db import get_engine, get_sessionmaker
-from monoshift_api.routes import health, projects, runs, settings, traces
-from monoshift_api.runs import RunManager
-from monoshift_api.settings import get_settings
+from codewright_api import __version__
+from codewright_api.db import get_engine, get_sessionmaker
+from codewright_api.routes import health, projects, runs, settings, traces
+from codewright_api.runs import RunManager
+from codewright_api.settings import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     logging.basicConfig(level=get_settings().log_level.upper())
     app = FastAPI(
-        title="MonoShift API",
+        title="Codewright API",
         version=__version__,
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",

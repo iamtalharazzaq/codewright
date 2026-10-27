@@ -1,6 +1,6 @@
 """Run the Phase 1 example team against a real model server.
 
-    uv run python -m agent.agents.demo --url http://127.0.0.1:8080/v1 --workspace /tmp/monoshift-demo
+    uv run python -m agent.agents.demo --url http://127.0.0.1:8080/v1 --workspace /tmp/codewright-demo
 
 Prints what the Project Manager answered, which files the Business Analyst wrote, tokens and time.
 """

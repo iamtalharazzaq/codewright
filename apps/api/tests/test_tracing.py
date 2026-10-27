@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from agent.llm.client import TraceRecord, Usage
-from monoshift_api import tracing
+from codewright_api import tracing
 
 
 class FakeGeneration:

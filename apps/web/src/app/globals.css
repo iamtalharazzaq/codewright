@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* MonoShift tokens (brand + status), on top of the shadcn neutral palette. */
+  /* Codewright tokens (brand + status), on top of the shadcn neutral palette. */
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-success: var(--success);

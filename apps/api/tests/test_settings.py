@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from agent.llm.config import ModelsConfig
-from monoshift_api.settings import REPO_ROOT
+from codewright_api.settings import REPO_ROOT
 
 from .conftest import AppFactory
 
@@ -38,10 +38,14 @@ def test_settings_need_the_database(client: TestClient) -> None:
 
 
 def test_switch_profile_and_replace_the_url(app_factory: AppFactory, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("MONOSHIFT_REMOTE_GPU_API_KEY", "super-secret-value")
+    monkeypatch.setenv("REMOTE_GPU_API_KEY", "super-secret-value")
     with app_factory() as client:
         before = client.get("/api/settings").json()
-        assert before["active_llm_profile"] == "local_cpu"
+        assert before["active_llm_profile"] == "remote_gpu"  # README Section 10: the GPU is the default
+
+        res = client.put("/api/settings/llm", json={"active_profile": "local_cpu"})
+        assert res.status_code == 200
+        assert res.json()["active_llm_profile"] == "local_cpu"
 
         res = client.put(
             "/api/settings/llm",

@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent.llm.client import TraceRecord, TraceSink
-from monoshift_api.db import Trace
+from codewright_api.db import Trace
 
 log = logging.getLogger(__name__)
 

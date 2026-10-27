@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createRun, listRuns, PROFILE_LABEL, type ProfileName, type ProjectMode, type Run } from "@/lib/api";
+import { createRun, listRuns, PROFILE_LABEL, type ProfileName, type MicroservicesMode, type Run } from "@/lib/api";
 
 export function RunsView() {
   const [runs, setRuns] = useState<Run[] | null>(null);
@@ -69,7 +69,7 @@ export function RunsView() {
 
 function StartRunCard() {
   const router = useRouter();
-  const [mode, setMode] = useState<ProjectMode>("audit");
+  const [mode, setMode] = useState<MicroservicesMode>("audit");
   const [profile, setProfile] = useState<ProfileName | "">("");
   const [delay, setDelay] = useState("2");
   const [useLLM, setUseLLM] = useState(false);
@@ -82,7 +82,7 @@ function StartRunCard() {
         <CardTitle>Start a stub run</CardTitle>
         <CardDescription>
           Phase 1 runs the whole workflow with placeholder steps, so you can try the gates, pause/resume and the model
-          switch. Real projects arrive with the importers in Phase 2.
+          switch. Real projects arrive with the connectors in Phase 3.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -112,7 +112,7 @@ function StartRunCard() {
               id="run-mode"
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm dark:bg-input/30"
               value={mode}
-              onChange={(e) => setMode(e.target.value as ProjectMode)}
+              onChange={(e) => setMode(e.target.value as MicroservicesMode)}
             >
               <option value="audit">Architecture audit (B)</option>
               <option value="conversion">Full conversion (A)</option>

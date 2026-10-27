@@ -5,8 +5,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from monoshift_api.db import Base, to_sqlalchemy_url
-from monoshift_api.settings import get_settings
+from codewright_api.db import Base, to_sqlalchemy_url
+from codewright_api.settings import get_settings
 
 config = context.config
 if config.config_file_name is not None:

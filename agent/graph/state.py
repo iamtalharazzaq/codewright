@@ -27,7 +27,7 @@ class ErrorRecord(TypedDict):
     message: str
 
 
-class MonoShiftState(TypedDict):
+class WorkflowState(TypedDict):
     project_id: str
     run_id: str
     mode: Mode
@@ -62,4 +62,4 @@ class MonoShiftState(TypedDict):
 class Node(Protocol):
     """A workflow node. The parameter must be called `state` to match LangGraph's node protocol."""
 
-    def __call__(self, state: MonoShiftState) -> Awaitable[dict[str, Any]]: ...
+    def __call__(self, state: WorkflowState) -> Awaitable[dict[str, Any]]: ...

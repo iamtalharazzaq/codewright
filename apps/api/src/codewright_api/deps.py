@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
 
-from monoshift_api.runs import RunManager
+from codewright_api.runs import RunManager
 
 
 def get_manager(request: Request) -> RunManager:

@@ -9,12 +9,12 @@ from functools import lru_cache
 from typing import Annotated, Any, ClassVar
 
 from fastapi import Depends
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from monoshift_api.settings import get_settings
+from codewright_api.settings import get_settings
 
 
 class Base(DeclarativeBase):
@@ -22,13 +22,12 @@ class Base(DeclarativeBase):
 
 
 class Project(Base):
-    """A monolith being audited or converted. Later phases add source and workspace details."""
+    """A codebase Codewright works on (connected or created). Later phases add source and workspace details."""
 
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200))
-    mode: Mapped[str] = mapped_column(String(20))  # "conversion" | "audit"
     status: Mapped[str] = mapped_column(String(40), default="draft")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -37,12 +36,15 @@ class Project(Base):
 
 
 class Run(Base):
-    """One execution of the workflow. Its LangGraph thread id is the run id."""
+    """One execution of a playbook. Its LangGraph thread id is the run id."""
 
     __tablename__ = "runs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    playbook: Mapped[str] = mapped_column(String(40), server_default="microservices")  # README Section 5
+    tier: Mapped[int] = mapped_column(SmallInteger, server_default="3")  # risk tier 0-3, README Section 3.2
+    # Variant of the microservices playbook: "conversion" | "audit". Phase 1 reshapes the run state.
     mode: Mapped[str] = mapped_column(String(20))
     # created | running | waiting | completed | failed | cancelled
     status: Mapped[str] = mapped_column(String(20), default="created", index=True)
