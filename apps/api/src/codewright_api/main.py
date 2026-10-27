@@ -11,10 +11,12 @@ from fastapi import APIRouter, FastAPI
 from codewright_api import __version__
 from codewright_api.chat import ChatService
 from codewright_api.db import get_engine, get_sessionmaker
+from codewright_api.graph import GraphService
 from codewright_api.projects import ProjectService
 from codewright_api.routes import (
     connectors,
     conversations,
+    graph,
     health,
     playbooks,
     projects,
@@ -32,18 +34,20 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     cfg = get_settings()
-    app.state.projects = ProjectService(cfg, get_sessionmaker())
     manager = RunManager(cfg, get_sessionmaker(), cfg.database_url.get_secret_value())
+    app.state.graphs = GraphService(cfg, get_sessionmaker(), manager.bus)
+    app.state.projects = ProjectService(cfg, get_sessionmaker(), on_ready=app.state.graphs.refresh)
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
         app.state.run_manager = manager
-        app.state.chat = ChatService(manager)
+        app.state.chat = ChatService(manager, app.state.graphs)
     except Exception:
         # Keep serving /api/health so the problem is visible; /api/health/ready reports it.
         log.exception("run manager failed to start")
         app.state.run_manager = None
         app.state.chat = None
     yield
+    await app.state.graphs.stop()
     if app.state.chat is not None:
         await app.state.chat.stop_all()
     if app.state.run_manager is not None:
@@ -70,6 +74,7 @@ def create_app() -> FastAPI:
     api.include_router(conversations.router)
     api.include_router(uploads.router)
     api.include_router(connectors.router)
+    api.include_router(graph.router)
     app.include_router(api)
     return app
 

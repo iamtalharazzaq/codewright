@@ -11,6 +11,7 @@ import logging
 import shutil
 import tempfile
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -40,9 +41,15 @@ def summary_dict(ws: Workspace) -> dict[str, Any]:
 
 
 class ProjectService:
-    def __init__(self, settings: Settings, sessions: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        sessions: async_sessionmaker[AsyncSession],
+        on_ready: Callable[[uuid.UUID, list[str] | None, str], None] | None = None,
+    ) -> None:
         self.settings = settings
         self.sessions = sessions
+        self.on_ready = on_ready  # called when a project's files are in place (builds its graph)
         self._tasks: set[asyncio.Task[None]] = set()
 
     # ── import ───────────────────────────────────────────────────────────────
@@ -95,6 +102,8 @@ class ProjectService:
                 for k, v in values.items():
                     setattr(project, k, v)
                 await session.commit()
+        if values["status"] == "ready" and self.on_ready is not None:
+            self.on_ready(project_id, None, "import")
 
     async def _fetch(self, kind: str, ref: str, upload: Path | None, tmp: Path) -> Path:
         if kind == "zip":

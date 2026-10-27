@@ -30,6 +30,7 @@ from agent.llm.client import Message as LLMMessage
 from agent.llm.structured import StructuredOutputError
 from agent.playbooks.registry import playbooks
 from codewright_api.db import Conversation, MemoryItem, Message, Project, Run, Upload
+from codewright_api.graph import GraphService
 from codewright_api.routes.uploads import read_masked
 from codewright_api.runs import RunConflict, RunManager
 from codewright_api.tracing import PostgresTraceSink
@@ -41,6 +42,8 @@ TITLE_CHARS = 60
 # What a prompt gets of project context and attached files (the GPU model has a 4k context).
 PROJECT_CHARS = 1500
 ATTACHMENT_CHARS = 4000
+GRAPH_CHARS = 1200
+SNIPPET_CHARS = 700
 
 
 class ChatBusy(Exception):
@@ -88,8 +91,9 @@ def _card_markdown(card: intake.ConfirmCard) -> str:
 
 
 class ChatService:
-    def __init__(self, manager: RunManager) -> None:
+    def __init__(self, manager: RunManager, graphs: GraphService | None = None) -> None:
         self.manager = manager
+        self.graphs = graphs  # project graph + code search, for chats inside a project
         self.sessions = manager.sessions
         self._tasks: dict[uuid.UUID, asyncio.Task[None]] = {}
         manager.status_listeners.append(self._on_run_status)
@@ -352,6 +356,8 @@ class ChatService:
         preferences = [f"{p.key}: {p.value}" for p in prefs]
         has_project = project is not None
         context = _context(project, prefs, [u for u in uploads if u is not None])
+        if project is not None and self.graphs is not None:
+            context = "\n\n".join(p for p in (context, await self._code_context(project.id, user.content)) if p)
 
         # A reply to open questions, or a typed answer to an open confirm card, continues the intake.
         if previous is not None and previous.kind == "questions":
@@ -394,6 +400,34 @@ class ChatService:
         if project is not None and project.summary.get("languages"):
             state["project_language"] = next(iter(project.summary["languages"]))
         await self._intake_round(reply_id, state, None, preferences)
+
+    async def _code_context(self, project_id: uuid.UUID, question: str) -> str:
+        """The module map and the code chunks that best match the question (Code Analyst, Section 5.1)."""
+        if self.graphs is None:
+            return ""
+        parts: list[str] = []
+        graph = self.graphs.store(project_id).modules()
+        if graph:
+            deps: dict[str, list[str]] = {}
+            for e in graph["edges"]:
+                if e["weight"] > 0:
+                    deps.setdefault(e["source"], []).append(e["target"])
+            lines = [
+                f"- {n['id']} ({n['file_count']} files)"
+                + (f" -> {', '.join(deps[n['id']])}" if n["id"] in deps else "")
+                for n in graph["nodes"]
+            ]
+            parts.append(("Modules and their dependencies (from the code graph):\n" + "\n".join(lines))[:GRAPH_CHARS])
+        try:
+            hits = await self.graphs.search(project_id, question, limit=3)
+        except Exception:
+            log.exception("code search failed")
+            hits = []
+        for h in hits:
+            parts.append(
+                f"{h['path']} lines {h['start_line']}-{h['end_line']}:\n```\n{h['content'][:SNIPPET_CHARS]}\n```"
+            )
+        return "\n\n".join(parts)
 
     async def _stream(
         self,
