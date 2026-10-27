@@ -22,6 +22,28 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
+## Phase 3: Projects, uploads, connectors, delivery, done (ADR 0018)
+
+| Task | Result |
+|---|---|
+| 1. Projects | New project form: GitHub URL, ZIP upload, local folder (from `LOCAL_SOURCE_DIR`), Google Drive ZIP link, or empty. Imports run in the background. Project home: files, languages, top level, branch, secrets found, instructions, memory, chats, Deliver, "New chat" (chat inside the project), delete (the original is never touched). |
+| 2. Uploads | Clip button in the composer; files are stored, secret-scanned and attached to the message. Text goes to the model masked and cut to fit; the chip says how many secrets were masked. |
+| 3. Workspace manager | `workspaces/<id>/source` (original) + `work/` (git repo, changes on branches); GitHub clones keep their history for pull requests. |
+| 4. Output connectors + Deliver | ZIP download, copy to the deliveries folder, GitHub pull request on a `codewright/<time>` branch, Drive upload. Pick several at once; one result line each. |
+| 5. `project_manage` | Chats in a project get its summary, instructions and memory as context, and its language as the default. |
+| Settings | Google Drive connect/disconnect (your own OAuth client, token stored encrypted with `SECRET_KEY`). |
+
+### Acceptance results (2026-10-27)
+
+| Check | Result |
+|---|---|
+| GoShop connected by each method | ✅ GitHub (`quangdangfit/goshop`: 371 files, Go/TypeScript/SQL, branch `master`), ZIP, local folder. ⏳ Drive: needs your OAuth client file and `SECRET_KEY` in `.env`. |
+| A sample result delivered to each target | ✅ ZIP (download works) and local folder. ⏳ GitHub (needs `GITHUB_TOKEN` and a repo you can push to) and Drive (needs the connection above): both show a clear message about what to set. |
+| Malicious ZIP rejected | ✅ `../` paths, absolute paths, symlinks and ZIP bombs refused before anything is written; local paths outside the shared folder refused. |
+| Secrets masked | ✅ 8 findings in GoShop (compose file, sample config, README); an uploaded file with a DB password and an API key reached the model as `«secret»` (checked live on the GPU: the answer described the file without the values). |
+| `make check` | ✅ pytest **121 passed** (incl. Postgres), Vitest **19 passed**, lint/types/format clean. |
+| UI reviewed by you | ⏳ |
+
 ## Phase 2: The chat app, done (ADR 0017)
 
 | Task | Result |

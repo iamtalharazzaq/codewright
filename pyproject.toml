@@ -73,7 +73,7 @@ files = ["agent", "apps/api/src", "apps/api/tests", "evals"]
 mypy_path = "apps/api/src"
 
 [tool.pytest.ini_options]
-testpaths = ["agent/tests", "apps/api/tests"]
+testpaths = ["agent/tests", "connectors/tests", "apps/api/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra"

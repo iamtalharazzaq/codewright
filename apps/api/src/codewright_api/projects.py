@@ -67,6 +67,7 @@ class ProjectService:
         return project
 
     async def _import(self, project_id: uuid.UUID, kind: str, ref: str, upload: Path | None) -> None:
+        self.settings.workspaces_dir.mkdir(parents=True, exist_ok=True)
         tmp = Path(tempfile.mkdtemp(prefix="import-", dir=self.settings.workspaces_dir))
         try:
             tree = await self._fetch(kind, ref, upload, tmp)
