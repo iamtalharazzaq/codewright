@@ -37,8 +37,8 @@ Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the 
 
 | Check | Result |
 |---|---|
-| GoShop connected by each method | ✅ GitHub (`quangdangfit/goshop`: 371 files, Go/TypeScript/SQL, branch `master`), ZIP, local folder. ⏳ Drive: needs your OAuth client file and `SECRET_KEY` in `.env`. |
-| A sample result delivered to each target | ✅ ZIP (download works) and local folder. ⏳ GitHub (needs `GITHUB_TOKEN` and a repo you can push to) and Drive (needs the connection above): both show a clear message about what to set. |
+| GoShop connected by each method | ✅ GitHub (`quangdangfit/goshop`: 371 files, Go/TypeScript/SQL, branch `master`), ZIP, local folder. Drive: deferred (you'll set it up later). |
+| A sample result delivered to each target | ✅ ZIP (download works) and local folder. GitHub and Drive delivery: deferred (you'll set them up later); the UI says what to set. |
 | Malicious ZIP rejected | ✅ `../` paths, absolute paths, symlinks and ZIP bombs refused before anything is written; local paths outside the shared folder refused. |
 | Secrets masked | ✅ 8 findings in GoShop (compose file, sample config, README); an uploaded file with a DB password and an API key reached the model as `«secret»` (checked live on the GPU: the answer described the file without the values). |
 | `make check` | ✅ pytest **121 passed** (incl. Postgres), Vitest **19 passed**, lint/types/format clean. |
