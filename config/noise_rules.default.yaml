@@ -1,0 +1,25 @@
+# Default noise rules for behavior verification (README Section 5.18, "Behavior verification").
+# Replayed responses are compared on status, selected headers and the body as semantic JSON. These rules mark
+# differences that are expected (noise), so they aren't counted as regressions. The user sees and can edit them
+# per project. Implemented in Phase 7.
+
+compare:
+  status: true
+  headers: [content-type, location]
+  body: semantic_json
+
+ignore_fields:            # JSON paths whose values may differ between runs
+  - "$..id"
+  - "$..uuid"
+  - "$..created_at"
+  - "$..updated_at"
+  - "$..timestamp"
+  - "$..token"
+  - "$..access_token"
+  - "$..refresh_token"
+  - "$..request_id"
+
+ignore_headers: [date, etag, set-cookie, x-request-id, server-timing]
+
+unordered_arrays: []      # JSON paths of arrays compared as sets
+float_tolerance: 1.0e-6

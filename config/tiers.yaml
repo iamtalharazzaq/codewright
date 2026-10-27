@@ -1,0 +1,34 @@
+# Risk tiers and intents (README Sections 3.2 and 4). Read by the Intent Router (Phase 2).
+# The router proposes a tier; the user can always raise it. Destructive actions always need confirmation.
+
+tiers:
+  0: { meaning: "Answer only, no code changes", approvals: [] }
+  1: { meaning: "Small, contained change", approvals: [result] }
+  2: { meaning: "Medium change", approvals: [plan, result] }
+  3: { meaning: "Large change", approvals: per_playbook }   # gates defined by each playbook
+
+# tier: the default tier. max_tier: when the router may raise it on its own (risky fixes, Section 5.8).
+intents:
+  general_help:          { tier: 0, lead: project_manager,    playbook: answer }
+  project_manage:        { tier: 0, lead: project_manager,    playbook: project_ops }
+  explain_code:          { tier: 0, lead: code_analyst,       playbook: explain }
+  analyze_audit:         { tier: 0, lead: solution_architect, playbook: audit }
+  write_docs:            { tier: 1, lead: technical_writer,   playbook: docs }
+  write_tests:           { tier: 1, lead: qa_engineer,        playbook: tests }
+  fix_bug:               { tier: 1, lead: backend_developer,  playbook: bug_fix }
+  security_review:       { tier: 1, max_tier: 2, lead: security_engineer, playbook: security }
+  refactor:              { tier: 2, lead: backend_developer,  playbook: refactor }
+  improve_performance:   { tier: 2, lead: backend_developer,  playbook: performance }
+  upgrade:               { tier: 2, lead: backend_developer,  playbook: upgrade }
+  database_change:       { tier: 2, lead: database_engineer,  playbook: db_change }
+  add_feature:           { tier: 2, lead: product_manager,    playbook: feature }
+  frontend_modernize:    { tier: 2, lead: frontend_developer, playbook: frontend }
+  devops_deploy:         { tier: 2, lead: devops_engineer,    playbook: devops }
+  translate_language:    { tier: 3, lead: backend_developer,  playbook: translate }
+  convert_microservices: { tier: 3, lead: solution_architect, playbook: microservices }
+  new_app:               { tier: 3, lead: product_manager,    playbook: new_app }
+
+router:
+  # Below this confidence the router asks a clarifying question instead of acting (Section 4). Tuned in Phase 2.
+  min_confidence: 0.6
+  max_clarifying_questions: 2

@@ -1,0 +1,19 @@
+# Run budgets (README Section 9.2: "time/tokens/retries per run and step; pause and ask when exceeded").
+# Starting values for a 9B model; measured and tuned from Phase 1 on. A run that hits a limit pauses and asks.
+
+defaults:
+  per_step:
+    max_llm_calls: 20
+    max_tokens: 60000          # prompt + completion
+    max_minutes: 30
+    max_retries: 2             # structured-output retries (Section 10, rule 3)
+  per_run:
+    max_tokens: 1000000
+    max_hours: 12
+  reflection:
+    max_loops: 5               # failure → hypothesis → fix → retry, then escalate (Section 7, component 18)
+
+# Per-tier overrides: tier-0 answers should stay small and quick.
+tiers:
+  0:
+    per_run: { max_tokens: 60000, max_hours: 0.5 }
