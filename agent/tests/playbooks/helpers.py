@@ -30,7 +30,7 @@ def initial_state(playbook: str, tmp_path: Path, *, tier: int | None = None, **i
     """The state the run manager starts a run with (inputs validated, defaults filled in)."""
     pb = get_playbook(playbook)
     validated = pb.spec.inputs.model_validate({"stub_delay_s": 0, **inputs}).model_dump(mode="json")
-    tier = pb.tier if tier is None else tier
+    tier = max(pb.tier, pb.spec.min_tier(validated)) if tier is None else tier
     return {
         "run_id": "r1",
         "project_id": "p1",

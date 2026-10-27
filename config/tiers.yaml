@@ -1,4 +1,4 @@
-# Risk tiers and intents (README Sections 3.2 and 4). Read by the Intent Router (Phase 2).
+# Risk tiers and the 20 intents (CODEWRIGHT.md Sections 3.2 and 4). Read by the Intent Router (Phase 2).
 # The router proposes a tier; the user can always raise it. Destructive actions always need confirmation.
 
 tiers:
@@ -7,7 +7,8 @@ tiers:
   2: { meaning: "Medium change", approvals: [plan, result] }
   3: { meaning: "Large change", approvals: per_playbook }   # gates defined by each playbook
 
-# tier: the default tier. max_tier: when the router may raise it on its own (risky fixes, Section 5.8).
+# tier: the default tier. max_tier: how far the router may raise it on its own (by risk or size: Sections 5.1c, 5.8,
+# 5.17, 5.18). Slash commands and skills map to these intents (Section 8.6, Phase 6).
 intents:
   general_help:          { tier: 0, lead: project_manager,    playbook: answer }
   project_manage:        { tier: 0, lead: project_manager,    playbook: project_ops }
@@ -25,10 +26,16 @@ intents:
   frontend_modernize:    { tier: 2, lead: frontend_developer, playbook: frontend }
   devops_deploy:         { tier: 2, lead: devops_engineer,    playbook: devops }
   translate_language:    { tier: 3, lead: backend_developer,  playbook: translate }
-  convert_microservices: { tier: 3, lead: solution_architect, playbook: microservices }
-  new_app:               { tier: 3, lead: product_manager,    playbook: new_app }
+  change_architecture:   { tier: 2, max_tier: 3, lead: solution_architect, playbook: architecture_change }
+  new_app:               { tier: 1, max_tier: 3, lead: product_manager,    playbook: new_app }
+  write_code:            { tier: 1, lead: backend_developer,  playbook: write_code }
+  review_code:           { tier: 0, max_tier: 2, lead: tech_lead,          playbook: code_review }  # fixes: tier 1-2
 
 router:
   # Below this confidence the router asks a clarifying question instead of acting (Section 4). Tuned in Phase 2.
   min_confidence: 0.6
-  max_clarifying_questions: 2
+
+# Missing-info check (Section 3.4): one message of at most ~5 questions, each with a default; at most two rounds.
+clarifier:
+  max_questions_per_round: 5
+  max_rounds: 2

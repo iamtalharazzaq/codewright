@@ -9,8 +9,8 @@ FAST = {"stub_delay_s": 0}
 
 
 def ms(mode: str = "audit", **inputs: Any) -> dict[str, Any]:
-    """Body for a stub microservices run."""
-    return {"playbook": "microservices", "inputs": {"mode": mode, **FAST, **inputs}}
+    """Body for a stub architecture-change run (microservices target)."""
+    return {"playbook": "architecture_change", "inputs": {"mode": mode, **FAST, **inputs}}
 
 
 def _approve_until_done(client: Any, run_id: str) -> tuple[dict[str, Any], list[str]]:
@@ -152,7 +152,7 @@ def test_playbooks_are_listed_with_steps_gates_and_input_schema(client: Any) -> 
     assert [s["id"] for s in sample["steps"]] == ["plan", "work"]
     assert [(g["id"], g["kind"]) for g in sample["gates"]] == [("approve_plan", "plan"), ("approve_result", "result")]
     assert "request" in sample["inputs_schema"]["properties"]
-    assert client.get("/api/playbooks/microservices").json()["tier"] == 3
+    assert client.get("/api/playbooks/architecture_change").json()["tier"] == 2
     assert client.get("/api/playbooks/nope").status_code == 404
 
 
@@ -196,3 +196,12 @@ def test_budget_choices_only_answer_a_budget_prompt(app_factory: AppFactory) -> 
         res = client.post(f"/api/runs/{run_id}/answer", json={"choice": "continue"})
         assert res.status_code == 409  # the open prompt is a gate
         client.post(f"/api/runs/{run_id}/cancel")
+
+
+def test_architecture_change_needs_a_built_target_and_microservices_is_tier_3(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        later = {"playbook": "architecture_change", "inputs": {"target": "serverless"}}
+        assert client.post("/api/runs", json=later).status_code == 422
+        run = client.post("/api/runs", json=ms()).json()
+        client.post(f"/api/runs/{run['id']}/cancel")
+    assert run["tier"] == 3 and run["inputs"]["target"] == "microservices"

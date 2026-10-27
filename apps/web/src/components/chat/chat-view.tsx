@@ -10,11 +10,12 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
 // Examples from README Section 1.2: one per kind of work, so the empty chat shows the range.
+// Requests from EXAMPLES.md: a question, a snippet, a small app and a review.
 const SUGGESTIONS = [
   "What's a saga pattern?",
-  "How does checkout work in my project?",
-  "Login returns 500, fix it",
-  "Create a clinic appointment booking app",
+  "Write code to reverse a linked list",
+  "Make a tic-tac-toe game",
+  "/review-code src/",
 ];
 
 type PanelMode = "auto" | "open" | "closed";

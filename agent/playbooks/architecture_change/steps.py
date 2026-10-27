@@ -1,4 +1,4 @@
-"""Microservices playbook steps (README Section 5.18) and their stub implementations.
+"""Architecture-change steps (CODEWRIGHT.md Section 5.18): the microservices target, stub implementations for now.
 
 Each stub announces itself, waits `stub_delay_s` (so pause/kill/resume can be tested), writes a marker file into the
 workspace and returns placeholder state. Phases 15-17 replace one stub at a time with the real step.
@@ -10,7 +10,7 @@ import asyncio
 from pathlib import Path
 from typing import Annotated, Any, Literal, NotRequired
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from agent.llm.config import ProfileName
 from agent.llm.structured import structured
@@ -20,8 +20,16 @@ from agent.playbooks.registry import StepDef
 from agent.playbooks.services import RunServices
 from agent.playbooks.state import Node, RunState, merge
 
+Target = Literal["microservices", "modules", "modular_monolith", "merge", "serverless", "event_driven"]
+BUILT_TARGETS = ("microservices",)  # the others arrive in Phases 15-17
+
 
 class MicroservicesInputs(BaseModel):
+    target: Target = Field(
+        title="Target architecture",
+        default="microservices",
+        description="Clean modules, modular monolith, microservices, merge services, serverless or event-driven.",
+    )
     mode: Literal["conversion", "audit"] = Field(
         title="Mode", default="audit", description="conversion: all 10 steps; audit: steps 1-5, report, delivery."
     )
@@ -30,6 +38,12 @@ class MicroservicesInputs(BaseModel):
         default=2.0, ge=0, le=60, title="Seconds per stub step", description="How long each stub step takes."
     )
     use_llm: bool = Field(default=False, title="Use the model", description="Make one real LLM call at intake.")
+
+    @model_validator(mode="after")
+    def _target_is_built(self) -> MicroservicesInputs:
+        if self.target not in BUILT_TARGETS:
+            raise ValueError(f"The {self.target} target isn't available yet; only microservices is (stub steps).")
+        return self
 
 
 class MicroservicesState(RunState):
@@ -151,7 +165,7 @@ def _write_marker(workspace: Path, step: str, subject: str | None, feedback: str
     folder = workspace / "stub" / step
     folder.mkdir(parents=True, exist_ok=True)
     name = f"{subject}.md" if subject else "STUB.md"
-    lines = [f"# {STEPS[step].title} (stub)", "", "Written by the microservices playbook skeleton."]
+    lines = [f"# {STEPS[step].title} (stub)", "", "Written by the architecture-change playbook skeleton."]
     if feedback:
         lines += ["", f"Reworked after feedback: {feedback}"]
     (folder / name).write_text("\n".join(lines) + "\n", encoding="utf-8")

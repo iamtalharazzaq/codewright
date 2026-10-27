@@ -9,9 +9,9 @@ from agent.playbooks.state import ArtifactRef, BudgetState, add_artifacts, add_b
 
 def test_registry_loads_every_playbook_with_its_tier() -> None:
     pbs = playbooks()
-    assert {"sample", "microservices"} <= set(pbs)
+    assert {"sample", "architecture_change"} <= set(pbs)
     assert pbs["sample"].tier == 2
-    assert pbs["microservices"].tier == 3  # from the intent in config/tiers.yaml
+    assert pbs["architecture_change"].tier == 2  # from the intent in config/tiers.yaml
 
 
 def test_unknown_playbook() -> None:
@@ -20,7 +20,7 @@ def test_unknown_playbook() -> None:
 
 
 def test_flow_and_initial_plan_follow_the_inputs() -> None:
-    spec = get_playbook("microservices").spec
+    spec = get_playbook("architecture_change").spec
     audit = spec.flow({"mode": "audit"})
     conversion = spec.flow({"mode": "conversion"})
     assert "foundation" not in audit and "foundation" in conversion

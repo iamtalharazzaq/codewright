@@ -19,13 +19,13 @@ async def test_run_survives_a_restart(pg_url: str, tmp_path: Path) -> None:
 
     async with AsyncPostgresSaver.from_conn_string(pg_url) as saver:
         await saver.setup()
-        graph = compiled("microservices", FakeServices(), saver)
-        result = await graph.ainvoke(initial_state("microservices", tmp_path, mode="audit"), config)
+        graph = compiled("architecture_change", FakeServices(), saver)
+        result = await graph.ainvoke(initial_state("architecture_change", tmp_path, mode="audit"), config)
         assert result["__interrupt__"][0].value["gate"] == "gate1"
 
     # "Restart": new connection, new graph object, same thread id.
     async with AsyncPostgresSaver.from_conn_string(pg_url) as saver:
-        graph = compiled("microservices", FakeServices(), saver)
+        graph = compiled("architecture_change", FakeServices(), saver)
         snapshot = await graph.aget_state(config)
         assert snapshot.next == ("gate1",)
         result = await graph.ainvoke(Command(resume={"decision": "approve"}), config)

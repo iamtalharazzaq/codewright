@@ -1,6 +1,10 @@
 # Codewright progress
 
-**Current phase:** Phase 0 (setup and reconciliation), complete and waiting for review ("next").
+Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
+follow `CODEWRIGHT.md` Section 15.
+
+**Current phase:** Phase 1 (LLM layer and harness core), complete except the VRAM table, then the v2 reconciliation
+step (ADR 0016). Waiting for review ("next" starts Phase 2: the chat app).
 **Last updated:** 2026-10-27
 **Branch:** `codewright-phase-0`
 
@@ -9,7 +13,7 @@
 ```bash
 cp .env.example .env     # first time only: set POSTGRES_PASSWORD (openssl rand -hex 16) and LLM_REMOTE_GPU_URL
 docker compose up -d --build --wait
-# Chat app:   http://localhost:3000
+# Chat app:   http://localhost:3000        Runs: http://localhost:3000/runs
 # API docs:   http://localhost:8000/api/docs
 # Readiness:  http://localhost:8000/api/health/ready
 make check               # every lint/type/test check, inside Docker
@@ -18,7 +22,40 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
-## Phase 0: done
+## Phase 1: LLM layer and harness core, done (VRAM table pending)
+
+| Task | Result |
+|---|---|
+| 1. `agent/llm/` | Profiles `remote_gpu` / `local_cpu`, health (now also proves the API key), queue (`max_parallel_llm_jobs`), structured outputs (schema + validation + retry), token/time traces, **budgets** per step and run from `config/budgets.yaml` with a continue/stop prompt. 10 s connect timeout, so a lost server is noticed fast. |
+| 2. Remote GPU guide | `docs/setup/remote-gpu.md`: native Windows llama-server, **ngrok with `--api-key-file`** (current), **Tailscale** (recommended long term), SSH. VRAM measurement: `scripts/measure_vram.py` (native, new) or `scripts/measure-vram.sh` (Docker). |
+| 3. LangGraph basics | Generic run core in `agent/playbooks/`: registry, `RunState`, tiered plan/result gates (`interrupt()`), Postgres checkpointer, one graph per playbook. Streaming with v2 stream parts: live LLM tokens over SSE (not stored), sub-agent tool calls as team activity. Migration `0004` (runs: validated `inputs`, optional project). `GET /api/playbooks`. |
+| 4. `deepagents` | Sample playbook: the Project Manager plans a brief (one structured decision), then delegates to the Business Analyst, who writes `brief.md` into the run workspace. Model calls capped per agent (8 lead / 6 sub-agent). |
+| 5. Traces, GPU loss | Every LLM call traced (also agent loops). GPU loss → checkpoint → pause → retry / switch to CPU. |
+| Web | Runs page: playbook picker with a form built from the playbook's input schema, tier, model. Run page: timeline from the playbook's flow, plan checklist, artifacts, live output, team activity, gate / GPU / budget cards. |
+
+### Acceptance results (2026-10-27, live on your GPU)
+
+| Check | Result |
+|---|---|
+| A sample run streams events, pauses for approval, resumes | ✅ 391 live tokens in one run; sub-agent `task` → `write_file /brief.md` in the activity feed; paused at both gates; Edit re-ran the plan with the comment. `brief.md` written 3/3 runs, 13–20 s, 5–6 LLM calls. |
+| Crash → resume | ✅ `docker compose kill api` mid-step, then `up`: the run re-ran the interrupted step from its checkpoint and stopped at the gate. |
+| Profile switch / GPU loss | ✅ GPU URL pointed at a dead host during the agent step: paused after ~9 s with Retry / Switch to CPU; Retry after restoring finished the step. On `local_cpu` (not running) only Retry is offered. |
+| 9B structured-output success rate | ✅ 42/42 valid on the first try, 31/42 correct, 2.2 s per call (`evals/structured_output.py`). |
+| `make check` | ✅ ruff, mypy clean; pytest **81 passed** (incl. Postgres); ESLint, tsc, Prettier clean; Vitest **17 passed**; `next build` ok. |
+| VRAM vs `num_ctx` | ⏳ Run `python scripts/measure_vram.py …` on the GPU machine (guide section 6) and send the table; `num_ctx` then goes to the largest of 8K–16K that fits (server `-c` and Settings together). |
+
+Bugs found on the GPU and fixed: fields named `title` vanished from grammar schemas; a looping agent overflowed the
+4K context; a dead server took 600 s to notice. Details: ADR 0015.
+
+## Reconciliation with CODEWRIGHT.md (v2), done
+
+ADR 0016. Spec files committed (`README.md` untouched); `config/tiers.yaml` has the **20 intents**
+(`write_code`, `review_code`, `change_architecture`, `new_app` 1–3); the `microservices` playbook is now
+**`architecture_change`** with a `target` input (microservices only, tier 3; other targets in Phases 15–17); `skills/`
+and `agent/skills/` folders; Language Packs follow C12 (5 languages); welcome suggestions from `EXAMPLES.md`.
+Benchmark candidates are in ADR 0016 for you to choose (nothing cloned).
+
+## Phase 0: done (under README.md; still valid)
 
 | Task | Result |
 |---|---|
@@ -44,37 +81,26 @@ Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the 
 
 | # | Result | Details |
 |---|---|---|
-| V1 | ✅ Model confirmed | Your remote server (llama.cpp on Windows, via ngrok) serves `Qwen3.5-9B-Q4_K_M.gguf`, 8.95B params, `Q4_K - Medium`. Token streaming works through the tunnel. Estimate ~6.5 GiB VRAM at 16K (ADR 0002). **Open:** it runs `n_ctx 4096` (1 slot), below the README's 16K; and VRAM needs `scripts/measure-vram.sh` on the GPU box (Phase 1). |
+| V1 | ✅ Model confirmed | Your remote server (llama.cpp on Windows, via ngrok) serves `Qwen3.5-9B-Q4_K_M.gguf`, 8.95B params, `Q4_K - Medium`. Token streaming works through the tunnel. **Open:** VRAM per `num_ctx` (see Phase 1). |
 | V2 | ✅ | Graphify `graphifyy` 0.9.96 now (0.9.95 verified in ADR 0003); interface and 2 gaps unchanged. |
 | V3 | ✅ | ADR 0004 + **streaming** (ADR 0014): `astream(stream_mode=["updates","messages","custom"], subgraphs=True, version="v2")`; deep-agent sub-agents appear under `tools:<id>` namespaces. |
 | V4 | ✅ Method; one choice open | ADR 0005 (Desktop OAuth). Testing mode (weekly reconnect) vs Production-unverified: decide by Phase 3. |
 | V5 | ✅ No blocker | Legacy "CodeWright" editor (Borland era, discontinued); `codewright` taken on PyPI and npm (npm one is an AI spec→code tool); small GitHub repos. Fine for a self-hosted project; trademark search before any public release. ADR 0013. |
 | V6 (extra) | ✅ | GoShop has exactly user, product, order, payment, notification + React frontend, Postgres, Redis. ADR 0013. |
 
-## Next: Phase 1, LLM layer and harness core
-
-Much of it exists from the old Phase 1 (LLM client, structured outputs, queue, health, run manager, SSE, traces,
-Settings, tool allowlists). Phase 1 reshapes it to the README: generic `RunState` with playbook/tier, a run-subgraph
-pattern, budgets from `config/budgets.yaml`, the microservices workflow moved to `agent/playbooks/microservices/`,
-streaming per ADR 0014, GPU-loss handling, and the 9B structured-output success rate measured on the remote GPU.
-Working order (your preference): functionality first, tests at the end of the phase.
-
 ## Known issues
 
-- **Local CPU model server is not running.** Nothing listens on host `127.0.0.1:8080` (model) or `:8081`
-  (embeddings), so `local_cpu` shows *unreachable*. Start your host llama-server; the `host-llm-bridge` picks it up.
-- **Remote context:** the GPU server runs `-c 4096`; Settings warns because `num_ctx` is 16384. Restart it with
-  `-c 16384 -np 1` (docs/setup/remote-gpu.md), or tell me to lower `num_ctx`.
-- **ngrok URL changes** when ngrok restarts: update it in Settings (or `LLM_REMOTE_GPU_URL` in `.env`).
-- **Disk:** ~8 GB free (97% used). Enough for now; sandbox images (Phase 5) will need more.
-- Old items kept for you to decide: Docker volume `monoshift_workspaces` (old stub-run files) and images
-  `monoshift-api:dev` / `monoshift-web:dev` (~0.7 GB, superseded).
-- `pnpm` via corepack (`corepack pnpm …`) only matters for host runs; `make check` doesn't need it.
+- **Your GPU server has no API key yet.** Settings shows a warning for the public ngrok URL. Steps:
+  `docs/setup/remote-gpu.md` → Option C (key file, `--api-key-file`, `REMOTE_GPU_API_KEY` in `.env`).
+- **Local CPU model server is not running** (nothing on host `127.0.0.1:8080` / `:8081`), so `local_cpu` shows
+  *unreachable*. Start your host llama-server; the `host-llm-bridge` picks it up.
+- **ngrok URL changes** when ngrok restarts: update it in Settings.
+- **Disk:** ~6 GB free (98% used). Needs freeing before benchmarks are cloned and sandbox images built (Phase 5).
 
 ## Decisions waiting on you
 
-1. GitHub remote (you'll share it later).
-2. Remote GPU context: raise the server to 16K, or lower `num_ctx` to 4096?
+1. Benchmarks: pick from the candidates in ADR 0016 (one per type), after disk space is freed.
+2. VRAM table from the GPU machine (sets `num_ctx`).
 3. Google Drive token mode (by Phase 3).
 4. Sandbox (Phase 5): Docker socket in the API container (simple, root-equivalent) vs rootless Docker / host runner.
-5. Delete `monoshift_workspaces` and the old `monoshift-*` images?
+5. GitHub remote (you'll share it later).

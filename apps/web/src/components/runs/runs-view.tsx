@@ -51,7 +51,7 @@ function defaults(pb: Playbook): Record<string, unknown> {
 export function runTitle(run: Pick<Run, "playbook" | "inputs">): string {
   const request = run.inputs.request;
   if (typeof request === "string") return request.length > 60 ? `${request.slice(0, 57)}…` : request;
-  if (run.playbook === "microservices")
+  if (run.playbook === "architecture_change")
     return run.inputs.mode === "conversion" ? "Full conversion" : "Architecture audit";
   return run.playbook;
 }

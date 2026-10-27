@@ -1,0 +1,7 @@
+# CODEWRIGHT.md Section 5.18. Only the microservices target exists so far, with stub steps (Phases 15-17).
+title: Architecture change
+description: >-
+  Restructure a project for a target architecture. Microservices target (stub steps): one frontend + N backend services behind a gateway: intake, baseline, As-Is, To-Be, languages, then (for a full
+  conversion) foundation, a per-service loop, database split, frontend and report. Audit mode stops after the design.
+intent: change_architecture
+lead_role: solution_architect

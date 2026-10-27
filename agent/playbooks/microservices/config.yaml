@@ -1,7 +1,0 @@
-# README Section 5.18. Steps are stubs until Phases 15-17.
-title: Monolith to microservices
-description: >-
-  One frontend + N backend microservices behind a gateway: intake, baseline, As-Is, To-Be, languages, then (for a full
-  conversion) foundation, a per-service loop, database split, frontend and report. Audit mode stops after the design.
-intent: convert_microservices
-lead_role: solution_architect

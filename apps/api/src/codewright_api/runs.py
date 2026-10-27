@@ -275,7 +275,7 @@ class RunManager:
             run = Run(
                 project_id=project_id,
                 playbook=pb.name,
-                tier=max(pb.tier, tier if tier is not None else pb.tier),
+                tier=max(pb.tier, pb.spec.min_tier(validated), tier if tier is not None else 0),
                 status="created",
                 llm_profile=llm_profile or self.llm.active_profile,
                 inputs=validated,

@@ -1,4 +1,5 @@
-"""The microservices playbook as a LangGraph `StateGraph` (README Section 5.18), stub steps for now.
+"""The architecture-change playbook as a LangGraph `StateGraph` (CODEWRIGHT.md Section 5.18): the microservices target,
+stub steps for now.
 
     intake → G1 → baseline → as_is → G2 → to_be → G3 → languages → G4
       ├─ audit:      audit_report → G8 → deliver
@@ -15,8 +16,8 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from agent.playbooks.architecture_change.steps import STEPS, MicroservicesInputs, MicroservicesState, stub_step
 from agent.playbooks.gates import GateDef, after_gate, gate_node, last_decision
-from agent.playbooks.microservices.steps import STEPS, MicroservicesInputs, MicroservicesState, stub_step
 from agent.playbooks.registry import PlaybookSpec
 from agent.playbooks.services import RunServices
 
@@ -144,5 +145,6 @@ PLAYBOOK_SPEC = PlaybookSpec(
     gates=tuple(GATES.values()),
     build=build,
     flow=flow,
+    min_tier=lambda inputs: 3 if inputs.get("target") == "microservices" else 2,
     initial_plan=initial_plan,
 )

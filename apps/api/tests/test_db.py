@@ -34,7 +34,7 @@ def test_ready_when_database_is_migrated(app_factory: AppFactory) -> None:
 def test_projects_empty_then_created_by_a_run(app_factory: AppFactory) -> None:
     with app_factory() as client:
         assert client.get("/api/projects").json() == []
-        body = {"playbook": "microservices", "project_name": "goshop", "inputs": {"stub_delay_s": 0}}
+        body = {"playbook": "architecture_change", "project_name": "goshop", "inputs": {"stub_delay_s": 0}}
         run = client.post("/api/runs", json=body).json()
         projects = client.get("/api/projects").json()
         client.post(f"/api/runs/{run['id']}/cancel")
@@ -44,6 +44,6 @@ def test_projects_empty_then_created_by_a_run(app_factory: AppFactory) -> None:
     assert [p["name"] for p in projects] == ["goshop"]
     assert "mode" not in projects[0]
     # Runs record their playbook, tier and validated inputs (defaults filled in).
-    assert (run["playbook"], run["tier"], run["inputs"]["mode"]) == ("microservices", 3, "audit")
+    assert (run["playbook"], run["tier"], run["inputs"]["mode"]) == ("architecture_change", 3, "audit")
     assert run["inputs"]["services"] == ["notification", "payment"]
     assert sample["project_id"] is None and sample["tier"] == 2
