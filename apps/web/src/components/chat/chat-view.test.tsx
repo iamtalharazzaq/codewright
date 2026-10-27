@@ -1,19 +1,26 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+// The composer loads slash commands and the header loads settings; neither matters here.
+vi.stubGlobal(
+  "fetch",
+  vi.fn(() => Promise.reject(new Error("offline"))),
+);
+
 import { ChatView } from "./chat-view";
 import { Composer } from "./composer";
 import { PANEL_TABS } from "./side-panel";
 
 describe("ChatView", () => {
-  it("shows the welcome, suggestions and a composer that can't send yet", () => {
+  it("shows the welcome and suggestions that fill the composer", () => {
     render(<ChatView />);
     expect(screen.getByRole("heading", { name: "What are we building today?" })).toBeInTheDocument();
     const input = screen.getByRole("textbox", { name: "Message Codewright" });
-    expect(input).toHaveAccessibleDescription(/Chat replies arrive in Phase 2/);
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "What's a saga pattern?" }));
     expect(input).toHaveValue("What's a saga pattern?");
-    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
   });
 
   it("has a side panel with the seven artifact tabs that can be hidden and shown", () => {
@@ -44,6 +51,13 @@ describe("ChatView", () => {
 });
 
 describe("Composer", () => {
+  it("shows Stop instead of Send while a reply is being written", () => {
+    const onStop = vi.fn();
+    render(<Composer value="" onChange={() => {}} onSend={() => {}} busy onStop={onStop} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(onStop).toHaveBeenCalled();
+  });
+
   it("sends on Enter, adds a line on Shift+Enter, and ignores blank messages", () => {
     const onSend = vi.fn();
     const { rerender } = render(<Composer value="  " onChange={() => {}} onSend={onSend} />);

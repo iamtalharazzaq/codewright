@@ -245,7 +245,8 @@ function BudgetsCard() {
       .then(setBudgets)
       .catch(() => setBudgets(null));
   }, []);
-  if (!budgets) return null;
+  const rows = Object.entries(budgets ?? {}).filter(([, b]) => typeof b?.step_max_tokens === "number");
+  if (rows.length === 0) return null;
   return (
     <Card>
       <CardHeader>
@@ -266,7 +267,7 @@ function BudgetsCard() {
             </tr>
           </thead>
           <tbody>
-            {Object.entries(budgets).map(([tier, b]) => (
+            {rows.map(([tier, b]) => (
               <tr key={tier} className="border-t">
                 <td className="py-1">{tier}</td>
                 <td className="py-1">{b.step_max_tokens.toLocaleString()}</td>

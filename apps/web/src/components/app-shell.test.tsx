@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 import { ThemeProvider } from "./theme-provider";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/", useRouter: () => ({ push: vi.fn() }) }));
 
 const SETTINGS = {
   active_llm_profile: "remote_gpu",
