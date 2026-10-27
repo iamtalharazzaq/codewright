@@ -10,6 +10,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY --from=ghcr.io/astral-sh/uv:0.12.16 /uv /bin/uv
 
+# git: project imports (GitHub), change branches and delivery (CODEWRIGHT.md Section 8.1).
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 # Dependencies first (cached layer), then the source.
 COPY pyproject.toml uv.lock ./
@@ -18,6 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package codewright-api --no-install-workspace
 
 COPY agent agent
+COPY connectors connectors
 COPY apps/api apps/api
 COPY config config
 RUN --mount=type=cache,target=/root/.cache/uv \

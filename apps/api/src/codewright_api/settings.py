@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     # Optional URL overrides, so the model server address can change without editing models.yaml.
     llm_remote_gpu_url: str | None = None
     llm_local_cpu_url: str | None = None
+    # Connectors (Phase 3). Paths are inside the container; docker-compose mounts the host folders there.
+    local_source_root: Path | None = None  # "Local folder" input (LOCAL_SOURCE_DIR, read-only)
+    output_root: Path | None = None  # local delivery target (ALLOWED_OUTPUT_DIRS)
+    github_token: SecretStr | None = None
+    secret_key: SecretStr | None = None  # encrypts stored tokens (Google Drive)
+    google_oauth_client_file: Path | None = None
+    public_url: str = "http://localhost:3000"  # where the browser reaches the app (OAuth redirect)
 
     def load_models(self) -> ModelsConfig:
         """models.yaml with the environment's URL overrides applied (Settings-page overrides come on top)."""

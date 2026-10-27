@@ -49,11 +49,21 @@ services:
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+      # Connectors (Phase 3): host folders are mounted at fixed container paths below.
+      LOCAL_SOURCE_ROOT: /data/local-source
+      OUTPUT_ROOT: /data/outputs
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SECRET_KEY: ${SECRET_KEY:-}
+      GOOGLE_OAUTH_CLIENT_FILE: ${GOOGLE_OAUTH_CLIENT_FILE:+/data/google-oauth-client.json}
+      PUBLIC_URL: http://localhost:${WEB_PORT:-3000}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - ../config:/app/config:ro
       - workspaces:/app/workspaces
+      - ${LOCAL_SOURCE_DIR:-../local-source}:/data/local-source:ro
+      - ${ALLOWED_OUTPUT_DIRS:-../deliveries}:/data/outputs
+      - ${GOOGLE_OAUTH_CLIENT_FILE:-/dev/null}:/data/google-oauth-client.json:ro
     extra_hosts:
       # Lets the API reach model servers on the host (local_cpu profile). See ADR 0002.
       - "host.docker.internal:host-gateway"

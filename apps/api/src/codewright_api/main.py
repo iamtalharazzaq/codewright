@@ -11,7 +11,18 @@ from fastapi import APIRouter, FastAPI
 from codewright_api import __version__
 from codewright_api.chat import ChatService
 from codewright_api.db import get_engine, get_sessionmaker
-from codewright_api.routes import conversations, health, playbooks, projects, runs, settings, traces
+from codewright_api.projects import ProjectService
+from codewright_api.routes import (
+    connectors,
+    conversations,
+    health,
+    playbooks,
+    projects,
+    runs,
+    settings,
+    traces,
+    uploads,
+)
 from codewright_api.runs import RunManager
 from codewright_api.settings import get_settings
 
@@ -21,6 +32,7 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     cfg = get_settings()
+    app.state.projects = ProjectService(cfg, get_sessionmaker())
     manager = RunManager(cfg, get_sessionmaker(), cfg.database_url.get_secret_value())
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
@@ -56,6 +68,8 @@ def create_app() -> FastAPI:
     api.include_router(runs.router)
     api.include_router(traces.router)
     api.include_router(conversations.router)
+    api.include_router(uploads.router)
+    api.include_router(connectors.router)
     app.include_router(api)
     return app
 

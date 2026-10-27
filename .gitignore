@@ -22,3 +22,9 @@ htmlcov/
 # Model files (several GB each); see models/README.md
 models/*
 !models/README.md
+
+# Phase 3 connector folders (contents are the user's, not the repo's)
+local-source/*
+!local-source/.gitkeep
+deliveries/*
+!deliveries/.gitkeep
