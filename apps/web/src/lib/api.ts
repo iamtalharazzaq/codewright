@@ -4,12 +4,70 @@ export type ProfileName = "remote_gpu" | "local_cpu";
 export type RunStatus = "created" | "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type Decision = "approve" | "edit" | "reject";
 
+export type SourceKind = "zip" | "github" | "local" | "drive" | "empty";
+export type DeliverTarget = "local" | "zip" | "github" | "drive";
+
+export interface ProjectSummary {
+  files?: number;
+  size_bytes?: number;
+  languages?: Record<string, number>;
+  top_level?: string[];
+}
+
 export interface Project {
   id: string;
   name: string;
-  status: string;
+  status: string; // importing | ready | failed
+  source: { kind?: SourceKind; ref?: string };
+  summary: ProjectSummary;
+  error: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SecretFinding {
+  kind: string;
+  path: string;
+  line: number;
+}
+
+export interface ProjectDetail extends Project {
+  instructions: string;
+  secrets: SecretFinding[];
+  branch: string | null;
+  chats: { id: string; title: string; updated_at: string }[];
+  runs: { id: string; playbook: string; status: string }[];
+  memory: { id: number; key: string; value: string }[];
+}
+
+export interface Connectors {
+  github_token: boolean;
+  local_folders: string[];
+  output_folder: boolean;
+  drive: { configured: boolean; connected: boolean; problem?: string | null; email?: string | null };
+}
+
+export interface DeliveryResult {
+  target: DeliverTarget;
+  ok: boolean;
+  location?: string;
+  detail?: string;
+  error?: string;
+}
+
+export interface UploadInfo {
+  id: string;
+  filename: string;
+  kind: string;
+  size: number;
+  secrets: SecretFinding[];
+}
+
+export interface Attachment {
+  id: string;
+  filename: string;
+  kind: string;
+  secrets: number;
 }
 
 export interface GatePrompt {
@@ -204,7 +262,54 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   return (await res.json()) as T;
 }
 
+/** A multipart POST (file uploads). Errors read like `request`'s. */
+async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`/api${path}`, { method: "POST", body: form, headers: { Accept: "application/json" } });
+  if (!res.ok) {
+    let detail = `POST ${path} failed with ${res.status}`;
+    try {
+      const data = (await res.json()) as { detail?: unknown };
+      if (typeof data.detail === "string") detail = data.detail;
+    } catch {
+      // keep the generic message
+    }
+    throw new ApiError(detail, res.status);
+  }
+  return (await res.json()) as T;
+}
+
 export const listProjects = (signal?: AbortSignal) => request<Project[]>("GET", "/projects", undefined, signal);
+export const getProject = (id: string, signal?: AbortSignal) =>
+  request<ProjectDetail>("GET", `/projects/${id}`, undefined, signal);
+export function createProject(body: { kind: SourceKind; name?: string; ref?: string; file?: File }) {
+  const form = new FormData();
+  form.set("kind", body.kind);
+  if (body.name) form.set("name", body.name);
+  if (body.ref) form.set("ref", body.ref);
+  if (body.file) form.set("file", body.file);
+  return postForm<Project>("/projects", form);
+}
+export const patchProject = (id: string, body: { name?: string; instructions?: string }) =>
+  request<Project>("PATCH", `/projects/${id}`, body);
+export const deleteProject = (id: string) => request<void>("DELETE", `/projects/${id}`);
+export const addMemory = (id: string, key: string, value: string) =>
+  request<{ id: number }>("POST", `/projects/${id}/memory`, { key, value });
+export const deleteMemory = (id: string, itemId: number) => request<void>("DELETE", `/projects/${id}/memory/${itemId}`);
+export const getConnectors = (signal?: AbortSignal) => request<Connectors>("GET", "/connectors", undefined, signal);
+export const deliver = (body: {
+  targets: DeliverTarget[];
+  project_id?: string;
+  run_id?: string;
+  github_repo?: string;
+}) => request<DeliveryResult[]>("POST", "/deliver", body);
+export const disconnectDrive = () => request<void>("DELETE", "/connectors/gdrive");
+export function uploadFile(file: File) {
+  const form = new FormData();
+  form.set("file", file);
+  return postForm<UploadInfo>("/uploads", form);
+}
+export const PROJECTS_CHANGED = "codewright:projects-changed";
+export const notifyProjectsChanged = () => window.dispatchEvent(new Event(PROJECTS_CHANGED));
 
 export const getSettings = (signal?: AbortSignal) => request<SettingsView>("GET", "/settings", undefined, signal);
 export const updateLLMSettings = (body: {
@@ -274,6 +379,7 @@ export interface ChatMessage {
     questions?: Question[];
     card?: ConfirmCardData;
     state?: "open" | "started" | "changing" | "changed" | "replaced";
+    attachments?: Attachment[];
     summary?: string;
     changed?: string[];
     proof?: string[];
@@ -309,9 +415,10 @@ export const listConversations = (q?: string, signal?: AbortSignal) =>
   request<Conversation[]>("GET", q ? `/conversations?q=${encodeURIComponent(q)}` : "/conversations", undefined, signal);
 export const getConversation = (id: string, signal?: AbortSignal) =>
   request<ConversationDetail>("GET", `/conversations/${id}`, undefined, signal);
-export const startConversation = (content: string) => request<SendResult>("POST", "/conversations", { content });
-export const sendMessage = (id: string, content: string, editOf?: string) =>
-  request<SendResult>("POST", `/conversations/${id}/messages`, { content, edit_of: editOf });
+export const startConversation = (content: string, projectId?: string | null, attachments: string[] = []) =>
+  request<SendResult>("POST", "/conversations", { content, project_id: projectId ?? null, attachments });
+export const sendMessage = (id: string, content: string, editOf?: string, attachments: string[] = []) =>
+  request<SendResult>("POST", `/conversations/${id}/messages`, { content, edit_of: editOf, attachments });
 export const patchConversation = (id: string, body: { title?: string; pinned?: boolean }) =>
   request<Conversation>("PATCH", `/conversations/${id}`, body);
 export const deleteConversation = (id: string) => request<void>("DELETE", `/conversations/${id}`);

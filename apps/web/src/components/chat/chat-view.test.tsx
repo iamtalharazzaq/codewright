@@ -69,6 +69,6 @@ describe("Composer", () => {
     fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
     expect(onSend).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(onSend).toHaveBeenCalledWith("explain checkout");
+    expect(onSend).toHaveBeenCalledWith("explain checkout", []);
   });
 });

@@ -49,6 +49,7 @@ class ConversationDetail(BaseModel):
 class NewConversation(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     project_id: uuid.UUID | None = None
+    attachments: list[uuid.UUID] = Field(default=[], max_length=10)
 
 
 class SendResult(BaseModel):
@@ -62,6 +63,7 @@ class NewMessage(BaseModel):
     edit_of: uuid.UUID | None = Field(
         default=None, description="Edit this user message: the new one becomes a sibling."
     )
+    attachments: list[uuid.UUID] = Field(default=[], max_length=10)
 
 
 class ConversationPatch(BaseModel):
@@ -99,7 +101,9 @@ async def list_conversations(session: SessionDep, q: str | None = None, limit: i
 
 @router.post("/conversations", response_model=SendResult, status_code=201)
 async def create_conversation(body: NewConversation, request: Request) -> SendResult:
-    conv, user, reply = await _chat(request).send(None, body.content, project_id=body.project_id)
+    conv, user, reply = await _chat(request).send(
+        None, body.content, project_id=body.project_id, attachments=body.attachments
+    )
     return SendResult(conversation=ConversationOut.model_validate(conv), user=user, reply=reply)
 
 
@@ -151,7 +155,11 @@ async def send_message(
         parent_id = edited.parent_id
     try:
         conv, user, reply = await _chat(request).send(
-            conversation_id, body.content, parent_id=parent_id, use_parent=body.edit_of is not None
+            conversation_id,
+            body.content,
+            parent_id=parent_id,
+            use_parent=body.edit_of is not None,
+            attachments=body.attachments,
         )
     except LookupError:
         raise HTTPException(404, "Conversation not found") from None

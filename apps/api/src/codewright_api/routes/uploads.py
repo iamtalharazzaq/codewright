@@ -18,7 +18,7 @@ from codewright_api.settings import get_settings
 router = APIRouter(tags=["uploads"])
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-MAX_TEXT_CHARS = 12_000  # what a prompt gets of one text file (n_ctx is small)
+MAX_TEXT_CHARS = 12_000  # read limit; the chat prompt takes less (chat.ATTACHMENT_CHARS)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 ARCHIVE_SUFFIXES = {".zip", ".gz", ".tar", ".tgz"}
 

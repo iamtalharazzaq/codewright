@@ -3,6 +3,7 @@
 import { Cpu, Loader2, RefreshCw, Server } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { DriveCard } from "@/components/settings/drive-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -140,6 +141,8 @@ export function SettingsView() {
       ))}
 
       <BudgetsCard />
+
+      <DriveCard />
 
       <Card>
         <CardHeader>

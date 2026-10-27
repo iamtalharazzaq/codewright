@@ -1,15 +1,16 @@
 "use client";
 
-import { ArrowUp, Paperclip, Square } from "lucide-react";
+import { ArrowUp, FileText, Loader2, Paperclip, ShieldAlert, Square, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { listCommands, type SlashCommand } from "@/lib/api";
+import { listCommands, uploadFile, type SlashCommand, type UploadInfo } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 /**
  * The message box. Enter sends, Shift+Enter adds a line. Typing `/` opens the command menu (Tab or click picks one).
- * While a reply is being written the send button becomes Stop.
+ * While a reply is being written the send button becomes Stop. The clip uploads files (secret-scanned on the server);
+ * they go with the next message.
  */
 export function Composer({
   value,
@@ -20,7 +21,7 @@ export function Composer({
 }: {
   value: string;
   onChange: (value: string) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, attachments: string[]) => void;
   busy?: boolean;
   onStop?: () => void;
 }) {
@@ -28,7 +29,26 @@ export function Composer({
   const input = useRef<HTMLTextAreaElement>(null);
   const [commands, setCommands] = useState<SlashCommand[]>([]);
   const [active, setActive] = useState(0);
-  const canSend = value.trim().length > 0 && !busy;
+  const [files, setFiles] = useState<UploadInfo[]>([]);
+  const [uploading, setUploading] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const canSend = value.trim().length > 0 && !busy && uploading === 0;
+
+  async function attach(list: FileList | null) {
+    setUploadError(null);
+    for (const file of Array.from(list ?? [])) {
+      setUploading((n) => n + 1);
+      try {
+        const info = await uploadFile(file);
+        setFiles((f) => [...f, info]);
+      } catch (e) {
+        setUploadError(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  }
 
   useEffect(() => {
     listCommands()
@@ -48,7 +68,12 @@ export function Composer({
 
   function submit(e?: FormEvent) {
     e?.preventDefault();
-    if (canSend) onSend(value.trim());
+    if (!canSend) return;
+    onSend(
+      value.trim(),
+      files.map((f) => f.id),
+    );
+    setFiles([]);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -69,6 +94,11 @@ export function Composer({
 
   return (
     <form onSubmit={submit} className="relative flex flex-col gap-1.5">
+      {uploadError && (
+        <p role="alert" className="text-sm text-destructive">
+          {uploadError}
+        </p>
+      )}
       {matches.length > 0 && (
         <ul
           id={`${id}-commands`}
@@ -100,6 +130,39 @@ export function Composer({
         <label htmlFor={`${id}-input`} className="sr-only">
           Message Codewright
         </label>
+        {(files.length > 0 || uploading > 0) && (
+          <ul aria-label="Attached files" className="flex flex-wrap gap-1.5 px-3 pt-3">
+            {files.map((f) => (
+              <li key={f.id} className="flex items-center gap-1 rounded-md border bg-muted px-2 py-1 text-xs">
+                <FileText className="size-3.5" aria-hidden="true" />
+                <span className="max-w-40 truncate">{f.filename}</span>
+                {f.secrets.length > 0 && (
+                  <span
+                    className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400"
+                    title="Secrets are masked"
+                  >
+                    <ShieldAlert className="size-3.5" aria-hidden="true" />
+                    {f.secrets.length} secret{f.secrets.length > 1 ? "s" : ""} masked
+                  </span>
+                )}
+                <button
+                  type="button"
+                  aria-label={`Remove ${f.filename}`}
+                  onClick={() => setFiles((all) => all.filter((x) => x.id !== f.id))}
+                  className="rounded hover:bg-background"
+                >
+                  <X className="size-3.5" aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+            {uploading > 0 && (
+              <li className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground">
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                Uploading…
+              </li>
+            )}
+          </ul>
+        )}
         <textarea
           ref={input}
           id={`${id}-input`}
@@ -115,12 +178,22 @@ export function Composer({
           className="block field-sizing-content max-h-60 min-h-14 w-full resize-none bg-transparent px-4 pt-3 text-base outline-none placeholder:text-muted-foreground md:text-sm"
         />
         <div className="flex items-center justify-between px-2 pb-2">
+          <input
+            ref={picker}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              void attach(e.target.files);
+              e.target.value = "";
+            }}
+          />
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            disabled
-            title="Uploads arrive in Phase 3"
+            onClick={() => picker.current?.click()}
+            title="Attach files"
             aria-label="Attach files"
           >
             <Paperclip aria-hidden="true" />

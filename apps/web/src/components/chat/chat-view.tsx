@@ -1,6 +1,7 @@
 "use client";
 
 import { PanelRight } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -11,6 +12,7 @@ import { SidePanel } from "@/components/chat/side-panel";
 import { useConversation } from "@/components/chat/use-conversation";
 import { Button } from "@/components/ui/button";
 import {
+  getProject,
   notifyConversationsChanged,
   regenerateMessage,
   sendMessage,
@@ -35,8 +37,15 @@ type PanelMode = "auto" | "open" | "closed";
  * The main chat screen (CODEWRIGHT.md Section 2.1): conversation in the middle, artifacts panel on the right.
  * Without `conversationId` it is a new chat; the first message creates the conversation and moves to its URL.
  */
-export function ChatView({ conversationId = null }: { conversationId?: string | null }) {
+export function ChatView({
+  conversationId = null,
+  projectId = null,
+}: {
+  conversationId?: string | null;
+  projectId?: string | null;
+}) {
   const router = useRouter();
+  const [projectName, setProjectName] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { detail, error: loadError, reload, runTick } = useConversation(conversationId);
@@ -48,6 +57,14 @@ export function ChatView({ conversationId = null }: { conversationId?: string | 
   const messages = detail?.messages ?? [];
   const busy = detail?.busy ?? false;
   const lastText = messages.at(-1)?.content.length ?? 0;
+  const activeProject = detail?.conversation.project_id ?? projectId;
+
+  useEffect(() => {
+    if (!activeProject) return;
+    getProject(activeProject)
+      .then((p) => setProjectName(p.name))
+      .catch(() => setProjectName(null));
+  }, [activeProject]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "end" });
@@ -63,17 +80,17 @@ export function ChatView({ conversationId = null }: { conversationId?: string | 
     }
   }
 
-  function send(text: string) {
+  function send(text: string, attachments: string[] = []) {
     setDraft("");
     if (!conversationId) {
       void act(async () => {
-        const res = await startConversation(text);
+        const res = await startConversation(text, projectId, attachments);
         notifyConversationsChanged();
         router.push(`/c/${res.conversation.id}`);
       });
       return;
     }
-    void act(() => sendMessage(conversationId, text));
+    void act(() => sendMessage(conversationId, text, undefined, attachments));
   }
 
   const actions: MessageActions = {
@@ -90,7 +107,15 @@ export function ChatView({ conversationId = null }: { conversationId?: string | 
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-medium">{detail?.conversation.title ?? "New chat"}</h1>
-            <p className="truncate text-xs text-muted-foreground">No project · general software questions</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {activeProject && projectName ? (
+                <Link href={`/projects/${activeProject}`} className="hover:underline">
+                  Project · {projectName}
+                </Link>
+              ) : (
+                "No project · general software questions"
+              )}
+            </p>
           </div>
           <ModelPicker />
           <Button

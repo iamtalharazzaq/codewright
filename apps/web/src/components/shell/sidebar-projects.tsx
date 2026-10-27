@@ -4,20 +4,26 @@ import { FolderGit2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { listProjects, type Project } from "@/lib/api";
+import { listProjects, PROJECTS_CHANGED, type Project } from "@/lib/api";
 
-/** Sidebar "Projects" list. Opening a project's home arrives in Phase 3; until then it links to the list. */
+/** Sidebar "Projects" list; each opens its project home. */
 export function SidebarProjects({ onNavigate }: { onNavigate?: () => void }) {
   const [projects, setProjects] = useState<Project[] | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    listProjects(controller.signal)
-      .then(setProjects)
-      .catch(() => {
-        if (!controller.signal.aborted) setProjects([]);
-      });
-    return () => controller.abort();
+    const load = () =>
+      listProjects(controller.signal)
+        .then(setProjects)
+        .catch(() => {
+          if (!controller.signal.aborted) setProjects([]);
+        });
+    void load();
+    window.addEventListener(PROJECTS_CHANGED, load);
+    return () => {
+      controller.abort();
+      window.removeEventListener(PROJECTS_CHANGED, load);
+    };
   }, []);
 
   if (projects === null) return <p className="px-2 text-xs text-muted-foreground">Loading…</p>;
@@ -27,7 +33,7 @@ export function SidebarProjects({ onNavigate }: { onNavigate?: () => void }) {
       {projects.slice(0, 8).map((p) => (
         <li key={p.id}>
           <Link
-            href="/projects"
+            href={`/projects/${p.id}`}
             onClick={onNavigate}
             className="flex items-center gap-2 truncate rounded-md px-2 py-1.5 text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >

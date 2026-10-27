@@ -57,7 +57,19 @@ export function MessageView({
             </div>
           </div>
         ) : (
-          <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2.5 whitespace-pre-wrap">{message.content}</div>
+          <>
+            {message.data.attachments && message.data.attachments.length > 0 && (
+              <ul aria-label="Attached files" className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+                {message.data.attachments.map((a) => (
+                  <li key={a.id} className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground">
+                    {a.filename}
+                    {a.secrets > 0 && ` · ${a.secrets} secret${a.secrets > 1 ? "s" : ""} masked`}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="max-w-[85%] rounded-2xl bg-muted px-4 py-2.5 whitespace-pre-wrap">{message.content}</div>
+          </>
         )}
         {!editing && (
           <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">

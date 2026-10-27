@@ -30,6 +30,9 @@ describe("ProjectsView", () => {
       id: "p1",
       name: "goshop",
       status: "draft",
+      source: { kind: "github", ref: "https://github.com/quangdangfit/goshop" },
+      summary: { files: 371 },
+      error: null,
       created_at: "2026-10-26T10:00:00Z",
       updated_at: "2026-10-26T10:00:00Z",
     };
