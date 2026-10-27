@@ -167,19 +167,29 @@ def _server_root(base_url: str) -> str:
     return root.removesuffix("/v1")
 
 
-def exposure_warnings(base_url: str) -> list[str]:
-    """README 9.4: warn if the model endpoint looks publicly exposed instead of going through a tunnel."""
+def is_public(base_url: str) -> bool:
+    """True when the endpoint is reachable from the internet (a public host name or IP, e.g. an ngrok URL)."""
+    host = urlparse(base_url).hostname or ""
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        internal_suffixes = (".internal", ".local", ".lan", ".ts.net", ".tailnet", "localhost")
+        return "." in host and not host.endswith(internal_suffixes)
+    return ip.is_global and ip not in ipaddress.ip_network("100.64.0.0/10")  # 100.64/10: Tailscale addresses
+
+
+def exposure_warnings(base_url: str, *, has_api_key: bool = False) -> list[str]:
+    """CODEWRIGHT.md Section 11: warn if the model endpoint looks publicly exposed instead of going through a tunnel."""
     parsed = urlparse(base_url)
     host = parsed.hostname or ""
     warnings: list[str] = []
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
-        internal_suffixes = (".internal", ".local", ".lan", ".ts.net", ".tailnet", "localhost")
-        if "." in host and not host.endswith(internal_suffixes):
+        if is_public(base_url) and not has_api_key:
             warnings.append(
-                f"{host} is a public URL (e.g. an ngrok tunnel): anyone who has it can reach the model server. "
-                "Fine if intended; otherwise use Tailscale/WireGuard/SSH or a llama-server --api-key."
+                f"{host} is a public URL (e.g. an ngrok tunnel) and no API key is set: anyone who has the URL can use "
+                "the model server. Start llama-server with --api-key-file and set REMOTE_GPU_API_KEY, or use Tailscale."
             )
         return warnings
     cgnat = ipaddress.ip_network("100.64.0.0/10")  # Tailscale addresses
@@ -217,7 +227,7 @@ class LLMClient:
         base_url = self.profile.base_url
         if not base_url:
             return HealthReport(self.name, "not_configured", None, detail="No URL set for this profile.")
-        warnings = exposure_warnings(base_url)
+        warnings = exposure_warnings(base_url, has_api_key=bool(self.api_key))
         root = _server_root(base_url)
         start = time.monotonic()
         try:
@@ -229,6 +239,17 @@ class LLMClient:
                 if res.status_code != 200:
                     return HealthReport(
                         self.name, "error", base_url, latency, detail=f"/health returned {res.status_code}"
+                    )
+                # /health is public; a protected endpoint shows whether the key is accepted and required.
+                models = await http.get(f"{root}/v1/models")
+                if models.status_code == 401:
+                    detail = "The server rejected the API key." if self.api_key else "The server needs an API key."
+                    env = self.profile.api_key_env or "the profile's API key variable"
+                    return HealthReport(self.name, "error", base_url, latency, detail=f"{detail} Set {env}.")
+                if self.api_key and is_public(base_url) and await self._answers_without_key(root):
+                    warnings.append(
+                        "The server answers without an API key, so the key protects nothing. Restart llama-server "
+                        "with --api-key-file (or --api-key)."
                     )
                 props = await self._props(http, root)
         except (httpx.TransportError, httpx.TimeoutException) as exc:
@@ -250,6 +271,13 @@ class LLMClient:
             server_slots=props.get("slots"),
             warnings=tuple(warnings),
         )
+
+    async def _answers_without_key(self, root: str) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=5, transport=self._transport) as anonymous:
+                return (await anonymous.get(f"{root}/v1/models")).status_code == 200
+        except httpx.HTTPError:
+            return False
 
     @staticmethod
     async def _props(http: httpx.AsyncClient, root: str) -> dict[str, Any]:

@@ -139,3 +139,40 @@ async def test_queue_limits_parallel_requests() -> None:
 )
 def test_exposure_warnings(url: str, warns: bool) -> None:
     assert bool(exposure_warnings(url)) is warns
+
+
+def test_a_public_url_with_an_api_key_does_not_warn() -> None:
+    assert exposure_warnings("https://abc.ngrok-free.app/v1", has_api_key=True) == []
+
+
+def _keyed_server(required_key: str | None) -> httpx.MockTransport:
+    """llama-server with optional --api-key: /health is public, everything else needs the key."""
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/health":
+            return httpx.Response(200, json={"status": "ok"})
+        if required_key and req.headers.get("Authorization") != f"Bearer {required_key}":
+            return httpx.Response(401, json={"error": {"message": "Invalid API Key"}})
+        if req.url.path == "/v1/models":
+            return httpx.Response(200, json={"data": []})
+        return httpx.Response(200, json={"default_generation_settings": {"n_ctx": 4096}, "total_slots": 1})
+
+    return httpx.MockTransport(handler)
+
+
+async def test_health_checks_the_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    url = "https://abc.ngrok-free.app/v1"
+    prof = profile(base_url=url, api_key_env="TEST_GPU_KEY")
+
+    monkeypatch.setenv("TEST_GPU_KEY", "right")
+    ok = await LLMClient("remote_gpu", prof, transport=_keyed_server("right")).health()
+    assert ok.status == "ok" and ok.warnings == ()
+
+    monkeypatch.setenv("TEST_GPU_KEY", "wrong")
+    rejected = await LLMClient("remote_gpu", prof, transport=_keyed_server("right")).health()
+    assert rejected.status == "error" and "rejected the API key" in (rejected.detail or "")
+
+    # Key configured, but the server was started without --api-key: the key protects nothing.
+    monkeypatch.setenv("TEST_GPU_KEY", "right")
+    open_server = await LLMClient("remote_gpu", prof, transport=_keyed_server(None)).health()
+    assert open_server.status == "ok" and any("answers without an API key" in w for w in open_server.warnings)

@@ -37,22 +37,30 @@ docker run -d --name codewright-llm --restart unless-stopped --gpus all \
 - `--api-key`: optional but recommended. Create the key once with `openssl rand -hex 32 > ~/.codewright-llm-key`,
   then put the same value in Codewright's `.env` as `REMOTE_GPU_API_KEY`.
 - The port is published on `127.0.0.1` only; one of the tunnels below makes it reachable.
-- **Windows without Docker** (a native llama.cpp CUDA build), the same flags apply:
-  `llama-server.exe -m D:\models\Qwen3.5-9B-Q4_K_M.gguf --port 8080 -ngl 99 -c 16384 -np 1 --no-mmproj --jinja`.
-  Check the context the server really uses at `/props` (`default_generation_settings.n_ctx`).
+- **Windows without Docker** (a native llama.cpp CUDA build, the current setup), the same flags apply:
+  `llama-server.exe -m D:\models\Qwen3.5-9B-Q4_K_M.gguf --port 8080 -ngl 99 -c 16384 -np 1 --no-mmproj --jinja --api-key-file D:\llama\codewright.key`.
+  Use the context size you measured in section 6 for `-c`. Check the context the server really uses at `/props`
+  (`default_generation_settings.n_ctx`).
 
 Check it: `curl -s localhost:8080/health` returns `{"status":"ok"}`.
 
 ## 4. Connect securely (pick one)
 
-### Option A: Tailscale (recommended)
+### Option A: Tailscale (recommended for long-term use)
 
-1. Install Tailscale on both machines and log in to the same tailnet.
-2. On the GPU machine, publish the port on the Tailscale address instead of `127.0.0.1`: replace
-   `-p 127.0.0.1:8080:8080` with `-p 100.x.y.z:8080:8080` (the machine's address from `tailscale ip -4`).
-3. In Codewright **Settings → Remote GPU → Server URL**: `http://100.x.y.z:8080/v1`.
+1. Install [Tailscale](https://tailscale.com/download) on both machines (Windows, Linux, macOS) and log in to the same
+   tailnet.
+2. On the GPU machine, find its Tailscale address: `tailscale ip -4` (a `100.x.y.z` address).
+3. Make llama-server listen on that address only:
+   - Docker: replace `-p 127.0.0.1:8080:8080` with `-p 100.x.y.z:8080:8080`.
+   - Windows native: add `--host 100.x.y.z` to the `llama-server.exe` command. Windows Firewall asks once whether to
+     allow it; allow it on private networks.
+4. In Codewright **Settings → Remote GPU → Server URL**: `http://100.x.y.z:8080/v1` (or the machine's MagicDNS name,
+   e.g. `http://gpu-box.<tailnet>.ts.net:8080/v1`).
 
-Tailscale encrypts the traffic (WireGuard). Codewright doesn't warn about `100.64.0.0/10` addresses.
+The traffic is encrypted end to end (WireGuard) and only devices in your tailnet can reach the server, so no URL can
+leak. The API container reaches the tailnet through the host, which must run Tailscale too. Codewright doesn't warn
+about `100.64.0.0/10` addresses or `*.ts.net` names. Keep `--api-key-file` on anyway; it costs nothing.
 
 ### Option B: SSH port forward
 
@@ -65,12 +73,32 @@ ssh -N -L 172.17.0.1:18080:127.0.0.1:8080 you@gpu-box
 This listens on the Docker bridge address (`172.17.0.1`), so the API container can reach it as
 `http://host.docker.internal:18080/v1`; set that URL in Settings. Use `autossh` or a systemd unit to keep it up.
 
-### Option C: ngrok (current setup)
+### Option C: ngrok (current setup), with authentication
 
-On the GPU machine: `ngrok http 8080`. Put the HTTPS URL plus `/v1` in `.env` (`LLM_REMOTE_GPU_URL`) or in
-**Settings → Remote GPU**, e.g. `https://<id>.ngrok-free.app/v1`. Free ngrok URLs change when ngrok restarts, so the
-Settings page is the quickest place to update it. The URL is reachable from the internet; Settings shows a
-"public URL" notice for it. Adding `--api-key` to llama-server (and `REMOTE_GPU_API_KEY` in `.env`) is optional.
+An ngrok URL is reachable by anyone who has it, so **turn on llama-server's API key** (ADR 0015):
+
+1. Create a key once on the GPU machine and keep it in a file:
+   - Windows (PowerShell 5.1 or 7):
+
+     ```powershell
+     $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+     ($b | ForEach-Object { $_.ToString('x2') }) -join '' | Set-Content -NoNewline D:\llama\codewright.key
+     ```
+
+   - Linux/macOS: `openssl rand -hex 32 > ~/.codewright-llm-key`
+2. Start llama-server with `--api-key-file <that file>` (see section 3). Every request then needs
+   `Authorization: Bearer <key>`; only `/health` stays public.
+3. Put the same key in Codewright's `.env` as `REMOTE_GPU_API_KEY=<key>` and restart the API
+   (`docker compose up -d api`). The key never goes into a file in the repo.
+4. Start the tunnel: `ngrok http 8080`. Put the HTTPS URL plus `/v1` in **Settings → Remote GPU**, e.g.
+   `https://<id>.ngrok-free.app/v1`. Free ngrok URLs change when ngrok restarts, so Settings is the quickest place to
+   update it.
+5. **Settings → Check connection** verifies the setup: *Ok* with no warning means the key is required and accepted.
+   It shows an error if the server rejects the key, and a warning if the server answers without one (llama-server was
+   started without `--api-key-file`) or if no key is configured for a public URL.
+
+Why not ngrok's own basic auth? It uses the same `Authorization` header (`Basic …`) that the model server needs for
+its key (`Bearer …`), so the two collide. The llama-server key protects the server itself, whatever the tunnel.
 
 ## 5. Use it in Codewright
 
@@ -82,12 +110,23 @@ Settings page is the quickest place to update it. The URL is reachable from the 
 
 ## 6. Measure VRAM and tune `num_ctx`
 
-On the GPU machine, with the server stopped (`docker stop codewright-llm`):
+On the GPU machine, with the normal server stopped (it needs the GPU to itself):
 
-```bash
-./scripts/measure-vram.sh ~/models/Qwen3.5-9B-Q4_K_M.gguf 8192 16384 32768
-```
+- **Windows native** (current setup; needs Python 3.10+, no packages): copy `scripts/measure_vram.py` to the GPU
+  machine, then from the llama.cpp folder:
 
-It prints peak VRAM and tokens/s per context size. Estimates (ADR 0002): ~6.4–6.8 GiB at 16K and ~6.9–7.3 GiB at 32K,
-because only 8 of the model's 32 layers keep a KV cache. Pick the largest context that leaves ≥ 1 GB free, set it in
-both `-c` and Settings → **Context**, and send the table so it can be recorded in ADR 0002.
+  ```powershell
+  python measure_vram.py --server .\llama-server.exe --model D:\models\Qwen3.5-9B-Q4_K_M.gguf 8192 12288 16384
+  ```
+
+- **Docker** (Linux): `./scripts/measure-vram.sh ~/models/Qwen3.5-9B-Q4_K_M.gguf 8192 12288 16384`
+
+Both print a table of VRAM after loading, peak VRAM and tokens/s per context size. Estimates (ADR 0002): ~6.4–6.8 GiB
+at 16K, because only 8 of the model's 32 layers keep a KV cache. **Pick the largest context in the 8K–16K target that
+leaves ≥ 1 GB of the 10 GB free** (the desktop uses some VRAM too), then:
+
+1. restart llama-server with that `-c`,
+2. set the same value in **Settings → Remote GPU → Context** (or `config/models.yaml`),
+3. send the table so it can be recorded in ADR 0015.
+
+Codewright's per-agent model-call caps stay on whatever the context size (ADR 0015).
