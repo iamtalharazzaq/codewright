@@ -3,6 +3,7 @@
 #
 # Optional profiles:
 #   docker compose --profile llamacpp-cpu up # bundled llama.cpp on CPU, serving a GGUF from MONOSHIFT_MODELS_DIR
+#   docker compose --profile host-llm-bridge up  # lets containers reach a llama-server bound to 127.0.0.1 on the host
 #   docker compose --profile ollama-cpu up   # bundled Ollama on CPU (port 11435; your host Ollama keeps 11434)
 #   docker compose --profile langfuse up     # self-hosted Langfuse (see deploy/docker-compose.langfuse.yml)
 
@@ -39,6 +40,12 @@ services:
       MONOSHIFT_EXTERNAL_LLM_ENABLED: ${MONOSHIFT_EXTERNAL_LLM_ENABLED:-false}
       MONOSHIFT_REMOTE_GPU_API_KEY: ${MONOSHIFT_REMOTE_GPU_API_KEY:-}
       MONOSHIFT_LOCAL_CPU_API_KEY: ${MONOSHIFT_LOCAL_CPU_API_KEY:-}
+      MONOSHIFT_LLM_REMOTE_GPU_URL: ${MONOSHIFT_LLM_REMOTE_GPU_URL:-}
+      MONOSHIFT_LLM_LOCAL_CPU_URL: ${MONOSHIFT_LLM_LOCAL_CPU_URL:-}
+      # Optional Langfuse (profile `langfuse`): traces go there too when all three are set.
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
     ports:
       - "127.0.0.1:${MONOSHIFT_API_PORT:-8000}:8000"
     volumes:
@@ -72,6 +79,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  host-llm-bridge:
+    # For a llama-server on this machine that listens on 127.0.0.1 only. Forwards the Docker bridge address
+    # (what host.docker.internal resolves to) to the host's loopback, without changing the server.
+    # Listens on the Docker bridge only, so nothing is exposed to the network. Skip it if your server
+    # already listens on an address containers can reach.
+    profiles: ["host-llm-bridge"]
+    image: alpine/socat:1.8.1.1
+    restart: unless-stopped
+    network_mode: host
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        socat TCP-LISTEN:${MONOSHIFT_HOST_LLM_PORT:-8080},bind=${MONOSHIFT_DOCKER_BRIDGE_IP:-172.17.0.1},reuseaddr,fork
+        TCP:127.0.0.1:${MONOSHIFT_HOST_LLM_PORT:-8080} &
+        exec socat TCP-LISTEN:${MONOSHIFT_HOST_EMBED_PORT:-8081},bind=${MONOSHIFT_DOCKER_BRIDGE_IP:-172.17.0.1},reuseaddr,fork
+        TCP:127.0.0.1:${MONOSHIFT_HOST_EMBED_PORT:-8081}
 
   llamacpp-cpu:
     profiles: ["llamacpp-cpu"]

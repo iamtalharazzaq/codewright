@@ -57,6 +57,16 @@ services:
     environment:
       <<: *langfuse-env
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-}
+      # First start: create the MonoShift project with the same API keys the MonoShift API uses, and your login.
+      LANGFUSE_INIT_ORG_ID: monoshift
+      LANGFUSE_INIT_ORG_NAME: MonoShift
+      LANGFUSE_INIT_PROJECT_ID: monoshift
+      LANGFUSE_INIT_PROJECT_NAME: MonoShift
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
       LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-minio:9000
 
   langfuse-clickhouse:

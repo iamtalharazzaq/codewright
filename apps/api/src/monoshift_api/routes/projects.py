@@ -25,6 +25,6 @@ class ProjectOut(BaseModel):
 
 
 @router.get("")
-def list_projects(session: SessionDep) -> list[ProjectOut]:
-    rows = session.scalars(select(Project).order_by(Project.updated_at.desc()))
+async def list_projects(session: SessionDep) -> list[ProjectOut]:
+    rows = await session.scalars(select(Project).order_by(Project.updated_at.desc()))
     return [ProjectOut.model_validate(p) for p in rows]

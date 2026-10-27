@@ -1,0 +1,141 @@
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from .conftest import AppFactory, wait_for, waiting
+
+FAST = {"stub_delay_s": 0}
+
+
+def _approve_until_done(client: Any, run_id: str) -> tuple[dict[str, Any], list[str]]:
+    gates: list[str] = []
+    for _ in range(30):
+        run = wait_for(client, run_id, waiting)
+        if run["status"] != "waiting":
+            return run, gates
+        pending = run["pending"]
+        gates.append(pending["gate"] + (f":{pending['subject']}" if pending.get("subject") else ""))
+        assert client.post(f"/api/runs/{run_id}/answer", json={"decision": "approve"}).status_code == 202
+    raise AssertionError("run did not finish")
+
+
+def test_audit_run_pauses_at_each_gate_and_completes(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        run, gates = _approve_until_done(client, run_id)
+        detail = client.get(f"/api/runs/{run_id}").json()
+
+    assert run["status"] == "completed"
+    assert gates == ["gate1", "gate2", "gate3", "gate4", "gate8"]
+    assert [a["gate"] for a in detail["approvals"]] == gates
+    assert detail["usage"]["llm_calls"] == 0
+
+
+def test_conversion_run_has_a_gate5_per_service(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        body = {"mode": "conversion", "options": {**FAST, "services": ["notification", "payment"]}}
+        run_id = client.post("/api/runs", json=body).json()["id"]
+        run, gates = _approve_until_done(client, run_id)
+    assert run["status"] == "completed"
+    assert gates[4:6] == ["gate5:notification", "gate5:payment"]
+
+
+def test_reject_needs_a_comment_and_reworks_the_step(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        wait_for(client, run_id, waiting)
+        assert client.post(f"/api/runs/{run_id}/answer", json={"decision": "reject"}).status_code == 422
+        res = client.post(f"/api/runs/{run_id}/answer", json={"decision": "reject", "comment": "Wrong DB"})
+        assert res.status_code == 202
+        run = wait_for(client, run_id, lambda r: r["status"] == "waiting" and r["pending"]["gate"] == "gate1")
+        assert run["pending"]["gate"] == "gate1"  # intake ran again and came back to Gate 1
+        client.post(f"/api/runs/{run_id}/cancel")
+
+
+def test_only_one_active_run_and_cancel(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        second = client.post("/api/runs", json={"mode": "audit", "options": FAST})
+        assert second.status_code == 409
+        assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
+        assert client.get(f"/api/runs/{run_id}").json()["status"] == "cancelled"
+        assert client.post("/api/runs", json={"mode": "audit", "options": FAST}).status_code == 201
+
+
+def test_answering_a_run_that_is_not_waiting_is_a_conflict(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": {"stub_delay_s": 5}}).json()["id"]
+        res = client.post(f"/api/runs/{run_id}/answer", json={"decision": "approve"})
+        assert res.status_code == 409
+        client.post(f"/api/runs/{run_id}/cancel")
+
+
+def test_run_resumes_after_api_restart(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": {"stub_delay_s": 0.5}}).json()["id"]
+        wait_for(client, run_id, waiting)
+        client.post(f"/api/runs/{run_id}/answer", json={"decision": "approve"})
+        wait_for(client, run_id, lambda r: r["current_step"] == "baseline")
+    # The app (and its run manager) stopped mid-step. A new process picks the run up from the checkpoint.
+    with app_factory() as client:
+        run = wait_for(client, run_id, lambda r: r["status"] == "waiting" and r["pending"]["gate"] == "gate2")
+        events = [e["type"] for e in _events(client, run_id)]
+    assert run["pending"]["gate"] == "gate2"
+    assert "resumed_after_restart" in events
+
+
+def test_model_server_down_pauses_and_asks_then_traces_the_failure(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        body = {"mode": "audit", "llm_profile": "remote_gpu", "options": {**FAST, "use_llm": True}}
+        run_id = client.post("/api/runs", json=body).json()["id"]
+        run = wait_for(client, run_id, waiting)
+        assert run["pending"]["kind"] == "llm_unavailable"
+        assert run["pending"]["options"] == ["retry", "switch_to_cpu"]
+
+        assert client.post(f"/api/runs/{run_id}/answer", json={"choice": "switch_to_cpu"}).status_code == 202
+        run = wait_for(client, run_id, lambda r: r["status"] == "waiting" and r["llm_profile"] == "local_cpu")
+        assert run["pending"]["profile"] == "local_cpu"  # the CPU server is down too in this test
+        assert run["pending"]["options"] == ["retry"]
+
+        traces = client.get("/api/traces", params={"run_id": run_id}).json()
+        assert len(traces) >= 2 and all(t["status"] == "error" for t in traces)
+        assert {t["profile"] for t in traces} == {"remote_gpu", "local_cpu"}
+        assert traces[0]["step"] == "intake" and traces[0]["role"] == "business_analyst"
+        client.post(f"/api/runs/{run_id}/cancel")
+
+
+def test_events_stream_over_sse(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        wait_for(client, run_id, waiting)
+        events = _events(client, run_id)
+        client.post(f"/api/runs/{run_id}/cancel")
+    types = [e["type"] for e in events]
+    assert types[:2] == ["llm_health", "run_status"]  # health check before every run (README 8.1)
+    assert "step_started" in types and types[-1] == "waiting"
+    ids = [e["id"] for e in events]
+    assert ids == sorted(ids)
+
+
+def test_live_stream_ends_when_the_run_ends(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        run, _ = _approve_until_done(client, run_id)
+        # follow=true on a finished run: the backlog, then the stream closes by itself.
+        events = _events(client, run_id, follow="true")
+        resumed = _events(client, run_id, after=events[-3]["id"])
+    assert run["status"] == "completed"
+    assert events[-1]["type"] == "run_status" and events[-1]["data"]["status"] == "completed"
+    assert [e["id"] for e in resumed] == [e["id"] for e in events[-2:]]
+
+
+def _events(client: Any, run_id: str, **params: Any) -> list[dict[str, Any]]:
+    """Read the run's SSE stream (by default only the past events) and return the event payloads."""
+    events: list[dict[str, Any]] = []
+    with client.stream("GET", f"/api/runs/{run_id}/events", params={"follow": "false", **params}) as res:
+        assert res.headers["content-type"].startswith("text/event-stream")
+        for line in res.iter_lines():
+            if line.startswith("data:"):
+                events.append(json.loads(line.removeprefix("data:").strip()))
+    return events

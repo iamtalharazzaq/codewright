@@ -18,6 +18,7 @@ def test_readiness_reports_unreachable_database(client: TestClient) -> None:
     body = res.json()
     assert body["status"] == "unavailable"
     assert body["checks"]["database"] == "error"
+    assert body["checks"]["run_manager"] == "unavailable"
 
 
 def test_openapi_is_served_under_api(client: TestClient) -> None:

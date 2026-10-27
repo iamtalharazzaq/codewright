@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -25,28 +25,34 @@ class Readiness(BaseModel):
 
 
 @router.get("")
-def liveness() -> Health:
+async def liveness() -> Health:
     """The process is up. Does not touch dependencies."""
     return Health(status="ok", version=__version__)
 
 
 @router.get("/ready", responses={503: {"model": Readiness}})
-def readiness(session: SessionDep, response: Response) -> Readiness:
-    """The API can serve requests: the database is reachable, pgvector is installed and migrations ran."""
+async def readiness(session: SessionDep, request: Request, response: Response) -> Readiness:
+    """The API can serve requests: database reachable, pgvector installed, migrations ran, run manager started."""
     checks: dict[str, str] = {}
     try:
-        session.execute(text("SELECT 1"))
+        await session.execute(text("SELECT 1"))
         checks["database"] = "ok"
-        has_vector = session.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")).first()
+        has_vector = (await session.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'"))).first()
         checks["pgvector"] = "ok" if has_vector else "missing"
-        revision = session.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        revision = (await session.execute(text("SELECT version_num FROM alembic_version"))).scalar()
         checks["migrations"] = str(revision) if revision else "missing"
     except Exception as exc:  # report, don't crash: this endpoint exists to describe failures
         log.warning("readiness check failed: %s", exc)
         checks.setdefault("database", "error")
         checks.setdefault("migrations", "unknown")
 
-    ok = checks.get("database") == "ok" and checks.get("pgvector") == "ok" and checks.get("migrations") != "missing"
+    checks["run_manager"] = "ok" if getattr(request.app.state, "run_manager", None) else "unavailable"
+    ok = (
+        checks.get("database") == "ok"
+        and checks.get("pgvector") == "ok"
+        and checks.get("migrations") not in ("missing", "unknown")
+        and checks["run_manager"] == "ok"
+    )
     if not ok:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return Readiness(status="ok" if ok else "unavailable", checks=checks)

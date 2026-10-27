@@ -1,0 +1,4 @@
+name: project-manager
+description: Plans the work, assigns tasks to roles and reports back.
+# Tools the model may see and call (README 4.2: own prompt, tool allowlist and context per role).
+tools: [write_todos, task, ls, read_file]

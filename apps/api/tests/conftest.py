@@ -1,29 +1,38 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
 
 API_DIR = Path(__file__).resolve().parents[1]
+UNREACHABLE_DB = "postgresql://unused:unused@localhost:1/unused"
 
 # Unit tests never need a real database; DB tests read MONOSHIFT_TEST_DATABASE_URL instead.
-os.environ["MONOSHIFT_DATABASE_URL"] = "postgresql://unused:unused@localhost:1/unused"
+os.environ["MONOSHIFT_DATABASE_URL"] = UNREACHABLE_DB
 
-from monoshift_api.db import get_session, to_sqlalchemy_url  # noqa: E402
+from monoshift_api import db, settings  # noqa: E402
 from monoshift_api.main import create_app  # noqa: E402
+
+
+def _clear_caches() -> None:
+    settings.get_settings.cache_clear()
+    db.get_engine.cache_clear()
+    db.get_sessionmaker.cache_clear()
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
+    _clear_caches()
     with TestClient(create_app()) as c:
         yield c
+    _clear_caches()
 
 
 def _test_database_url() -> str:
@@ -55,17 +64,39 @@ def migrated_db() -> Iterator[str]:
     command.downgrade(cfg, "base")
 
 
+AppFactory = Callable[[], TestClient]
+
+
 @pytest.fixture
-def db_client(migrated_db: str) -> Iterator[tuple[TestClient, sessionmaker[Session]]]:
-    engine = create_engine(to_sqlalchemy_url(migrated_db))
-    factory = sessionmaker(engine, expire_on_commit=False)
+def app_factory(migrated_db: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[AppFactory]:
+    """Builds TestClients for the real app (run manager included) on the test database.
 
-    def _session() -> Iterator[Session]:
-        with factory() as s:
-            yield s
+    Each call creates a fresh app, like a restarted API process. Use it as a context manager."""
+    monkeypatch.setenv("MONOSHIFT_DATABASE_URL", migrated_db)
+    monkeypatch.setenv("MONOSHIFT_WORKSPACES_DIR", str(tmp_path / "workspaces"))
+    # Model servers that can't be reached: tests never depend on a real LLM.
+    monkeypatch.setenv("MONOSHIFT_LLM_LOCAL_CPU_URL", "http://127.0.0.1:9/v1")
+    monkeypatch.setenv("MONOSHIFT_LLM_REMOTE_GPU_URL", "http://127.0.0.1:9/v1")
 
-    app = create_app()
-    app.dependency_overrides[get_session] = _session
-    with TestClient(app) as c:
-        yield c, factory
-    engine.dispose()
+    def factory() -> TestClient:
+        _clear_caches()
+        return TestClient(create_app())
+
+    yield factory
+    _clear_caches()
+
+
+def wait_for(
+    client: TestClient, run_id: str, predicate: Callable[[dict[str, Any]], bool], timeout: float = 15
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        run: dict[str, Any] = client.get(f"/api/runs/{run_id}").json()
+        if predicate(run):
+            return run
+        time.sleep(0.05)
+    raise AssertionError(f"timed out; last state: {run}")
+
+
+def waiting(run: dict[str, Any]) -> bool:
+    return run["status"] in ("waiting", "completed", "failed", "cancelled")

@@ -17,6 +17,7 @@ COPY apps/api/pyproject.toml apps/api/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package monoshift-api --no-install-workspace
 
+COPY agent agent
 COPY apps/api apps/api
 COPY config config
 RUN --mount=type=cache,target=/root/.cache/uv \

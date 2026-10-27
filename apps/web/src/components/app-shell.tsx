@@ -1,4 +1,4 @@
-import { FolderGit2, Settings, Waypoints } from "lucide-react";
+import { FolderGit2, Settings, Waypoints, Workflow } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -14,7 +14,8 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { label: "Projects", href: "/", icon: FolderGit2 },
-  { label: "Settings", href: "/settings", icon: Settings, availableIn: "Phase 1" },
+  { label: "Runs", href: "/runs", icon: Workflow },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
