@@ -273,9 +273,10 @@ export interface ChatMessage {
     label?: string;
     questions?: Question[];
     card?: ConfirmCardData;
-    state?: "open" | "started" | "changing" | "changed";
+    state?: "open" | "started" | "changing" | "changed" | "replaced";
     summary?: string;
     changed?: string[];
+    proof?: string[];
     guide?: string | null;
     suggestions?: string[];
     [key: string]: unknown;

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Annotated, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -24,22 +24,37 @@ class Question(BaseModel):
     question: str = Field(description="One short question.")
     default: str = Field(description="The answer used if the user says defaults are fine.")
     options: list[str] = Field(default_factory=list, max_length=6, description="Choices, if it's a pick-one.")
-    hint: str = Field(default="", max_length=80, description="Optional: why the default fits, under 10 words.")
-
-
-Short = Annotated[str, Field(max_length=70)]
+    hint: str = Field(default="", description="Optional: why the default fits, under 10 words.")
 
 
 class ConfirmCard(BaseModel):
-    what: str = Field(max_length=160, description="One sentence: what I'll make or do.")
-    stack: str = Field(max_length=80, description="Language and main tools in 2-6 words, e.g. 'Python 3.12 + pytest'.")
-    features: list[Short] = Field(min_length=1, max_length=5, description="Main features or steps, 2-8 words each.")
-    deliver: str = Field(max_length=120, description="What the user gets at the end, in a few words.")
+    # No max_length here: llama.cpp's grammar cuts a string mid-word at the limit. `_tidy` shortens at a word instead.
+    what: str = Field(description="One sentence: what I'll make or do.")
+    stack: str = Field(description="Language and main tools in 2-6 words, e.g. 'Python 3.12 + pytest'.")
+    features: list[str] = Field(min_length=1, max_length=5, description="Main features or steps, 2-8 words each.")
+    deliver: str = Field(description="What the user gets at the end, in a few words.")
+
+
+def _clip(text: str, limit: int) -> str:
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",;:(")
+    return cut + "…"
+
+
+def _tidy(card: ConfirmCard) -> ConfirmCard:
+    return ConfirmCard(
+        what=_clip(card.what, 200),
+        stack=_clip(card.stack, 60),
+        features=[_clip(f, 90) for f in card.features],
+        deliver=_clip(card.deliver, 140),
+    )
 
 
 class IntakeOutput(BaseModel):
     recommended_language: Language = Field(description="The best of the five languages for this request.")
-    language_reason: str = Field(max_length=80, description="Why, in at most 8 words.")
+    language_reason: str = Field(description="Why, in at most 8 words.")
     questions: list[Question] = Field(
         default_factory=list, max_length=3, description="Only what is still missing and matters; most important first."
     )
@@ -106,6 +121,7 @@ async def check(
         max_tokens=700,
     )
     out = result.value
+    out.card = _tidy(out.card)
     last_round = round_no >= router_settings()["max_rounds"]
     questions = [] if last_round else list(out.questions)
     if cfg.new and not language:
@@ -125,5 +141,5 @@ def _language_question(recommended: str, reason: str) -> Question:
         question="Which language?",
         default=recommended,
         options=[recommended, *others],
-        hint=reason.rstrip("."),
+        hint=_clip(reason, 80).rstrip("."),
     )

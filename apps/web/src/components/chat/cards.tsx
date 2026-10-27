@@ -163,7 +163,13 @@ export function ConfirmCard({ message, onChange }: { message: ChatMessage; onCha
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          {state === "started" ? "Started." : state === "changing" ? "Tell me what to change." : "Changed below."}
+          {state === "started"
+            ? "Started."
+            : state === "changing"
+              ? "Tell me what to change."
+              : state === "replaced"
+                ? "Replaced by a new request below."
+                : "Changed below."}
         </p>
       )}
       {error && (
@@ -239,7 +245,7 @@ export function RunCard({ runId, tick }: { runId: string; tick: number }) {
 
 /** Done card (Section 3.5): what was done, what changed, the guide and next steps. */
 export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (text: string) => void }) {
-  const { summary, changed = [], guide, suggestions = [] } = message.data;
+  const { summary, changed = [], proof = [], guide, suggestions = [] } = message.data;
   return (
     <div className={CARD}>
       <p className="flex items-center gap-2 font-medium">
@@ -255,6 +261,13 @@ export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (t
             ))}
           </ul>
         </div>
+      )}
+      {proof.length > 0 && (
+        <ul className="text-sm text-muted-foreground">
+          {proof.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
       )}
       {guide && (
         <details className="text-sm">

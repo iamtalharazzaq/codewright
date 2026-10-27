@@ -24,6 +24,7 @@ from sqlalchemy import select, update
 from agent.chat import intake, router
 from agent.chat.answer import stream_answer
 from agent.chat.intents import INTENT_LABELS, PLAYBOOK_PHASE, intent_config, named_language
+from agent.chat.write_code import stream_code
 from agent.llm.client import LLMClient, LLMError, LLMUnavailable
 from agent.llm.client import Message as LLMMessage
 from agent.llm.structured import StructuredOutputError
@@ -334,15 +335,22 @@ class ChatService:
         if previous is not None and previous.kind == "questions":
             await self._intake_round(reply_id, previous.data, user.content, preferences)
             return
-        if previous is not None and previous.kind == "confirm" and previous.data.get("state") in ("open", "changing"):
-            if YES.match(user.content) and previous.data.get("state") == "open":
-                await self._finish(reply_id, content="Starting.", kind="text")
-                await self.confirm(conversation_id, previous.id, "start")
-                return
+        card_state = previous.data.get("state") if previous is not None and previous.kind == "confirm" else None
+        if previous is not None and card_state == "open" and YES.match(user.content):
+            await self._finish(reply_id, content="Starting.", kind="text")
+            await self.confirm(conversation_id, previous.id, "start")
+            return
+        # A typed change to the card. Repeating the request (or asking something new) on an open card starts over.
+        if previous is not None and (
+            card_state == "changing"
+            or (card_state == "open" and not _same_request(user.content, previous.data.get("request", "")))
+        ):
             await self._close_card(previous.id, "changed")
             data = {**previous.data, "answers": [*previous.data.get("answers", []), ["Change requested", user.content]]}
             await self._intake_round(reply_id, data, None, preferences, force_card=True)
             return
+        if previous is not None and card_state == "open":
+            await self._close_card(previous.id, "replaced")
 
         route = await router.route(self._client("router"), user.content, history=history, has_project=has_project)
         meta = {"intent": route.intent, "tier": route.tier, "confidence": route.confidence, "command": route.command}
@@ -473,6 +481,15 @@ class ChatService:
     async def _start_work(self, conversation_id: uuid.UUID, card: Message) -> dict[str, Any]:
         intent = card.data["intent"]
         cfg = intent_config(intent)
+        if intent == "write_code":  # chat version until Phase 8 (agent/chat/write_code.py)
+            reply = await self._append(conversation_id, status="streaming", data={"intent": intent})
+            reply_id = uuid.UUID(reply["id"])
+            task = asyncio.create_task(self._write_code(conversation_id, reply_id, card.data))
+            self._tasks[conversation_id] = task
+            task.add_done_callback(
+                lambda t: self._tasks.pop(conversation_id, None) if self._tasks.get(conversation_id) is t else None
+            )
+            return reply
         inputs = _run_inputs(intent, card.data)
         if cfg.playbook not in playbooks() or inputs is None:
             return await self._append(
@@ -499,6 +516,40 @@ class ChatService:
             return await self._append(conversation_id, kind="error", status="error", content=str(exc))
         return await self._append(
             conversation_id, kind="run", run_id=run.id, content="", data={"intent": intent, "playbook": cfg.playbook}
+        )
+
+    async def _write_code(self, conversation_id: uuid.UUID, reply_id: uuid.UUID, data: dict[str, Any]) -> None:
+        text: list[str] = []
+        try:
+            async for token in stream_code(
+                self._client("backend_developer"),
+                data.get("request", ""),
+                data.get("card", {}),
+                data.get("answers", []),
+            ):
+                text.append(token)
+                self._publish(conversation_id, {"type": "token", "message_id": str(reply_id), "text": token})
+            await self._finish(reply_id, content="".join(text))
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await asyncio.shield(self._finish(reply_id, content="".join(text), status="stopped"))
+            raise
+        except Exception as exc:
+            log.warning("write_code failed: %s", exc)
+            await self._finish(reply_id, kind="error", status="error", content=f"Writing the code failed: {exc}")
+            return
+        summary = "Written: " + str(data.get("card", {}).get("what", "the code")).replace("`", "")
+        await self._append(
+            conversation_id,
+            kind="done",
+            content=summary,
+            data={
+                "summary": summary,
+                "changed": [],
+                "proof": ["Tests written but not run yet: the sandbox that runs them arrives in Phase 5."],
+                "guide": None,
+                "suggestions": ["Explain it step by step", "Add more edge-case tests", "Do it in another language"],
+            },
         )
 
     async def _on_run_status(self, run_id: uuid.UUID, status: str) -> None:
@@ -532,6 +583,12 @@ class ChatService:
                 "suggestions": _suggestions(run.playbook),
             },
         }
+
+
+def _same_request(text: str, request: str) -> bool:
+    """The user typed (nearly) the same request again, rather than a change to the card."""
+    a, b = set(re.findall(r"\w+", text.lower())), set(re.findall(r"\w+", request.lower()))
+    return bool(a and b) and len(a & b) / len(a | b) >= 0.6
 
 
 def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
