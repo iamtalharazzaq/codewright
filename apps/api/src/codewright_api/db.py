@@ -41,15 +41,14 @@ class Run(Base):
     __tablename__ = "runs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
-    playbook: Mapped[str] = mapped_column(String(40), server_default="microservices")  # README Section 5
-    tier: Mapped[int] = mapped_column(SmallInteger, server_default="3")  # risk tier 0-3, README Section 3.2
-    # Variant of the microservices playbook: "conversion" | "audit". Phase 1 reshapes the run state.
-    mode: Mapped[str] = mapped_column(String(20))
+    # None for requests without a project (e.g. general questions).
+    project_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    playbook: Mapped[str] = mapped_column(String(40))  # README Section 5
+    tier: Mapped[int] = mapped_column(SmallInteger)  # risk tier 0-3, README Section 3.2
     # created | running | waiting | completed | failed | cancelled
     status: Mapped[str] = mapped_column(String(20), default="created", index=True)
     llm_profile: Mapped[str] = mapped_column(String(20))
-    options: Mapped[dict[str, Any]] = mapped_column(default=dict)
+    inputs: Mapped[dict[str, Any]] = mapped_column(default=dict)  # validated by the playbook
     current_step: Mapped[str | None] = mapped_column(String(40))
     # The open interrupt (gate card or "model server unavailable" prompt), if the run is waiting.
     pending: Mapped[dict[str, Any] | None] = mapped_column()

@@ -13,7 +13,7 @@ import asyncio
 import ipaddress
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 from urllib.parse import urlparse
@@ -113,6 +113,54 @@ def _queue_for(name: str, profile: LLMProfile) -> asyncio.Semaphore:
     return sem
 
 
+class _ReleasingStream(httpx.AsyncByteStream):
+    """A response body that frees its queue slot once it has been read or closed (streamed responses included)."""
+
+    def __init__(self, inner: httpx.AsyncByteStream, release: Callable[[], None]) -> None:
+        self._inner = inner
+        self._release = release
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        async for chunk in self._inner:
+            yield chunk
+
+    async def aclose(self) -> None:
+        try:
+            await self._inner.aclose()
+        finally:
+            self._release()
+
+
+class QueuedTransport(httpx.AsyncBaseTransport):
+    """Makes requests from LangChain models (agent loops) wait in the same per-profile queue as `LLMClient.chat`."""
+
+    def __init__(self, name: str, profile: LLMProfile, inner: httpx.AsyncBaseTransport | None = None) -> None:
+        self._sem = _queue_for(name, profile)
+        self._inner = inner or httpx.AsyncHTTPTransport()
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        await self._sem.acquire()
+        released = False
+
+        def release() -> None:
+            nonlocal released
+            if not released:
+                released = True
+                self._sem.release()
+
+        try:
+            response = await self._inner.handle_async_request(request)
+        except BaseException:
+            release()
+            raise
+        assert isinstance(response.stream, httpx.AsyncByteStream)  # noqa: S101  (async transports return async streams)
+        response.stream = _ReleasingStream(response.stream, release)
+        return response
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()
+
+
 def _server_root(base_url: str) -> str:
     """`http://host:8080/v1` -> `http://host:8080` (llama.cpp serves /health and /props at the root)."""
     root = base_url.rstrip("/")
@@ -161,7 +209,7 @@ class LLMClient:
         env = self.profile.api_key_env
         return os.environ.get(env) or None if env else None
 
-    def _http(self, timeout: float) -> httpx.AsyncClient:
+    def _http(self, timeout: float | httpx.Timeout) -> httpx.AsyncClient:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
         return httpx.AsyncClient(timeout=timeout, headers=headers, transport=self._transport)
 
@@ -251,7 +299,7 @@ class LLMClient:
         usage = Usage()
         error: str | None = None
         try:
-            async with _queue_for(self.name, self.profile), self._http(self.profile.request_timeout_s) as http:
+            async with _queue_for(self.name, self.profile), self._http(self.profile.http_timeout()) as http:
                 start = time.monotonic()  # time spent waiting in the queue is not model latency
                 res = await http.post(url, json=body)
             if res.status_code == 503:

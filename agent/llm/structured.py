@@ -50,11 +50,13 @@ def schema_for(model: type[BaseModel]) -> dict[str, Any]:
     schema = model.model_json_schema()
     defs = schema.pop("$defs", {})
 
-    def resolve(node: Any) -> Any:
+    def resolve(node: Any, *, properties: bool = False) -> Any:
         if isinstance(node, dict):
             if "$ref" in node:
                 return resolve(defs[node["$ref"].split("/")[-1]])
-            out = {k: resolve(v) for k, v in node.items() if k != "title"}
+            if properties:  # keys are field names (a field may be called "title"), values are schemas
+                return {k: resolve(v) for k, v in node.items()}
+            out = {k: resolve(v, properties=k == "properties") for k, v in node.items() if k != "title"}
             if out.get("type") == "object" and "properties" in out:
                 out.setdefault("additionalProperties", False)
             return out

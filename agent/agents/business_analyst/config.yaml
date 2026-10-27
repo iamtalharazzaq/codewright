@@ -1,3 +1,3 @@
 name: business-analyst
-description: Writes short intake notes (goals, constraints, delivery choice) into the project workspace.
+description: Writes short documents (intake notes, project briefs, requirements) into the project workspace.
 tools: [ls, read_file, write_file]

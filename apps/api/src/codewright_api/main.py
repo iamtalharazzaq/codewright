@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI
 
 from codewright_api import __version__
 from codewright_api.db import get_engine, get_sessionmaker
-from codewright_api.routes import health, projects, runs, settings, traces
+from codewright_api.routes import health, playbooks, projects, runs, settings, traces
 from codewright_api.runs import RunManager
 from codewright_api.settings import get_settings
 
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
     api.include_router(health.router)
     api.include_router(settings.router)
     api.include_router(projects.router)
+    api.include_router(playbooks.router)
     api.include_router(runs.router)
     api.include_router(traces.router)
     app.include_router(api)

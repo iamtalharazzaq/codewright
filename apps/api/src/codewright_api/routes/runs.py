@@ -8,12 +8,12 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
 
-from agent.graph.gates import GATES
-from agent.graph.steps import STEPS
 from agent.llm.config import ProfileName
+from agent.playbooks.gates import gate_applies
+from agent.playbooks.registry import get_playbook
 from codewright_api.db import Approval, Run, RunEvent, SessionDep, Trace, get_sessionmaker
 from codewright_api.deps import ManagerDep
 from codewright_api.runs import TERMINAL_STATUSES, RunConflict, event_dict
@@ -21,17 +21,12 @@ from codewright_api.runs import TERMINAL_STATUSES, RunConflict, event_dict
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
-class RunOptions(BaseModel):
-    stub_delay_s: float = Field(default=2.0, ge=0, le=60, description="How long each stub step takes.")
-    use_llm: bool = Field(default=False, description="Make one real LLM call at intake.")
-    services: list[str] = Field(default_factory=lambda: ["notification", "payment"], max_length=10)
-
-
 class RunCreate(BaseModel):
-    project_name: str = Field(default="Demo project", min_length=1, max_length=200)
-    mode: Literal["conversion", "audit"]
+    playbook: str = Field(default="sample", min_length=1, max_length=40)
+    project_name: str | None = Field(default=None, min_length=1, max_length=200)
+    inputs: dict[str, Any] = Field(default_factory=dict, description="Validated by the playbook's input model.")
     llm_profile: ProfileName | None = None
-    options: RunOptions = Field(default_factory=RunOptions)
+    tier: int | None = Field(default=None, ge=0, le=3, description="Raise the playbook's tier (more approvals).")
 
 
 class Usage(BaseModel):
@@ -45,13 +40,12 @@ class RunOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    project_id: uuid.UUID
+    project_id: uuid.UUID | None
     playbook: str
     tier: int
-    mode: str
     status: str
     llm_profile: str
-    options: dict[str, Any]
+    inputs: dict[str, Any]
     current_step: str | None
     pending: dict[str, Any] | None
     error: str | None
@@ -62,31 +56,27 @@ class RunOut(BaseModel):
 class RunDetail(RunOut):
     usage: Usage
     approvals: list[dict[str, Any]]
-
-
-class WorkflowView(BaseModel):
-    steps: list[dict[str, Any]]
-    gates: list[dict[str, Any]]
-
-
-@router.get("/workflow")
-async def workflow() -> WorkflowView:
-    """Static description of steps and gates, for the run timeline."""
-    return WorkflowView(
-        steps=[{"id": s.id, "title": s.title, "role": s.role, "number": s.number} for s in STEPS.values()],
-        gates=[{"id": g.id, "number": g.number, "title": g.title, "reworks": g.reworks} for g in GATES.values()],
-    )
+    flow: list[str]  # the node ids the timeline shows, in order (gates this tier skips left out)
+    plan: list[dict[str, Any]]
+    steps: dict[str, Any]
+    artifacts: list[dict[str, Any]]
+    budget: dict[str, Any] | None
 
 
 @router.post("", status_code=201)
 async def create_run(body: RunCreate, manager: ManagerDep) -> RunOut:
     try:
         run = await manager.create_run(
+            playbook=body.playbook,
+            inputs=body.inputs,
             project_name=body.project_name,
-            mode=body.mode,
             llm_profile=body.llm_profile,
-            options=body.options.model_dump(),
+            tier=body.tier,
         )
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(422, exc.errors(include_url=False, include_context=False)) from exc
     except RunConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     return RunOut.model_validate(run)
@@ -99,7 +89,7 @@ async def list_runs(session: SessionDep, limit: int = 20) -> list[RunOut]:
 
 
 @router.get("/{run_id}")
-async def get_run(run_id: uuid.UUID, session: SessionDep) -> RunDetail:
+async def get_run(run_id: uuid.UUID, session: SessionDep, manager: ManagerDep) -> RunDetail:
     run = await session.get(Run, run_id)
     if run is None:
         raise HTTPException(404, "Run not found")
@@ -114,6 +104,13 @@ async def get_run(run_id: uuid.UUID, session: SessionDep) -> RunDetail:
         )
     ).one()
     approvals = await session.scalars(select(Approval).where(Approval.run_id == run_id).order_by(Approval.id))
+    try:
+        spec = get_playbook(run.playbook).spec
+    except LookupError:
+        spec = None
+    gate_kinds = {g.id: g.kind for g in spec.gates} if spec else {}
+    flow = [n for n in spec.flow(run.inputs) if gate_applies(gate_kinds.get(n, "custom"), run.tier)] if spec else []
+    values = await manager.state_values(run)
     return RunDetail(
         **RunOut.model_validate(run).model_dump(),
         usage=Usage(prompt_tokens=totals[0], completion_tokens=totals[1], llm_calls=totals[2], llm_time_ms=totals[3]),
@@ -121,6 +118,11 @@ async def get_run(run_id: uuid.UUID, session: SessionDep) -> RunDetail:
             {"gate": a.gate, "subject": a.subject, "decision": a.decision, "comment": a.comment, "at": a.created_at}
             for a in approvals
         ],
+        flow=flow,
+        plan=list(values.get("plan", [])),
+        steps=dict(values.get("steps", {})),
+        artifacts=list(values.get("artifacts", [])),
+        budget=values.get("budget"),
     )
 
 
@@ -130,8 +132,8 @@ class Answer(BaseModel):
     decision: Literal["approve", "edit", "reject"] | None = None
     comment: str = Field(default="", max_length=4000)
     edits: dict[str, Any] = Field(default_factory=dict)
-    choice: Literal["retry", "switch_to_cpu"] | None = Field(
-        default=None, description="For a 'model server unavailable' prompt."
+    choice: Literal["retry", "switch_to_cpu", "continue", "stop"] | None = Field(
+        default=None, description="For a 'model server unavailable' or 'budget exceeded' prompt."
     )
 
 
@@ -145,7 +147,7 @@ async def answer(run_id: uuid.UUID, body: Answer, manager: ManagerDep) -> dict[s
             raise HTTPException(422, "Edit and Reject need a comment explaining what to change.")
         value = {"decision": body.decision, "comment": body.comment, "edits": body.edits}
     else:
-        raise HTTPException(422, "Send a decision (gate) or a choice (model server prompt).")
+        raise HTTPException(422, "Send a decision (gate) or a choice (model server or budget prompt).")
     try:
         await manager.answer(run_id, value)
     except LookupError as exc:
@@ -196,6 +198,9 @@ async def events(
                 event = await asyncio.wait_for(queue.get(), timeout=5)
             except TimeoutError:
                 continue  # FastAPI also sends keep-alive pings on its own
+            if event["id"] is None:  # live-only (LLM tokens): no id, so a reconnect doesn't replay it
+                yield ServerSentEvent(event="token", data=event["data"])
+                continue
             if event["id"] <= cursor:
                 continue
             cursor = event["id"]

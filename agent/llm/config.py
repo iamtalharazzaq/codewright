@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, Self
 
+import httpx
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
@@ -24,6 +25,12 @@ class LLMProfile(BaseModel):
     num_ctx: int = Field(gt=0)
     max_parallel_llm_jobs: int = Field(default=1, ge=1)
     request_timeout_s: float = Field(default=600, gt=0)
+    # A lost server (GPU box off, tunnel down) should pause the run within seconds, not after a full request timeout.
+    connect_timeout_s: float = Field(default=10, gt=0)
+
+    def http_timeout(self) -> httpx.Timeout:
+        return httpx.Timeout(self.request_timeout_s, connect=self.connect_timeout_s)
+
     # Name of the env var holding an optional API key for the model server; never the key itself.
     api_key_env: str | None = None
 

@@ -8,6 +8,11 @@ from .conftest import AppFactory, wait_for, waiting
 FAST = {"stub_delay_s": 0}
 
 
+def ms(mode: str = "audit", **inputs: Any) -> dict[str, Any]:
+    """Body for a stub microservices run."""
+    return {"playbook": "microservices", "inputs": {"mode": mode, **FAST, **inputs}}
+
+
 def _approve_until_done(client: Any, run_id: str) -> tuple[dict[str, Any], list[str]]:
     gates: list[str] = []
     for _ in range(30):
@@ -22,7 +27,7 @@ def _approve_until_done(client: Any, run_id: str) -> tuple[dict[str, Any], list[
 
 def test_audit_run_pauses_at_each_gate_and_completes(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        run_id = client.post("/api/runs", json=ms()).json()["id"]
         run, gates = _approve_until_done(client, run_id)
         detail = client.get(f"/api/runs/{run_id}").json()
 
@@ -34,7 +39,7 @@ def test_audit_run_pauses_at_each_gate_and_completes(app_factory: AppFactory) ->
 
 def test_conversion_run_has_a_gate5_per_service(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        body = {"mode": "conversion", "options": {**FAST, "services": ["notification", "payment"]}}
+        body = ms("conversion", services=["notification", "payment"])
         run_id = client.post("/api/runs", json=body).json()["id"]
         run, gates = _approve_until_done(client, run_id)
     assert run["status"] == "completed"
@@ -43,7 +48,7 @@ def test_conversion_run_has_a_gate5_per_service(app_factory: AppFactory) -> None
 
 def test_reject_needs_a_comment_and_reworks_the_step(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        run_id = client.post("/api/runs", json=ms()).json()["id"]
         wait_for(client, run_id, waiting)
         assert client.post(f"/api/runs/{run_id}/answer", json={"decision": "reject"}).status_code == 422
         res = client.post(f"/api/runs/{run_id}/answer", json={"decision": "reject", "comment": "Wrong DB"})
@@ -55,17 +60,17 @@ def test_reject_needs_a_comment_and_reworks_the_step(app_factory: AppFactory) ->
 
 def test_only_one_active_run_and_cancel(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
-        second = client.post("/api/runs", json={"mode": "audit", "options": FAST})
+        run_id = client.post("/api/runs", json=ms()).json()["id"]
+        second = client.post("/api/runs", json=ms())
         assert second.status_code == 409
         assert client.post(f"/api/runs/{run_id}/cancel").status_code == 202
         assert client.get(f"/api/runs/{run_id}").json()["status"] == "cancelled"
-        assert client.post("/api/runs", json={"mode": "audit", "options": FAST}).status_code == 201
+        assert client.post("/api/runs", json=ms()).status_code == 201
 
 
 def test_answering_a_run_that_is_not_waiting_is_a_conflict(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": {"stub_delay_s": 5}}).json()["id"]
+        run_id = client.post("/api/runs", json=ms(stub_delay_s=5)).json()["id"]
         res = client.post(f"/api/runs/{run_id}/answer", json={"decision": "approve"})
         assert res.status_code == 409
         client.post(f"/api/runs/{run_id}/cancel")
@@ -73,7 +78,7 @@ def test_answering_a_run_that_is_not_waiting_is_a_conflict(app_factory: AppFacto
 
 def test_run_resumes_after_api_restart(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": {"stub_delay_s": 0.5}}).json()["id"]
+        run_id = client.post("/api/runs", json=ms(stub_delay_s=0.5)).json()["id"]
         wait_for(client, run_id, waiting)
         client.post(f"/api/runs/{run_id}/answer", json={"decision": "approve"})
         wait_for(client, run_id, lambda r: r["current_step"] == "baseline")
@@ -87,7 +92,7 @@ def test_run_resumes_after_api_restart(app_factory: AppFactory) -> None:
 
 def test_model_server_down_pauses_and_asks_then_traces_the_failure(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        body = {"mode": "audit", "llm_profile": "remote_gpu", "options": {**FAST, "use_llm": True}}
+        body = {**ms(use_llm=True), "llm_profile": "remote_gpu"}
         run_id = client.post("/api/runs", json=body).json()["id"]
         run = wait_for(client, run_id, waiting)
         assert run["pending"]["kind"] == "llm_unavailable"
@@ -107,7 +112,7 @@ def test_model_server_down_pauses_and_asks_then_traces_the_failure(app_factory: 
 
 def test_events_stream_over_sse(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        run_id = client.post("/api/runs", json=ms()).json()["id"]
         wait_for(client, run_id, waiting)
         events = _events(client, run_id)
         client.post(f"/api/runs/{run_id}/cancel")
@@ -120,7 +125,7 @@ def test_events_stream_over_sse(app_factory: AppFactory) -> None:
 
 def test_live_stream_ends_when_the_run_ends(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        run_id = client.post("/api/runs", json={"mode": "audit", "options": FAST}).json()["id"]
+        run_id = client.post("/api/runs", json=ms()).json()["id"]
         run, _ = _approve_until_done(client, run_id)
         # follow=true on a finished run: the backlog, then the stream closes by itself.
         events = _events(client, run_id, follow="true")
@@ -139,3 +144,55 @@ def _events(client: Any, run_id: str, **params: Any) -> list[dict[str, Any]]:
             if line.startswith("data:"):
                 events.append(json.loads(line.removeprefix("data:").strip()))
     return events
+
+
+def test_playbooks_are_listed_with_steps_gates_and_input_schema(client: Any) -> None:
+    playbooks = {p["name"]: p for p in client.get("/api/playbooks").json()}
+    sample = playbooks["sample"]
+    assert [s["id"] for s in sample["steps"]] == ["plan", "work"]
+    assert [(g["id"], g["kind"]) for g in sample["gates"]] == [("approve_plan", "plan"), ("approve_result", "result")]
+    assert "request" in sample["inputs_schema"]["properties"]
+    assert client.get("/api/playbooks/microservices").json()["tier"] == 3
+    assert client.get("/api/playbooks/nope").status_code == 404
+
+
+def test_bad_requests_are_rejected_before_a_run_starts(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        assert client.post("/api/runs", json={"playbook": "nope"}).status_code == 404
+        bad = client.post("/api/runs", json={"playbook": "sample", "inputs": {"request": "x"}})
+        assert bad.status_code == 422  # min_length 3, validated by the playbook's input model
+        assert client.post("/api/runs", json={"playbook": "sample", "tier": 7}).status_code == 422
+        assert client.get("/api/runs").json() == []
+
+
+def test_sample_run_detail_has_flow_plan_artifacts_and_budget(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        body = {"playbook": "sample", "inputs": {"use_llm": False, "stub_delay_s": 0}}
+        run_id = client.post("/api/runs", json=body).json()["id"]
+        run, gates = _approve_until_done(client, run_id)
+        detail = client.get(f"/api/runs/{run_id}").json()
+    assert run["status"] == "completed"
+    assert gates == ["approve_plan", "approve_result"]
+    assert detail["flow"] == ["plan", "approve_plan", "work", "approve_result"]
+    assert [p["status"] for p in detail["plan"]] == ["done", "done"]
+    assert [a["path"] for a in detail["artifacts"]] == ["outline.md", "brief.md"]
+    assert detail["steps"]["work"]["status"] == "done"
+    assert detail["budget"]["run"] == {"llm_calls": 0, "tokens": 0}
+
+
+def test_a_higher_tier_adds_gates_and_a_lower_one_is_ignored(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        body = {"playbook": "sample", "tier": 0, "inputs": {"use_llm": False, "stub_delay_s": 0}}
+        run = client.post("/api/runs", json=body).json()
+        client.post(f"/api/runs/{run['id']}/cancel")
+    assert run["tier"] == 2  # a run can raise its playbook's tier, never lower it
+
+
+def test_budget_choices_only_answer_a_budget_prompt(app_factory: AppFactory) -> None:
+    with app_factory() as client:
+        body = {"playbook": "sample", "inputs": {"use_llm": False, "stub_delay_s": 0}}
+        run_id = client.post("/api/runs", json=body).json()["id"]
+        wait_for(client, run_id, waiting)
+        res = client.post(f"/api/runs/{run_id}/answer", json={"choice": "continue"})
+        assert res.status_code == 409  # the open prompt is a gate
+        client.post(f"/api/runs/{run_id}/cancel")

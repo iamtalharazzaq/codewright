@@ -12,7 +12,7 @@ profiles:
     server: llamacpp
     base_url: null                     # set LLM_REMOTE_GPU_URL in .env or the URL in Settings (it changes with ngrok)
     model: Qwen3.5-9B-Q4_K_M
-    num_ctx: 16384                     # starting point; measure and tune on the RTX 3080 (docs/setup/remote-gpu.md)
+    num_ctx: 4096                      # matches the GPU server (-c 4096, 1 slot); raise both together (ADR 0015)
     max_parallel_llm_jobs: 1
     api_key_env: REMOTE_GPU_API_KEY
   local_cpu:

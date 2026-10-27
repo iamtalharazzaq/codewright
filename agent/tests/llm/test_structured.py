@@ -70,3 +70,16 @@ async def test_gives_up_after_budget() -> None:
     with pytest.raises(StructuredOutputError) as info:
         await structured(client, Owner, [], task="owner", max_retries=1)
     assert len(info.value.attempts) == 2
+
+
+class Titled(BaseModel):
+    title: str = Field(description="A field that happens to be called title.")
+    sections: list[str]
+
+
+def test_schema_keeps_fields_named_title() -> None:
+    # Pydantic's "title" annotations are dropped, but a *field* called title must survive (it's required).
+    schema = schema_for(Titled)
+    assert set(schema["properties"]) == {"title", "sections"}
+    assert schema["required"] == ["title", "sections"]
+    assert "title" not in schema["properties"]["title"]

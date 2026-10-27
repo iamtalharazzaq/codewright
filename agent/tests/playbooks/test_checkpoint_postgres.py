@@ -9,10 +9,9 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
 
-from agent.graph.workflow import build_workflow
 from agent.tests.conftest import FakeServices
 
-from .helpers import initial_state
+from .helpers import compiled, initial_state
 
 
 async def test_run_survives_a_restart(pg_url: str, tmp_path: Path) -> None:
@@ -20,15 +19,15 @@ async def test_run_survives_a_restart(pg_url: str, tmp_path: Path) -> None:
 
     async with AsyncPostgresSaver.from_conn_string(pg_url) as saver:
         await saver.setup()
-        graph = build_workflow(FakeServices(), saver)
-        result = await graph.ainvoke(initial_state(tmp_path, "audit"), config)
+        graph = compiled("microservices", FakeServices(), saver)
+        result = await graph.ainvoke(initial_state("microservices", tmp_path, mode="audit"), config)
         assert result["__interrupt__"][0].value["gate"] == "gate1"
 
     # "Restart": new connection, new graph object, same thread id.
     async with AsyncPostgresSaver.from_conn_string(pg_url) as saver:
-        graph = build_workflow(FakeServices(), saver)
+        graph = compiled("microservices", FakeServices(), saver)
         snapshot = await graph.aget_state(config)
         assert snapshot.next == ("gate1",)
         result = await graph.ainvoke(Command(resume={"decision": "approve"}), config)
         assert result["__interrupt__"][0].value["gate"] == "gate2"
-        assert result["completed_steps"] == ["intake", "baseline", "as_is"]
+        assert [k for k, v in result["steps"].items() if v["status"] == "done"] == ["intake", "baseline", "as_is"]

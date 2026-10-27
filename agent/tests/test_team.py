@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from agent.agents.base import load_role
-from agent.agents.team import build_team
+from agent.agents.team import LEAD_MODEL_CALLS, build_team
 
 
 class ScriptedModel(GenericFakeChatModel):
@@ -83,3 +83,12 @@ async def test_file_system_cannot_escape_the_workspace(tmp_path: Path) -> None:
 def test_prompts_are_small() -> None:
     for role in ("project_manager", "business_analyst"):
         assert len(load_role(role).prompt) < 1200, role
+
+
+async def test_a_looping_agent_is_stopped_by_the_call_limit(tmp_path: Path) -> None:
+    # The Project Manager asks for `ls` forever; the cap ends the loop instead of filling the context.
+    endless = iter(call("ls", {"path": "/"}, f"c{i}") for i in range(100))
+    model = ScriptedModel(messages=endless)
+    result = await build_team(model, tmp_path).ainvoke({"messages": [{"role": "user", "content": "look around"}]})
+    ai_calls = [m for m in result["messages"] if m.type == "ai" and m.tool_calls]
+    assert len(ai_calls) <= LEAD_MODEL_CALLS

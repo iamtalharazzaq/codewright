@@ -1,0 +1,9 @@
+# The Phase 1 sample: proves the run pattern end to end (plan → approve → team works in the workspace → approve).
+title: Sample project brief
+description: >-
+  The Project Manager drafts an outline for a one-page brief, you approve it, then the Business Analyst writes
+  brief.md into the workspace and you approve the result. Exercises planning, approvals, a deep-agent team, streaming,
+  budgets and GPU-loss recovery.
+intent: null
+tier: 2
+lead_role: project_manager
