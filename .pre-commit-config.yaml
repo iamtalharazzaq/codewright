@@ -16,27 +16,4 @@ repos:
       - id: trailing-whitespace
         exclude: ^README\.md$|^PROMPT\.md$
 
-  - repo: local
-    hooks:
-      - id: ruff-check
-        name: ruff check
-        entry: uv run ruff check --fix
-        language: system
-        types: [python]
-      - id: ruff-format
-        name: ruff format
-        entry: uv run ruff format
-        language: system
-        types: [python]
-      - id: mypy
-        name: mypy
-        entry: uv run mypy
-        language: system
-        types: [python]
-        pass_filenames: false
-      - id: web-lint
-        name: web lint + typecheck + format
-        entry: bash -c 'cd apps/web && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm format:check'
-        language: system
-        files: ^apps/web/
-        pass_filenames: false
+# Lint, types and tests run in Docker with `make check` (no host .venv or node_modules needed).
