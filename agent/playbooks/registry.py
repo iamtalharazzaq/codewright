@@ -39,6 +39,7 @@ _MODULES = (
     "security",
     "upgrade",
     "db_change",
+    "feature",
 )
 
 

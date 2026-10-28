@@ -37,6 +37,7 @@ from agent.playbooks.plan import plan_from
 from agent.playbooks.registry import Playbook, get_playbook, playbooks
 from agent.playbooks.services import ProjectTools
 from agent.playbooks.state import RunState, empty_budget
+from agent.tools.workspace import put_back
 from codewright_api.db import Approval, Project, Run, RunEvent
 from codewright_api.llm_settings import EffectiveLLM, effective_llm
 from codewright_api.settings import Settings
@@ -366,6 +367,22 @@ class RunManager:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         await self._set_status(run_id, "cancelled", pending=None)
+        await self._put_back(run_id)
+
+    async def _put_back(self, run_id: uuid.UUID) -> None:
+        """A cancelled run that was changing a project (on its own `codewright/` branch) leaves the project as it
+        found it (`agent.tools.workspace.put_back`)."""
+        async with self.sessions() as session:
+            run = await session.get(Run, run_id)
+        if run is None or run.project_id is None:
+            return
+        branch = str((await self.state_values(run)).get("branch") or "")
+        if not branch.startswith("codewright/"):
+            return
+        work = self.settings.workspaces_dir / str(run.project_id) / "work"
+        note = await asyncio.to_thread(put_back, work, branch, str(run_id))
+        if note:
+            await self.record_event(run_id, "note", data={"text": f"Cancelled: the project is {note}."})
 
     # ── driving the graph ────────────────────────────────────────────────────
     def _spawn(self, run_id: uuid.UUID, playbook: str, graph_input: Any) -> None:

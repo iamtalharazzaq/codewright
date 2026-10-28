@@ -273,3 +273,10 @@ def test_trial_snapshots_are_read_and_compared() -> None:
     assert dbtrial.diff(before, after)["schema_added"] == ["index: idx_b"]
     assert dbtrial.identical(before, before) and not dbtrial.identical(before, after)
     assert dbtrial.plan_kind("Index Scan using idx on products") == "Index Scan"
+
+
+def test_error_paths_are_found_from_the_component_they_were_reported_in(tmp_path: Path) -> None:
+    from agent.playbooks.upgrade.graph import files_in  # noqa: PLC0415
+
+    work = repo(tmp_path, {"go.mod": "module x\n", "web/package.json": '{"name": "w"}', "web/src/api/a.ts": "x\n"})
+    assert files_in("src/api/a.ts(2,15): error TS2305", work) == ["web/src/api/a.ts"]

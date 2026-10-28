@@ -57,7 +57,7 @@ SYSTEM = """You classify one message sent to Codewright, an AI software team. Re
 
 Intents:
 - general_help: a question about software concepts, tools or Codewright itself; nothing is made ("What's a saga?")
-- project_manage: connect/list/status/deliver a project ("Connect my GoShop repo", "deliver to GitHub")
+- project_manage: connect/list/status/deliver a project ("Connect my repo", "deliver to GitHub")
 - explain_code: explain how existing code works ("How does checkout work?")
 - analyze_audit: audit an existing project's architecture/quality ("Audit my architecture")
 - write_docs: document existing code ("Document this API")

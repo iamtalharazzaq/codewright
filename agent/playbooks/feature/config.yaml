@@ -1,0 +1,11 @@
+# CODEWRIGHT.md Section 5.13. Tier 2: approve the design, then approve the result; the feature goes on a new branch.
+title: Add a feature
+description: >-
+  The Product Manager turns the request into user stories with acceptance criteria, the Solution Architect designs it
+  against your existing code (which files change, which are new, what the screens show) for your approval, then the
+  Backend and Frontend Developers write the files, QA writes tests that check each acceptance criterion, and the code
+  is built and tested until it is green. If it cannot be made green nothing is added and the failure is reported. Then
+  all tests, the recorded traffic replayed (existing behavior must not change), a screenshot when the feature has
+  screens, one more approval, and the feature is committed on a new branch.
+intent: add_feature
+lead_role: product_manager

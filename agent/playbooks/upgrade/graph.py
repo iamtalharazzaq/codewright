@@ -201,10 +201,14 @@ def plan_node(services: RunServices) -> Any:
 
 # ── upgrade ──────────────────────────────────────────────────────────────────
 def files_in(text: str, work: Any) -> list[str]:
+    """The project's source files an error output names, as paths from the project root (a tool run inside a
+    component, like `tsc` in `web/`, names them from there)."""
+    prefixes = ["", *(f"{c.path}/" for c in detect_project(work) if c.path != ".")]
     out: list[str] = []
     for m in SOURCE.finditer(text):
-        path = m.group(1).removeprefix("./")
-        if path not in out and not any(s in path for s in SKIP_DIRS) and (work / path).is_file():
+        name = m.group(1).removeprefix("./")
+        path = next((p + name for p in prefixes if (work / (p + name)).is_file()), None)
+        if path and path not in out and not any(s in path for s in SKIP_DIRS):
             out.append(path)
     return out[:MAX_ADAPT_FILES]
 

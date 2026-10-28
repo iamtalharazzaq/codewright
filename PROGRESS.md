@@ -22,6 +22,18 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
+## Phase 11: Add a feature (ADR 0026)
+
+| Task | Result |
+|---|---|
+| `add_feature` | survey → stories → design → **approve plan** → build → verify → review → **approve result** → publish. Committed only when the tests pass and a new migration applies and rolls back on PostgreSQL; otherwise nothing is kept. |
+| Feature by analogy | The model picks the existing feature the new one is like and names it; the plan follows that feature's real files (adapted copies, wiring, appended type declarations, a migration). Left-out files are listed with reasons. |
+| Build order | Types, model, migration, repository, service, handlers, tests, then wiring; each file sees the earlier files' declarations; up to 5 fix rounds under feature build rules. |
+| Cancel | A cancelled run's unfinished changes are stashed and the project goes back to its branch (all playbooks). |
+| Live (GoShop) | GoShop already has a wishlist, so "price alerts" (like the wishlist) was the test. One run went green: 12 files, 350 tests, replay 0 regressions/25, screenshot. Review found its migration lacked the `target_price` column, which led to the migration trial gate; it was not approved. Later runs vary with the 9B model (type mismatches between layers). |
+
+Acceptance still open: a price-alerts run that passes the migration gate and is approved (re-run once the model is stable); acceptance-criteria tests are thin where the analog's tests need generated mocks.
+
 ## Phase 10: Security, upgrade and database change (ADR 0025, Milestone M2)
 
 | Task | Result |

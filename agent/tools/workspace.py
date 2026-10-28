@@ -69,6 +69,23 @@ def git(cwd: Path, *args: str, check: bool = True, timeout: float = 300) -> str:
     return result.stdout.strip()
 
 
+def put_back(work: Path, branch: str, label: str) -> str:
+    """Take a cancelled run's unfinished changes off the project: they are stashed (`git stash list` shows them, so
+    nothing is lost), the project goes back to the branch it was on, and the run's branch is deleted when nothing was
+    committed on it. Does nothing unless the project is still on `branch`. Says what it did."""
+    if not (work / ".git").exists() or git(work, "branch", "--show-current", check=False) != branch:
+        return ""
+    done = []
+    if git(work, "status", "--porcelain", check=False):
+        git(work, "stash", "push", "-u", "-q", "-m", f"codewright: cancelled run {label}", check=False)
+        done.append("its unfinished changes are in `git stash`")
+    git(work, "checkout", "-q", "-", check=False)
+    back = git(work, "branch", "--show-current", check=False)
+    if back != branch and not git(work, "log", "--oneline", f"{back}..{branch}", check=False):
+        git(work, "branch", "-D", branch, check=False)
+    return f"back on {back}" + (f"; {done[0]}" if done else "")
+
+
 @dataclass(frozen=True)
 class Summary:
     files: int
