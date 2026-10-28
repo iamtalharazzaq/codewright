@@ -7,6 +7,7 @@ from pathlib import Path
 
 from agent.language_packs import compose, reports, templates
 from agent.language_packs.base import (
+    REPORTS,
     STATE,
     Component,
     Contract,
@@ -165,9 +166,8 @@ class GoPack:
     def test_steps(self, repo: Path, component: Component) -> list[Step]:
         # Offline: modules are already in the cache after `install`, and tests get no network at all.
         offline = {"GOFLAGS": "-buildvcs=false -mod=mod", "GOPROXY": "off"}
-        return [
-            Step("test", "go", ["go", "test", "-json", "./..."], component.path, "none", env=offline, report="go-json")
-        ]
+        cmd = ["go", "test", "-json", f"-coverprofile={REPORTS}/cover.out", "./..."]
+        return [Step("test", "go", cmd, component.path, "none", env=offline, report="go-json")]
 
     def lint_steps(self, repo: Path, component: Component) -> list[Step]:
         wd = component.path
@@ -211,7 +211,9 @@ class GoPack:
         return None
 
     def read_report(self, repo: Path, component: Component, step: Step, output: str) -> TestReport:
-        return reports.go_json(output)
+        report = reports.go_json(output)
+        report.coverage = reports.go_cover(repo / component.path / REPORTS / "cover.out", component.details["module"])
+        return report
 
     # ── generate ─────────────────────────────────────────────────────────────
     def scaffold_service(self, spec: ServiceSpec, out: Path) -> None:

@@ -72,6 +72,9 @@ _PRISMA_MODEL = re.compile(r"^model\s+(\w+)\s*\{", re.MULTILINE)
 _LISTEN = re.compile(r"\.listen\(\s*(?:process\.env\.PORT\s*(?:\|\||\?\?)\s*)?(\d{2,5})")
 
 
+COVERAGE_PLUGINS = ("@vitest/coverage-v8", "@vitest/coverage-istanbul")
+
+
 def _deps(pkg: dict[str, Any]) -> dict[str, str]:
     out: dict[str, str] = {}
     for key in ("dependencies", "devDependencies", "peerDependencies"):
@@ -152,6 +155,7 @@ class NodePack:
                         "scripts": sorted(scripts),
                         "has_tsconfig": (root / "tsconfig.json").exists(),
                         "module": pkg.get("type", "commonjs"),
+                        "coverage": next((d for d in COVERAGE_PLUGINS if d in deps), ""),
                     },
                 )
             )
@@ -269,12 +273,20 @@ class NodePack:
     def test_steps(self, repo: Path, component: Component) -> list[Step]:
         fw = set(component.frameworks)
         wd = component.path
+        cover = f"{REPORTS}/coverage"
         if "vitest" in fw:
             cmd = ["npx", "--no-install", "vitest", "run", "--reporter=default", "--reporter=junit",
                    f"--outputFile.junit={REPORTS}/junit.xml"]  # fmt: skip
+            if component.details.get("coverage"):  # @vitest/coverage-v8 or -istanbul is installed
+                cmd += [
+                    "--coverage.enabled=true",
+                    "--coverage.reporter=cobertura",
+                    f"--coverage.reportsDirectory={cover}",
+                ]
             return [Step("test", "node", cmd, wd, "none", report="junit")]
-        if "jest" in fw:
-            cmd = ["npx", "--no-install", "jest", "--ci", "--json", f"--outputFile={REPORTS}/jest.json"]
+        if "jest" in fw:  # coverage is built into Jest
+            cmd = ["npx", "--no-install", "jest", "--ci", "--json", f"--outputFile={REPORTS}/jest.json", "--coverage",
+                   "--coverageReporters=cobertura", f"--coverageDirectory={cover}"]  # fmt: skip
             return [Step("test", "node", cmd, wd, "none", report="jest-json")]
         if "test" in component.details.get("scripts", []):
             return [Step("test", "node", self._script(component, "test"), wd, "none")]
@@ -340,10 +352,13 @@ class NodePack:
     def read_report(self, repo: Path, component: Component, step: Step, output: str) -> TestReport:
         base = repo / component.path / REPORTS
         if step.report == "junit":
-            return reports.junit([base / "junit.xml"], "vitest")
-        if step.report == "jest-json":
-            return jest_json(base / "jest.json")
-        return TestReport(tool="npm test", found=False)
+            report = reports.junit([base / "junit.xml"], "vitest")
+        elif step.report == "jest-json":
+            report = jest_json(base / "jest.json")
+        else:
+            return TestReport(tool="npm test", found=False)
+        report.coverage = reports.cobertura(base / "coverage" / "cobertura-coverage.xml", report.tool)
+        return report
 
     # ── generate ─────────────────────────────────────────────────────────────
     def scaffold_service(self, spec: ServiceSpec, out: Path) -> None:

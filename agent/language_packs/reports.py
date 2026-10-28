@@ -6,7 +6,7 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from agent.language_packs.base import TestCase, TestReport
+from agent.language_packs.base import Coverage, FileCoverage, TestCase, TestReport
 
 MAX_CASES = 200
 
@@ -89,3 +89,60 @@ def go_json(output: str) -> TestReport:
             cases.append(TestCase(f"{pkg} (build)", "error", "".join(lines)[-2000:].strip(), pkg))
     count(report, cases)
     return report
+
+
+# ── coverage ────────────────────────────────────────────────────────────────
+MAX_FILES = 40
+
+
+def cobertura(path: Path, tool: str) -> Coverage | None:
+    """Cobertura XML (coverage.py `coverage xml`, Jest/Vitest `cobertura` reporter, gcovr `--xml`): line coverage
+    per file from each class's `<line hits=…>`."""
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "<!DOCTYPE" in text or "<!ENTITY" in text:
+        return None  # never expand entities from a file a project's code could have written
+    try:
+        root = ET.fromstring(text)  # noqa: S314
+    except ET.ParseError:
+        return None
+    per_file: dict[str, list[int]] = {}
+    for cls in root.iter("class"):
+        name = cls.get("filename", "?")
+        lines = {int(ln.get("number", 0)): int(ln.get("hits", 0)) for ln in cls.iter("line")}
+        totals = per_file.setdefault(name, [0, 0])
+        totals[0] += sum(1 for h in lines.values() if h > 0)
+        totals[1] += len(lines)
+    return _coverage(tool, per_file)
+
+
+def go_cover(path: Path, module: str) -> Coverage | None:
+    """A `go test -coverprofile` file: `pkg/file.go:12.3,14.2 <statements> <count>` per block."""
+    if not path.is_file():
+        return None
+    per_file: dict[str, list[int]] = {}
+    seen: dict[str, int] = {}  # a block appears once per package that ran it; keep the highest count
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[1:]:
+        block, _, rest = line.rpartition(" ")
+        location, _, statements = block.rpartition(" ")
+        if not location or not statements.isdigit() or not rest.isdigit():
+            continue
+        seen[f"{location} {statements}"] = max(seen.get(f"{location} {statements}", 0), int(rest))
+    for key, count in seen.items():
+        location, statements = key.rsplit(" ", 1)
+        file = location.split(":", 1)[0]
+        if module and file.startswith(module + "/"):
+            file = file[len(module) + 1 :]
+        totals = per_file.setdefault(file, [0, 0])
+        totals[0] += int(statements) if count > 0 else 0
+        totals[1] += int(statements)
+    return _coverage("go cover", per_file)
+
+
+def _coverage(tool: str, per_file: dict[str, list[int]]) -> Coverage | None:
+    if not per_file:
+        return None
+    files = [FileCoverage(f, c, t) for f, (c, t) in per_file.items() if t]
+    files.sort(key=lambda f: (f.percent, -f.total))
+    return Coverage(tool, sum(f.covered for f in files), sum(f.total for f in files), files[:MAX_FILES])

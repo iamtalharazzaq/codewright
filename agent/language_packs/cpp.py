@@ -13,6 +13,7 @@ from pathlib import Path
 from agent.language_packs import reports, templates
 from agent.language_packs.base import (
     REPORTS,
+    STATE,
     Component,
     Contract,
     DockerSpec,
@@ -150,7 +151,19 @@ class CppPack:
     def test_steps(self, repo: Path, component: Component) -> list[Step]:
         junit = "../reports/ctest.xml"  # relative to the test directory (BUILD)
         cmd = ["ctest", "--test-dir", BUILD, "--output-on-failure", "--no-tests=error", "--output-junit", junit]
-        return [Step("test", "cpp", cmd, component.path, "none", report="junit")]
+        # Coverage: a second build with --coverage, its tests run again, gcovr reads the counters. Optional: a project
+        # whose build needs the network (FetchContent) or another compiler still gets its test report.
+        cov = f"{STATE}/build-cov"
+        coverage = (
+            f"cmake -S . -B {cov} -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=--coverage"
+            f" -DCMAKE_C_FLAGS=--coverage >/dev/null && cmake --build {cov} >/dev/null"
+            f" && ctest --test-dir {cov} >/dev/null;"
+            f" gcovr -r . --object-directory {cov} --exclude '{STATE}/' --xml -o {REPORTS}/coverage.xml"
+        )
+        return [
+            Step("test", "cpp", cmd, component.path, "none", report="junit"),
+            Step("coverage", "cpp", ["sh", "-c", coverage], component.path, "none", optional=True),
+        ]
 
     def lint_steps(self, repo: Path, component: Component) -> list[Step]:
         cmd = ["cppcheck", "--enable=warning,performance,portability", "--error-exitcode=1", "--quiet",
@@ -173,7 +186,10 @@ class CppPack:
         )
 
     def read_report(self, repo: Path, component: Component, step: Step, output: str) -> TestReport:
-        return reports.junit([repo / component.path / REPORTS / "ctest.xml"], "ctest")
+        base = repo / component.path / REPORTS
+        report = reports.junit([base / "ctest.xml"], "ctest")
+        report.coverage = reports.cobertura(base / "coverage.xml", "gcovr")
+        return report
 
     def scaffold_service(self, spec: ServiceSpec, out: Path) -> None:
         templates.scaffold(spec, out)

@@ -192,6 +192,21 @@
             "env": {},
             "report": "junit",
             "optional": false
+          },
+          {
+            "name": "coverage",
+            "toolchain": "cpp",
+            "cmd": [
+              "sh",
+              "-c",
+              "cmake -S . -B .codewright/build-cov -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_C_FLAGS=--coverage >/dev/null && cmake --build .codewright/build-cov >/dev/null && ctest --test-dir .codewright/build-cov >/dev/null; gcovr -r . --object-directory .codewright/build-cov --exclude '.codewright/' --xml -o .codewright/reports/coverage.xml"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": true
           }
         ],
         "lint": [

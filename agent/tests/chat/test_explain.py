@@ -107,7 +107,7 @@ def test_find_symbols_takes_code_like_names_only() -> None:
 
 
 def test_plain_words_count_when_the_project_defines_them(tmp_path: Path) -> None:
-    code = explain._code_files(project(tmp_path))
+    code = explain.source_files(project(tmp_path))
     assert explain.defined_names("How does Ledger work?", code) == ["Ledger"]
     assert explain.defined_names("How does `post_invoice` work?", code) == ["post_invoice"]
     assert explain.defined_names("How does Checkout work?", code) == []
@@ -158,7 +158,7 @@ def test_usages_skip_the_code_already_shown(tmp_path: Path) -> None:
     (work / "cmd/worker/main.go").write_text(
         "package main\n\nfunc run() {\n\tsvc.Issue(ctx, next)\n}\n", encoding="utf-8"
     )
-    code = explain._code_files(work)
+    code = explain.source_files(work)
     shown: set[tuple[str, int]] = set()
     explain.definitions(work, "Issue", files=code, shown=shown)
     used = explain.usages("Issue", code, shown)
@@ -179,7 +179,7 @@ def test_a_module_question_gets_its_outline_and_the_code_behind_each_dependency(
         "nodes": [{"id": "internal/billing"}, {"id": "internal/mailer"}],
         "edges": [{"source": "internal/billing", "target": "internal/mailer", "weight": 3, "relations": {"calls": 3}}],
     }
-    brief = explain.module_brief("internal/billing", graph, explain._code_files(work), 3000)
+    brief = explain.module_brief("internal/billing", graph, explain.source_files(work), 3000)
     assert "Module internal/billing defines:" in brief and "func (s *invoiceService) Issue" in brief
     assert "internal/billing depends on internal/mailer: calls 3" in brief
     assert 'internal/billing/service/wire.go L3: import "shop/internal/mailer"' in brief

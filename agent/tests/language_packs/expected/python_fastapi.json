@@ -160,13 +160,9 @@
             "name": "test",
             "toolchain": "python",
             "cmd": [
-              ".venv/bin/python",
-              "-m",
-              "pytest",
-              "-q",
-              "-p",
-              "no:cacheprovider",
-              "--junitxml=.codewright/reports/junit.xml"
+              "sh",
+              "-c",
+              "if .venv/bin/python -c 'import coverage' 2>/dev/null; then .venv/bin/python -m coverage run --data-file=.codewright/.coverage --source=. --omit='.venv/*,*/tests/*,tests/*,*/test_*.py,test_*.py,*_test.py,*/conftest.py,conftest.py' -m pytest -q -p no:cacheprovider --junitxml=.codewright/reports/junit.xml; code=$?; .venv/bin/python -m coverage xml -q --data-file=.codewright/.coverage -o .codewright/reports/coverage.xml || true; exit $code; else exec .venv/bin/python -m pytest -q -p no:cacheprovider --junitxml=.codewright/reports/junit.xml; fi"
             ],
             "workdir": ".",
             "network": "none",

@@ -81,7 +81,8 @@ def defined_names(question: str, files: list[tuple[str, list[str]]]) -> list[str
     """Plain words that may be code (`Login`, `checkout` in backticks) and that the project defines."""
     words = [a or b for a, b in _WORD.findall(question.strip())]
     words = [w for w in dict.fromkeys(words) if w not in _COMMON][:4]
-    return [w for w in words if any(_definition(w).match(line) for _, lines in files for line in lines)][:MAX_SYMBOLS]
+    defined = [w for w in words if any(definition_pattern(w).match(line) for _, lines in files for line in lines)]
+    return defined[:MAX_SYMBOLS]
 
 
 def modules_in(question: str, module_ids: Sequence[str]) -> list[str]:
@@ -115,7 +116,7 @@ _CODE_SUFFIXES = {".go", ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cc", ".c
 _SKIP_PARTS = {".git", "node_modules", "vendor", "dist", "build", ".venv", "graphify-out", ".codewright"}
 
 
-def _definition(name: str) -> re.Pattern[str]:
+def definition_pattern(name: str) -> re.Pattern[str]:
     """Where `name` is defined, in any of the 5 languages: a function or method with a body, a type or class, a
     constant or a module-level variable (not a call, a declaration in an interface or a use)."""
     n = re.escape(name.rsplit(".", 1)[-1])
@@ -178,7 +179,7 @@ def _rank(rel: str, name: str) -> tuple[int, int, int]:
     return (bool(_ENTRY_PATH.search(rel)), -sum(w in rel.lower() for w in words), len(rel))
 
 
-def _code_files(work: Path) -> list[tuple[str, list[str]]]:
+def source_files(work: Path) -> list[tuple[str, list[str]]]:
     """(path, lines) of every code file worth reading: no mocks, tests, generated or vendored code."""
     out: list[tuple[str, list[str]]] = []
     for path in sorted(work.rglob("*")):
@@ -210,9 +211,9 @@ def definitions(
     """The source of `name`'s definitions (numbered, with their doc comment, each cut at its end), skipping mocks,
     tests and generated files: the implementation first, then its entry points, within `budget` characters. The
     (file, line) pairs shown are added to `shown`."""
-    pattern = _definition(name)
+    pattern = definition_pattern(name)
     candidates: list[tuple[str, list[str], int]] = []
-    for rel, lines in files if files is not None else _code_files(work):
+    for rel, lines in files if files is not None else source_files(work):
         candidates += [(rel, lines, i) for i, line in enumerate(lines) if pattern.match(line)]
     found: list[str] = []
     for rel, lines, start in sorted(candidates, key=lambda c: (_rank(c[0], name), c[2]))[:limit]:
@@ -303,7 +304,7 @@ def gather(
     budget = SOURCE_CHARS
     symbols = find_symbols(question)
     named = modules_in(question, module_ids)
-    code = _code_files(work) if work is not None else []
+    code = source_files(work) if work is not None else []
     symbols = symbols or defined_names(question, code)
     for name in symbols:
         shown: set[tuple[str, int]] = set()

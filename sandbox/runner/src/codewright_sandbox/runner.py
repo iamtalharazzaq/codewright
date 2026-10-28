@@ -74,7 +74,7 @@ class SessionSpec(BaseModel):
 
 
 class ProcessSpec(BaseModel):
-    toolchain: Literal["python", "go", "node", "cpp"]
+    toolchain: Literal["python", "go", "node", "cpp", "tools", "browser"]
     cmd: list[str] = Field(min_length=1, max_length=256)
     workdir: str = Field(default=".", validate_default=True)
     env: dict[str, str] = {}

@@ -22,7 +22,8 @@
             "lint"
           ],
           "has_tsconfig": true,
-          "module": "commonjs"
+          "module": "commonjs",
+          "coverage": ""
         }
       },
       "graph": {

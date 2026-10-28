@@ -1,0 +1,17 @@
+[
+  {
+    "playbook": "explain",
+    "script": "evals/explain.py",
+    "args": ["--cases", "evals/data/explain/goshop.jsonl"],
+    "needs_project": true
+  },
+  { "playbook": "review_code", "script": "evals/review.py", "args": ["evals/data/review/seeded-go.json"] },
+  { "playbook": "review_code", "script": "evals/review.py", "args": ["evals/data/review/seeded-python.json"] },
+  { "playbook": "verify", "script": "evals/verify.py", "args": ["evals/data/verify/notes-api-python.json"] },
+  {
+    "playbook": "verify",
+    "script": "evals/verify.py",
+    "args": ["evals/data/verify/goshop.json"],
+    "needs_project": true
+  }
+]

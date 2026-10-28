@@ -140,6 +140,7 @@
               "go",
               "test",
               "-json",
+              "-coverprofile=.codewright/reports/cover.out",
               "./..."
             ],
             "workdir": ".",

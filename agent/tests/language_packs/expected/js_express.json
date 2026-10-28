@@ -21,7 +21,8 @@
             "test"
           ],
           "has_tsconfig": false,
-          "module": "commonjs"
+          "module": "commonjs",
+          "coverage": ""
         }
       },
       "graph": {
@@ -102,7 +103,10 @@
               "jest",
               "--ci",
               "--json",
-              "--outputFile=.codewright/reports/jest.json"
+              "--outputFile=.codewright/reports/jest.json",
+              "--coverage",
+              "--coverageReporters=cobertura",
+              "--coverageDirectory=.codewright/reports/coverage"
             ],
             "workdir": ".",
             "network": "none",

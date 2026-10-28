@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 
+from agent.llm.client import LLMClient
 from agent.skills import SkillRegistry
 from codewright_api import __version__
 from codewright_api.chat import ChatService
@@ -27,10 +28,12 @@ from codewright_api.routes import (
     skills,
     traces,
     uploads,
+    verification,
 )
 from codewright_api.runs import RunManager
 from codewright_api.sandbox import SandboxService
 from codewright_api.settings import get_settings
+from codewright_api.verification import VerificationService
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.sandbox = SandboxService(cfg)
     app.state.skills = SkillRegistry(cfg.skills_dir, cfg.workspaces_dir)
     manager.graphs, manager.sandbox = app.state.graphs, app.state.sandbox
+    app.state.verification = VerificationService(cfg, app.state.sandbox, llm=lambda: _llm(manager))
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
         app.state.run_manager = manager
@@ -54,6 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.run_manager = None
         app.state.chat = None
     yield
+    await app.state.verification.stop()
     await app.state.sandbox.stop()
     await app.state.graphs.stop()
     if app.state.chat is not None:
@@ -61,6 +66,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if app.state.run_manager is not None:
         await manager.stop()
     await get_engine().dispose()
+
+
+def _llm(manager: RunManager) -> LLMClient | None:
+    """The active model for work outside a run (the QA sub-agent of a verification), if the manager is up."""
+    try:
+        return manager.llm.client(manager.llm.active_profile)
+    except RuntimeError:
+        return None
 
 
 def create_app() -> FastAPI:
@@ -85,6 +98,7 @@ def create_app() -> FastAPI:
     api.include_router(graph.router)
     api.include_router(sandbox.router)
     api.include_router(skills.router)
+    api.include_router(verification.router)
     app.include_router(api)
     return app
 

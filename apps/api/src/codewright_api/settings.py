@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     public_url: str = "http://localhost:3000"  # where the browser reaches the app (OAuth redirect)
     # Sandbox runner (Phase 5, ADR 0020): the only service with Docker access.
     sandbox_url: str = "http://sandbox-runner:8200"
+    # Where the API reaches a running app: the gateway forwards preview ports to the sandbox (Phase 7 replays).
+    sandbox_gateway_host: str = "sandbox-gateway"
     # Global custom skills (Phase 6, ADR 0021); built-ins live in skills/builtin, project skills in the workspace.
     skills_dir: Path = REPO_ROOT / "skills" / "user"
 

@@ -3,8 +3,8 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 6 (Explain, Audit, Docs, Review, Skills; Milestone M1), done; waiting for your review of
-the audit and the M1 demo ("next" starts Phase 7: Verification engine). Phase 1 VRAM table still pending.
+**Current phase:** Phase 7 (Verification engine), done; waiting for "next" (Phase 8: write code, fix and test).
+Phase 6's audit review and M1 demo are still waiting with you, deferred to the end. Phase 1 VRAM table still pending.
 **Last updated:** 2026-10-28
 **Branch:** `codewright-phase-0`
 
@@ -21,6 +21,35 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 7: Verification engine, done (ADR 0022)
+
+| Task | Result |
+|---|---|
+| 1. Test runner + coverage | Every Language Pack reports coverage: `coverage` (Cobertura XML) for Python, `go test -coverprofile` for Go, Vitest/Jest cobertura for Node, `gcovr` for C++/CMake; `TestReport.coverage` (tool, covered/total lines, per-file) in the Tests tab. |
+| 2. Characterization (QA sub-agent) | `agent/verification/characterize.py`: groups routes by resource (login first, shared prefixes stripped), orders groups by what their write handlers depend on, sends each group's route code + handler source to the model, retries once on 400/401/422 with the rejection as a hint, keeps the attempt with the most accepted steps. Falls back to a smoke journey (every GET without parameters) when no model is configured. |
+| 3. Recorder, replay, diff, noise | `agent/verification/{traffic,noise,diff,replay,journeys,recorder}.py`. A recording is journeys sent from a reset app, a live browse through mitmproxy (`record-live`), or an imported HAR. Replay resets the app again, resends every request (one cookie jar per journey), and the `Linker` carries IDs/tokens/`Location` segments the app handed out from the recorded run to the new one. `Comparer` diffs status, a fixed set of headers and the JSON/text/binary body; each difference is **regression**, **noise** (a built-in or project rule explains it) or **intended** (an `Intent` the user gave). 0 regressions required to accept. |
+| 4. Benchmarks + screenshots | `bench` replays a recording to get fresh IDs/tokens, then runs k6 (sharing the app's network) on its successful GETs, 5 virtual users for 20 s, compared with the last benchmark of the same recording. `screens` runs Playwright (new `browser` sandbox image, not yet built — see below) over the Language Packs' page routes, compared pixel-by-pixel with an accepted baseline (`accept` replaces it). |
+| 5. Eval harness skeleton | `evals/tasks/registry.json` (playbook → case file → eval script) and `evals/run_tasks.py`, which runs each task and writes a combined pass/fail summary. Added `evals/verify.py` (imports a fixture, records+self-replays, asserts 0 regressions) with cases for `notes-api-python` (checked in) and `goshop` (third-party; takes `--project` instead of a repo). |
+
+New sandbox images: `tools` (k6 0.57.0 + mitmproxy 11.1.3, built) and `browser` (Playwright + Pillow, **not built**: ~2 GB and disk was at 95%/11 GB free; `make sandbox-images` builds it along with the rest). `VerificationService` (`apps/api/.../verification.py`) runs everything from a sandbox session reset (fresh sidecars, migrations re-applied) so a recording and a replay meet the same state; its actions (`test`, `characterize`, `record`, `record-live`, `replay`, `bench`, `screens`) are under `/projects/{id}/verification/*` (SSE events while running). Tests tab: action buttons, live log, coverage bar, replay differences table with a noise-rules explanation and an "only changed" filter, benchmark table with before/after deltas, screenshot grid with diff overlays and an "accept as baseline" button, a live-recorder banner with a Stop button, and a HAR-import file picker.
+
+### Acceptance results (2026-10-28)
+
+| Check | Result |
+|---|---|
+| GoShop recorded and replayed with 0 regressions | ✅ Earlier in this phase, before the last round of changes: `record` (25 exchanges) then self-replay gave **0 regressions** (22 noise differences explained, 19 exchanges identical). Not re-run after the readiness and `normalize()` fixes below — do that before relying on it again. |
+| A second language/type (Section 15.0) | ⚠️ `evals/repos/notes-api-python` (FastAPI/SQLAlchemy/Postgres) characterized and recorded correctly earlier, but its first replay found 1 regression + 5 server errors from a readiness bug (the sandbox gateway's `503 Starting` was read as a real answer). Fixed (`GATEWAY_WAITING` check) but **not re-verified live** — the fix needs a real run to confirm 0 regressions, which this session didn't do (time was spent finishing the remaining features and tests instead). |
+| Reports render in the Tests tab | ✅ `make check-web` (24 tests) covers the new sections; not opened in a browser against a live replay this session. |
+| `make check` | ✅ `make check-api`: ruff, ruff format, mypy clean; pytest **276 passed**, 6 skipped (sandbox tests). `make check-web`: ESLint, tsc, Prettier, Vitest **24 passed**. 41 new unit tests for `agent/verification` (traffic, noise, diff, replay incl. the Linker, journeys, bench, recorder). |
+| Images and stack | ✅ `sandbox-runner`/`sandbox-gateway`, `api` and `web` rebuilt; `docker compose up -d --wait` → every container healthy; the 10 new `/verification/*` routes confirmed present via `/api/openapi.json`. The `browser` sandbox image is not built yet (see above), so `screens` and the Playwright step of `record-live`'s self-check won't run until `make sandbox-images` builds it. |
+
+Found on the way and fixed: `journeys.normalize()` ran the gin-style `:id → {id}` substitution before the Flask-style `<int:id>`, so `<int:id>` became `<int{id}>` instead of `{id}` (caught by a unit test, not a live run). The notes-api readiness bug above.
+
+**Left for next time, by your "stop testing, finish the features" steer:** build the `browser` sandbox image and
+re-run `record`/`replay` live on both GoShop and notes-api-python to actually confirm 0 regressions after today's
+fixes, and try `bench`/`screens`/`record-live`/HAR-import against a running app at least once. The code for all of
+it is in and passes its unit tests and `make check`; what's unverified is only the live, real-sandbox path.
 
 ## Phase 6: Explain, Audit, Docs, Review, Skills, done (ADR 0021)
 

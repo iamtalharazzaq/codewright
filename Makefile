@@ -8,8 +8,8 @@ CHECKS := docker compose --profile checks
 up: sandbox-images  ## Build and start Codewright (http://localhost:3000)
 	docker compose up -d --build --wait
 
-sandbox-images: ## Build the four sandbox toolchain images (Python, Go, Node, C++)
-	for t in python go node cpp; do docker build -t codewright-sandbox-$$t:dev -f sandbox/images/$$t.Dockerfile sandbox/images || exit 1; done
+sandbox-images: ## Build the sandbox images: four toolchains (Python, Go, Node, C++), verification tools, a browser
+	for t in python go node cpp tools browser; do docker build -t codewright-sandbox-$$t:dev -f sandbox/images/$$t.Dockerfile sandbox/images || exit 1; done
 
 down:
 	docker compose down

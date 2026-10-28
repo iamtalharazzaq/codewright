@@ -8,6 +8,9 @@ images:
   go: codewright-sandbox-go:dev
   node: codewright-sandbox-node:dev
   cpp: codewright-sandbox-cpp:dev
+  # Verification (Phase 7): mitmproxy + k6, and Playwright's Chromium for screenshots.
+  tools: codewright-sandbox-tools:dev
+  browser: codewright-sandbox-browser:dev
 
 # Per job or preview. Callers may ask for less than `max`, never more.
 limits:

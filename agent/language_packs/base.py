@@ -17,7 +17,7 @@ from typing import Any, Literal, Protocol
 
 from agent.tools.secrets import SKIP_DIRS
 
-Toolchain = Literal["python", "go", "node", "cpp"]
+Toolchain = Literal["python", "go", "node", "cpp", "tools", "browser"]  # the last two: verification (Phase 7)
 STATE = ".codewright"  # Codewright's own files inside a component (reports, built binaries); excluded from git
 REPORTS = f"{STATE}/reports"  # test reports
 EXTRA_SKIP = {"graphify-out", ".codewright", "coverage", "out", ".turbo", ".cache", "third_party", "external"}
@@ -129,6 +129,40 @@ class TestCase:
 
 
 @dataclass
+class FileCoverage:
+    file: str
+    covered: int
+    total: int
+
+    @property
+    def percent(self) -> float:
+        return round(100 * self.covered / self.total, 1) if self.total else 100.0
+
+
+@dataclass
+class Coverage:
+    """Line (statement) coverage of one test run: the total and the files with the least."""
+
+    tool: str
+    covered: int = 0
+    total: int = 0
+    files: list[FileCoverage] = field(default_factory=list)  # least covered first, capped
+
+    @property
+    def percent(self) -> float:
+        return round(100 * self.covered / self.total, 1) if self.total else 0.0
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "tool": self.tool,
+            "covered": self.covered,
+            "total": self.total,
+            "percent": self.percent,
+            "files": [{**asdict(f), "percent": f.percent} for f in self.files],
+        }
+
+
+@dataclass
 class TestReport:
     tool: str
     passed: int = 0
@@ -137,6 +171,7 @@ class TestReport:
     errors: int = 0
     cases: list[TestCase] = field(default_factory=list)  # failures first, capped
     found: bool = True  # False when the tool produced no report (nothing ran, or it crashed before reporting)
+    coverage: Coverage | None = None
 
     @property
     def total(self) -> int:
@@ -147,7 +182,9 @@ class TestReport:
         return self.found and self.failed == 0 and self.errors == 0
 
     def as_dict(self) -> dict[str, Any]:
-        return {**asdict(self), "total": self.total, "ok": self.ok}
+        out = {**asdict(self), "total": self.total, "ok": self.ok}
+        out["coverage"] = self.coverage.as_dict() if self.coverage else None
+        return out
 
 
 # ── what a pack generates ────────────────────────────────────────────────────

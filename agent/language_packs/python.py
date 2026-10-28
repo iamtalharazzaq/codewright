@@ -13,6 +13,7 @@ from pathlib import Path
 from agent.language_packs import compose, reports, templates
 from agent.language_packs.base import (
     REPORTS,
+    STATE,
     Component,
     Contract,
     DockerSpec,
@@ -205,8 +206,16 @@ class PythonPack:
 
     def test_steps(self, repo: Path, component: Component) -> list[Step]:
         junit = f"{REPORTS}/junit.xml"
-        cmd = [VENV_PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", f"--junitxml={junit}"]
-        return [Step("test", "python", cmd, component.path, "none", report="junit")]
+        pytest = f"-m pytest -q -p no:cacheprovider --junitxml={junit}"
+        # coverage.py is in the sandbox image (seen through the venv's system site-packages); without it, plain pytest
+        omit = ".venv/*,*/tests/*,tests/*,*/test_*.py,test_*.py,*_test.py,*/conftest.py,conftest.py"
+        script = (
+            f"if {VENV_PY} -c 'import coverage' 2>/dev/null; then "
+            f"{VENV_PY} -m coverage run --data-file={STATE}/.coverage --source=. --omit='{omit}' {pytest}; code=$?; "
+            f"{VENV_PY} -m coverage xml -q --data-file={STATE}/.coverage -o {REPORTS}/coverage.xml || true; "
+            f"exit $code; else exec {VENV_PY} {pytest}; fi"
+        )
+        return [Step("test", "python", ["sh", "-c", script], component.path, "none", report="junit")]
 
     def lint_steps(self, repo: Path, component: Component) -> list[Step]:
         wd = component.path
@@ -276,7 +285,10 @@ class PythonPack:
         return None
 
     def read_report(self, repo: Path, component: Component, step: Step, output: str) -> TestReport:
-        return reports.junit([repo / component.path / REPORTS / "junit.xml"], "pytest")
+        base = repo / component.path / REPORTS
+        report = reports.junit([base / "junit.xml"], "pytest")
+        report.coverage = reports.cobertura(base / "coverage.xml", "coverage.py")
+        return report
 
     def scaffold_service(self, spec: ServiceSpec, out: Path) -> None:
         templates.scaffold(spec, out)

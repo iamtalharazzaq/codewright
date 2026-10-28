@@ -1,0 +1,4 @@
+{
+  "repo": "evals/repos/notes-api-python",
+  "note": "A second language and type (Python/FastAPI), per Section 15.0: every check must also pass on a benchmark of a different language and type than GoShop."
+}

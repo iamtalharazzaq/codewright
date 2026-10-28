@@ -584,6 +584,21 @@ export interface TestCaseResult {
   file: string;
 }
 
+export interface FileCoverage {
+  file: string;
+  covered: number;
+  total: number;
+  percent: number;
+}
+
+export interface Coverage {
+  tool: string;
+  covered: number;
+  total: number;
+  percent: number;
+  files: FileCoverage[];
+}
+
 export interface TestReport {
   tool: string;
   passed: number;
@@ -594,6 +609,7 @@ export interface TestReport {
   ok: boolean;
   found: boolean;
   cases: TestCaseResult[];
+  coverage: Coverage | null;
 }
 
 export interface StepResult {
@@ -651,6 +667,191 @@ export const activityEventsUrl = (id: string, activityId: string) =>
   `/api/projects/${id}/sandbox/actions/${activityId}/events`;
 export const previewOutputUrl = (id: string, previewId: string) =>
   `/api/projects/${id}/sandbox/previews/${previewId}/output`;
+
+// ── Verification (Phase 7, ADR 0022) ────────────────────────────────────────
+export type VerifyAction = "test" | "characterize" | "record" | "record-live" | "replay" | "bench" | "screens";
+export type Verdict = "regression" | "noise" | "intended";
+
+export interface NoiseRule {
+  id: string;
+  kind: "ignore" | "id" | "timestamp" | "token" | "tolerance" | "unordered";
+  description: string;
+  where: string;
+  tolerance: number;
+  enabled: boolean;
+  builtin: boolean;
+}
+
+export interface ReportSummary {
+  id: string;
+  kind: "replay" | "record" | "tests" | "bench" | "screens";
+  started_at: number;
+  duration_s?: number;
+  ok: boolean;
+  counts?: { exchanges: number; regression: number; noise: number; intended: number; identical: number };
+  noise_used?: Record<string, number>;
+  recording?: string;
+  target?: { component?: string; pack?: string };
+  exchanges?: number;
+  endpoints?: number;
+  journeys?: string[];
+  server_errors?: number;
+  unanswered?: number;
+  summary?: {
+    passed?: number;
+    failed?: number;
+    skipped?: number;
+    errors?: number;
+    coverage?: number | null;
+    // bench
+    requests?: number;
+    rps?: number;
+    failed_rate?: number;
+    p95_ms?: number | null;
+    // screens
+    pages?: number;
+    changed?: number;
+    baseline?: string;
+  };
+  comparison?: BenchComparison | null;
+}
+
+export interface BenchDelta {
+  before: number | null;
+  after: number | null;
+  change_pct: number | null;
+}
+
+export interface BenchComparison {
+  p95_ms: BenchDelta;
+  rps: BenchDelta;
+  endpoints: ({ endpoint: string } & BenchDelta)[];
+}
+
+export interface BenchReport extends ReportSummary {
+  kind: "bench";
+  settings: { vus: number; duration_s: number; endpoints: string[] };
+  summary: {
+    requests: number;
+    rps: number;
+    failed_rate: number;
+    avg_ms: number | null;
+    med_ms: number | null;
+    p95_ms: number | null;
+    p99_ms: number | null;
+    endpoints: { endpoint: string; avg_ms: number | null; p95_ms: number | null; max_ms: number | null }[];
+  };
+  compared_with: string | null;
+}
+
+export interface ScreensReport extends ReportSummary {
+  kind: "screens";
+  pages: {
+    path: string;
+    file: string;
+    status?: number | null;
+    diff_ratio?: number;
+    diff_file?: string;
+    error?: string;
+  }[];
+}
+
+export interface Difference {
+  where: string;
+  path: string;
+  before: unknown;
+  after: unknown;
+  verdict: Verdict;
+  rule: string | null;
+  note: string;
+}
+
+export interface ReplayedExchange {
+  seq: number;
+  journey: string;
+  step: string;
+  method: string;
+  path: string;
+  status_before: number | null;
+  status_after: number | null;
+  duration_before_ms: number;
+  duration_after_ms: number;
+  differences: Difference[];
+  regressions: number;
+  error: string;
+}
+
+export interface ReplayReport extends ReportSummary {
+  kind: "replay";
+  base_url: string;
+  results: ReplayedExchange[];
+  rules: NoiseRule[];
+  notes: string[];
+}
+
+export interface TestsReport extends ReportSummary {
+  kind: "tests";
+  components: {
+    path: string;
+    pack: string;
+    ok: boolean;
+    error: string | null;
+    duration_s: number | null;
+    report: TestReport | Record<string, never>;
+    failed_step: string | null;
+  }[];
+  error: string | null;
+}
+
+export interface RecordingSummary {
+  id: string;
+  source: "journeys" | "recorder" | "har";
+  target: { component?: string; pack?: string };
+  created_at: number;
+  exchanges: number;
+  endpoints: number;
+  journeys: string[];
+  server_errors: number;
+  unanswered: number;
+  notes: string[];
+}
+
+export interface VerificationActivity {
+  id: string;
+  action: VerifyAction;
+  components: string[];
+  status: "running" | "passed" | "failed" | "error";
+  started_at: number;
+  finished_at: number | null;
+  results: ReportSummary[];
+  error: string | null;
+}
+
+export interface VerificationStatus {
+  recordings: RecordingSummary[];
+  reports: ReportSummary[];
+  journeys: { name: string; source: string; about: string; steps: number }[];
+  rules: NoiseRule[];
+  activities: VerificationActivity[];
+  running: boolean;
+}
+
+export const getVerification = (id: string, signal?: AbortSignal) =>
+  request<VerificationStatus>("GET", `/projects/${id}/verification`, undefined, signal);
+export const startVerification = (id: string, action: VerifyAction, options: Record<string, unknown> = {}) =>
+  request<VerificationActivity>("POST", `/projects/${id}/verification/actions`, { action, ...options });
+export const getVerificationReport = <T extends ReportSummary = ReportSummary>(id: string, reportId: string) =>
+  request<T>("GET", `/projects/${id}/verification/reports/${reportId}`);
+export const setNoiseRules = (id: string, enabled: Record<string, boolean>, rules: NoiseRule[] = []) =>
+  request<NoiseRule[]>("PUT", `/projects/${id}/verification/noise`, { enabled, rules });
+export const stopRecorder = (id: string) =>
+  request<{ stopping: boolean }>("POST", `/projects/${id}/verification/recorder/stop`);
+export const importHar = (id: string, har: unknown) =>
+  request<RecordingSummary>("POST", `/projects/${id}/verification/recordings/har`, har);
+export const screenshotUrl = (id: string, run: string, file: string) =>
+  `/api/projects/${id}/verification/screens/${run}/${file}`;
+export const verificationEventsUrl = (id: string, activityId: string) =>
+  `/api/projects/${id}/verification/actions/${activityId}/events`;
 
 // ── Skills (Phase 6, ADR 0021) ──────────────────────────────────────────────
 export type SkillSource = "builtin" | "user" | "project";

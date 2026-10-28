@@ -15,6 +15,7 @@ import { Markdown } from "@/components/chat/markdown";
 import { RunReport } from "@/components/chat/run-report";
 import { GraphView } from "@/components/graph/graph-view";
 import { PreviewTab } from "@/components/sandbox/preview-tab";
+import { TestsTab } from "@/components/tests/tests-tab";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { DiagramData } from "@/lib/api";
@@ -38,7 +39,8 @@ export const defaultTab = (projectId: string | null) => (projectId ? "graph" : "
 
 /**
  * The artifacts panel beside the chat (CODEWRIGHT.md Section 2.2). In a project chat the Graph tab shows the live
- * project graph, with the modules the last reply mentions highlighted, and Preview the project running in the sandbox.
+ * project graph, with the modules the last reply mentions highlighted, Tests its test runs, coverage and traffic replays,
+ * and Preview the project running in the sandbox.
  * Diagram shows the last explanation's diagram, Report the reports of the last run started from the chat. The chat
  * controls the tab, so an explanation can open its diagram and a finished run its report.
  */
@@ -63,7 +65,7 @@ export function SidePanel({
 }) {
   const active = PANEL_TABS.find((t) => t.id === tab) ?? PANEL_TABS[0];
   const filled = new Set<string>([
-    ...(projectId ? ["graph", "preview"] : []),
+    ...(projectId ? ["graph", "tests", "preview"] : []),
     ...(diagram ? ["diagram"] : []),
     ...(runId ? ["report"] : []),
   ]);
@@ -96,6 +98,11 @@ export function SidePanel({
       {projectId && (
         <TabsContent value="graph" className="min-h-0 flex-1">
           <GraphView projectId={projectId} compact highlight={highlight} />
+        </TabsContent>
+      )}
+      {projectId && (
+        <TabsContent value="tests" className="min-h-0 flex-1">
+          <TestsTab projectId={projectId} />
         </TabsContent>
       )}
       {projectId && (

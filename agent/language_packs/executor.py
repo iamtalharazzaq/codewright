@@ -145,6 +145,7 @@ async def run_action(
     exclude_from_git(repo)
     p = pack(component.pack)
     result = ActionResult(action, component.path, component.pack)
+    reported: tuple[Step, str] | None = None
     for step in plan(repo, component, action):
         command, output = await run_step(client, sid, step, emit)
         result.steps.append(command)
@@ -153,7 +154,13 @@ async def run_action(
                 saved = repo / component.path / REPORTS / "go-test.json"
                 output = saved.read_text(encoding="utf-8", errors="replace") if saved.exists() else output
             result.report = p.read_report(repo, component, step, output)
+            reported = (step, output)
             await emit({"type": "report", "report": result.report.as_dict()})
+        elif reported is not None and result.report is not None and result.report.coverage is None:
+            # a step after the tests may write the coverage (the C++ pack's instrumented build)
+            result.report.coverage = p.read_report(repo, component, *reported).coverage
+            if result.report.coverage is not None:
+                await emit({"type": "report", "report": result.report.as_dict()})
         if not command.ok and not step.optional:
             break
     required = [s for s, st in zip(result.steps, plan(repo, component, action), strict=False) if not st.optional]
