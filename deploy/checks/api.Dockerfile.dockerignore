@@ -11,3 +11,6 @@
 workspaces
 models
 apps/web
+
+# Parallel agents work in git worktrees under here; they are not part of this build.
+.claude

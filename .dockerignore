@@ -10,3 +10,6 @@
 workspaces
 agent/tests
 apps/api/tests
+
+# Parallel agents work in git worktrees under here; they are not part of this build.
+.claude

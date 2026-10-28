@@ -7,12 +7,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
+from mcp.server.transport_security import TransportSecuritySettings
 
 from agent.llm.client import LLMClient
 from agent.skills import SkillRegistry
 from codewright_api import __version__
 from codewright_api.chat import ChatService
 from codewright_api.db import get_engine, get_sessionmaker
+from codewright_api.drive_mcp import BearerGate, build_server
 from codewright_api.graph import GraphService
 from codewright_api.projects import ProjectService
 from codewright_api.routes import (
@@ -58,7 +60,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.exception("run manager failed to start")
         app.state.run_manager = None
         app.state.chat = None
-    yield
+    async with app.state.drive_server.session_manager.run():  # the Drive tools' HTTP endpoint
+        yield
     await app.state.verification.stop()
     await app.state.sandbox.stop()
     await app.state.graphs.stop()
@@ -85,6 +88,22 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
         lifespan=lifespan,
+    )
+    # Drive as MCP tools for other MCP clients; the chat uses the same server in-process (drive_mcp.py).
+    cfg = get_settings()
+    app.state.drive_server = build_server(get_sessionmaker(), cfg)
+    token = cfg.mcp_token.get_secret_value() if cfg.mcp_token else ""
+    app.mount(
+        "/mcp/drive",
+        BearerGate(
+            app.state.drive_server.streamable_http_app(
+                streamable_http_path="/",
+                transport_security=TransportSecuritySettings(
+                    enable_dns_rebinding_protection=False
+                ),  # the token gates it
+            ),
+            token,
+        ),
     )
     api = APIRouter(prefix="/api")
     api.include_router(health.router)

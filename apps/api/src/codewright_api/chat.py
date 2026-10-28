@@ -32,6 +32,7 @@ from agent.llm.structured import StructuredOutputError
 from agent.playbooks.registry import playbooks
 from agent.skills import Skill, SkillRegistry, keyword_score
 from codewright_api.db import Conversation, MemoryItem, Message, Project, Run, Upload
+from codewright_api.drive_mcp import DriveAgent, build_server
 from codewright_api.graph import GraphService
 from codewright_api.project_tools import save_facts
 from codewright_api.routes.uploads import read_masked
@@ -147,6 +148,7 @@ class ChatService:
         self.graphs = graphs  # project graph + code search, for chats inside a project
         self.skills = skills  # Section 8.6: custom slash commands, auto-use, drafts
         self.sessions = manager.sessions
+        self._drive = DriveAgent(build_server(manager.sessions, manager.settings))  # Drive tools, in-process over MCP
         self._tasks: dict[uuid.UUID, asyncio.Task[None]] = {}
         manager.status_listeners.append(self._on_run_status)
 
@@ -713,13 +715,17 @@ class ChatService:
                 raise LookupError(t.reply_id)
             reply.data = meta
             await session.commit()
+        shown = t.context if context is None else context
+        drive = await self._drive.context_for(question)  # a Drive link or "search my Drive for ..." in the message
+        if drive:
+            shown = f"{shown}\n\n{drive}".strip()
         async for token in stream_answer(
             self._client("project_manager"),
             t.history,
             question,
             intent=intent,
             has_project=t.project is not None,
-            context=t.context if context is None else context,
+            context=shown,
             instructions=instructions,
             no_diagram=intent == "explain_code" and after is not None,
         ):

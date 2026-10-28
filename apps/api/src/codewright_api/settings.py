@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     github_token: SecretStr | None = None
     secret_key: SecretStr | None = None  # encrypts stored tokens (Google Drive)
     google_oauth_client_file: Path | None = None
+    mcp_token: SecretStr | None = None  # bearer token for the Drive tools' HTTP endpoint /mcp/drive (off while unset)
     public_url: str = "http://localhost:3000"  # where the browser reaches the app (OAuth redirect)
     # Sandbox runner (Phase 5, ADR 0020): the only service with Docker access.
     sandbox_url: str = "http://sandbox-runner:8200"
