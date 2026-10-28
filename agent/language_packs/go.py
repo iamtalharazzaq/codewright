@@ -178,6 +178,21 @@ class GoPack:
             ),
         ]
 
+    def outdated_steps(self, repo: Path, component: Component) -> list[Step]:
+        cmd = ["sh", "-c", "go list -u -m -json all 2>/dev/null"]
+        return [Step("outdated", "go", cmd, component.path)]
+
+    def upgrade_steps(self, repo: Path, component: Component, package: str, version: str) -> list[Step]:
+        wd = component.path
+        return [
+            Step("upgrade", "go", ["go", "get", f"{package}@{version}"], wd),
+            Step("tidy", "go", ["go", "mod", "tidy"], wd),
+        ]
+
+    def audit_steps(self, repo: Path, component: Component) -> list[Step]:
+        cmd = ["govulncheck", "-json", "./..."]
+        return [Step("govulncheck", "go", cmd, component.path, optional=True)]
+
     def run_spec(self, repo: Path, component: Component) -> RunSpec | None:
         if not component.entrypoints:
             return None

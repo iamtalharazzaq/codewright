@@ -68,6 +68,7 @@ egress:
     - sum.golang.org
     - storage.googleapis.com     # proxy.golang.org serves some module zips from here
     - nodejs.org                 # node-gyp headers
+    - vuln.go.dev                # govulncheck's vulnerability database (security_review, Phase 10)
 
 # Web previews: the gateway publishes these ports on 127.0.0.1 only and forwards each to one preview container.
 previews:

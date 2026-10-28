@@ -175,6 +175,15 @@ class CppPack:
             Step("clang-tidy", "cpp", tidy, component.path, "none", optional=True),
         ]
 
+    def outdated_steps(self, repo: Path, component: Component) -> list[Step]:
+        return []  # CMake projects pin third-party sources by hand: nothing to ask a registry
+
+    def upgrade_steps(self, repo: Path, component: Component, package: str, version: str) -> list[Step]:
+        return []
+
+    def audit_steps(self, repo: Path, component: Component) -> list[Step]:
+        return []  # no generic vulnerability DB for a CMake project's third-party sources
+
     def run_spec(self, repo: Path, component: Component) -> RunSpec | None:
         if not component.entrypoints:
             return None

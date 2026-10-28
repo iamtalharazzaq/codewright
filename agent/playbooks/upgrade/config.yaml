@@ -1,0 +1,11 @@
+# CODEWRIGHT.md Section 5.11. Tier 2: approve the plan, then approve the result; every upgrade is its own commit.
+title: Upgrade
+description: >-
+  Asks the project's package registry which direct dependencies are outdated, plans the upgrades for your approval
+  (one named in your request, or the safest few), then upgrades one at a time on a new branch: the pack's own bump
+  command, a build and the tests after each, and when a new version breaks the code the Backend Developer adapts the
+  files the errors point at (a few rounds; an upgrade that still isn't green is reverted and reported). Then all the
+  tests and the recorded traffic replayed, one more approval, and each upgrade stays as its own commit. Release notes
+  are not read: the sandbox cannot reach the web, so the compiler and the tests are the guide.
+intent: upgrade
+lead_role: backend_developer

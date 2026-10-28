@@ -1,0 +1,10 @@
+# CODEWRIGHT.md Section 5.8. Tier 1 (review the scan), rising to tier 2 (approve a fix plan first) when asked to fix.
+title: Security review
+description: >-
+  Scans the project for secrets, dependency vulnerabilities, auth/injection/crypto problems and the security-relevant
+  parts of its own linters, and reports every finding by severity. Asked to fix something, it plans the changes for
+  your approval first, makes them one at a time with the tests run after each (a step that breaks them is undone),
+  then proves behavior is unchanged by replaying recorded traffic and that the fixed findings are gone before asking
+  you to approve the result.
+intent: security_review
+lead_role: security_engineer

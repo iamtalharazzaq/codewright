@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from agent.chat.corrections import describe
+from agent.language_packs.base import Step
 from codewright_api.db import MemoryItem, Project
 from codewright_api.graph import GraphService
 from codewright_api.sandbox import SandboxService, step_outputs
@@ -73,6 +74,16 @@ class ApiProjectTools:
         activity = self._sandbox.start(self.key, action, paths)  # type: ignore[arg-type]
         await asyncio.wait_for(self._sandbox.wait(activity.id), ACTION_TIMEOUT_S)
         return step_outputs(activity)
+
+    async def run_step(self, step: Step) -> dict[str, Any]:
+        if self._sandbox is None:
+            return {"ok": False, "exit_code": None, "output": "the sandbox is not available"}
+        return await asyncio.wait_for(self._sandbox.exec_step(self.key, step), ACTION_TIMEOUT_S)
+
+    async def db_trial(self, up_file: str, queries: list[str]) -> dict[str, Any]:
+        if self._sandbox is None:
+            return {"ok": None, "error": "the sandbox is not available"}
+        return await asyncio.wait_for(self._sandbox.db_trial(self.key, up_file, queries), ACTION_TIMEOUT_S)
 
     async def test(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
         if self._sandbox is None:

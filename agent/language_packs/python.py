@@ -45,6 +45,25 @@ FRAMEWORKS = {
 WEB = {"fastapi", "flask", "django"}
 VENV_PY = ".venv/bin/python"
 
+# Rewrites the pinned version of one package in requirements*.txt / pyproject.toml; exits 1 if it is in neither.
+BUMP_SCRIPT = r"""import pathlib, re, sys
+pkg, ver = sys.argv[1:3]
+name = "[-_.]".join(map(re.escape, re.split(r"[-_.]", pkg)))
+pat = re.compile(r"(?im)^(\s*[\"']?)(" + name + r")(\[[^\]]*\])?\s*(==|>=|~=|<=|<|>|!=)\s*[\w.*+-]+")
+hit = False
+for f in list(pathlib.Path(".").glob("requirements*.txt")) + [pathlib.Path("pyproject.toml")]:
+    if not f.is_file():
+        continue
+    text = f.read_text()
+    op = lambda m: m.group(4) if m.group(4) in ("==", ">=", "~=") else "=="
+    new = pat.sub(lambda m: m.group(1) + m.group(2) + (m.group(3) or "") + op(m) + ver, text)
+    if new != text:
+        f.write_text(new)
+        print("updated", f)
+        hit = True
+sys.exit(0 if hit else 1)
+"""
+
 _ROUTE = re.compile(
     r"@(\w+)\.(get|post|put|patch|delete|route|api_route|websocket)\(\s*[\"']([^\"']*)[\"']", re.IGNORECASE
 )
@@ -236,6 +255,18 @@ class PythonPack:
                 optional=True,
             ),
         ]
+
+    def outdated_steps(self, repo: Path, component: Component) -> list[Step]:
+        cmd = ["sh", "-c", "uv pip list --python .venv --outdated --format json 2>/dev/null"]
+        return [Step("outdated", "python", cmd, component.path)]
+
+    def upgrade_steps(self, repo: Path, component: Component, package: str, version: str) -> list[Step]:
+        return [Step("upgrade", "python", ["python3", "-c", BUMP_SCRIPT, package, version], component.path, "none")]
+
+    def audit_steps(self, repo: Path, component: Component) -> list[Step]:
+        # Vulnerabilities of the venv's installed packages, from PyPI's own advisory data (no extra network host).
+        cmd = [VENV_PY, "-m", "pip_audit", "--progress-spinner", "off", "--format", "json"]
+        return [Step("pip-audit", "python", cmd, component.path, optional=True)]
 
     def run_spec(self, repo: Path, component: Component) -> RunSpec | None:
         cf = compose.find(repo, component.path)

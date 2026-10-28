@@ -1,0 +1,11 @@
+# CODEWRIGHT.md Section 5.12. Tier 2: approve the plan, then approve the result; the migration goes on a new branch.
+title: Database change
+description: >-
+  The Database Engineer reads your existing migrations and schema, writes the next numbered migration with its
+  rollback (and up to three queries it should be measured on) for your approval, then really applies it to a fresh
+  PostgreSQL sandbox database: table row counts and checksums, the schema and the query plans before and after, and
+  the rollback applied and compared with the starting state. If the SQL fails it is corrected (a few tries). Then the
+  tests and the recorded traffic replayed, one more approval, and the migration pair is committed on a new branch.
+  Changing the database engine (for example MySQL to PostgreSQL) is not built yet.
+intent: database_change
+lead_role: database_engineer

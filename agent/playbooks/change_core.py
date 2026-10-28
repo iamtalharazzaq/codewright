@@ -108,9 +108,11 @@ async def apply_steps(
     step: str,
     role: str,
     comment: str = "",
+    verify: bool = True,
 ) -> Totals:
     """Make each planned change, running the file's component tests after it (the Reflection loop, max 5 tries).
-    A change that never gets green is undone."""
+    A change that never gets green is undone. With `verify=False` the files are only rewritten (a dependency
+    upgrade breaks several files that go green together); the caller runs the tests."""
     totals = Totals()
     for planned in plan.steps:
         path = planned.file.strip().removeprefix("./")
@@ -144,6 +146,8 @@ async def apply_steps(
             totals.llm_calls += update["budget"]["run"]["llm_calls"]
             totals.tokens += update["budget"]["run"]["tokens"]
             write_file(project.work, _p, update["_content"])
+            if not verify:
+                return Attempt(True, None, "")
             result = component_result(await project.test(_scope), _component_path)
             ok = is_green((result or {}).get("report"))
             await services.emit(

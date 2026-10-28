@@ -64,7 +64,7 @@ max-args = 8
 known-first-party = ["codewright_api", "codewright_sandbox", "agent", "connectors"]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "PLR2004"]
+"**/tests/**" = ["S101", "PLR2004", "PLR0913"]
 "apps/api/migrations/**" = ["E501"]
 # Packs and the runner build commands for sandbox containers: servers there must listen on all interfaces.
 "agent/language_packs/**" = ["S104"]

@@ -59,7 +59,7 @@ async def _forward(coro: Any) -> Any:
 
 
 class ActionIn(BaseModel):
-    action: Literal["build", "test", "lint", "run"]
+    action: Literal["build", "test", "lint", "audit", "run"]
     components: list[str] = Field(default=[], max_length=20, description="Component paths; empty = all.")
 
 

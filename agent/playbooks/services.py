@@ -8,6 +8,7 @@ from typing import Any, Protocol
 
 from langchain_core.language_models import BaseChatModel
 
+from agent.language_packs.base import Step
 from agent.llm.client import LLMClient
 from agent.llm.config import ProfileName
 
@@ -43,6 +44,15 @@ class ProjectTools(Protocol):
     async def test(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
         """Run the components' tests in the sandbox and return each one's full result, report included (coverage,
         cases): `[{component, pack, ok, report: {tool, passed, failed, ..., coverage: {...} | None}}]`."""
+
+    async def run_step(self, step: Step) -> dict[str, Any]:
+        """Run one Language Pack step (a dependency bump, an outdated listing) in the sandbox:
+        `{ok, exit_code, output}`."""
+
+    async def db_trial(self, up_file: str, queries: list[str]) -> dict[str, Any]:
+        """Apply a migration file, then its rollback, to a fresh PostgreSQL sandbox database and measure both
+        (`agent.verification.dbtrial`): `{ok, up, down, changes, rollback_restores, queries...}`;
+        `ok` None = could not run."""
 
     def recordings(self) -> list[dict[str, Any]]:
         """Recorded traffic of the running app (newest first): id, target, exchange count."""

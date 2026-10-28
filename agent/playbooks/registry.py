@@ -36,6 +36,9 @@ _MODULES = (
     "tests",
     "refactor",
     "performance",
+    "security",
+    "upgrade",
+    "db_change",
 )
 
 

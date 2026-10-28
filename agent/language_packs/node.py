@@ -303,6 +303,26 @@ class NodePack:
             steps.append(Step("tsc", "node", ["npx", "--no-install", "tsc", "--noEmit", "-p", "."], wd, "none"))
         return steps
 
+    def outdated_steps(self, repo: Path, component: Component) -> list[Step]:
+        return [Step("outdated", "node", ["sh", "-c", "npm outdated --json 2>/dev/null || true"], component.path)]
+
+    def upgrade_steps(self, repo: Path, component: Component, package: str, version: str) -> list[Step]:
+        manager = component.details.get("manager", "npm")
+        spec = f"{package}@{version}"
+        cmd = {
+            "pnpm": ["pnpm", "up", spec],
+            "yarn": ["sh", "-c", f"yarn up {spec} || yarn upgrade {spec}"],
+        }.get(manager, ["npm", "install", spec, "--no-audit", "--no-fund"])
+        return [Step("upgrade", "node", cmd, component.path)]
+
+    def audit_steps(self, repo: Path, component: Component) -> list[Step]:
+        manager = component.details.get("manager", "npm")
+        cmd = {
+            "pnpm": ["pnpm", "audit", "--json"],
+            "yarn": ["yarn", "npm", "audit", "--json"],
+        }.get(manager, ["npm", "audit", "--json"])
+        return [Step(f"{manager if manager != 'npm-ci' else 'npm'}-audit", "node", cmd, component.path, optional=True)]
+
     def run_spec(self, repo: Path, component: Component) -> RunSpec | None:
         cf = compose.find(repo, component.path)
         app = compose.app_for(cf, component.path)

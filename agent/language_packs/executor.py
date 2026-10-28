@@ -19,7 +19,7 @@ from agent.language_packs import pack
 from agent.language_packs.base import REPORTS, CommandResult, Component, RunSpec, Step, TestReport, tail
 from agent.tools.sandbox import SandboxClient
 
-Action = Literal["build", "test", "lint", "run"]
+Action = Literal["build", "test", "lint", "audit", "run"]
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
 GIT_EXCLUDES = (".codewright/", "graphify-out/", "node_modules/", ".venv/")
 TAIL_CHARS = 20_000
@@ -46,6 +46,9 @@ def plan(repo: Path, component: Component, action: Action) -> list[Step]:
     if action == "lint":
         setup = [s for s in build if s.name in {"install", "configure"}]
         return [*setup, *p.lint_steps(repo, component)]
+    if action == "audit":
+        setup = [s for s in build if s.name in {"install", "configure"}]
+        return [*setup, *p.audit_steps(repo, component)]
     spec = p.run_spec(repo, component)
     return spec.prepare if spec else []
 

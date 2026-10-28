@@ -22,6 +22,17 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
+## Phase 10: Security, upgrade and database change (ADR 0025, Milestone M2)
+
+| Task | Result |
+|---|---|
+| `security_review` | scan (secrets, security lint, dependency audit) → model review → grounded findings; "fix" requests are tier 2 (plan, fix, tests, replay, rescan). Live on GoShop: seeded AWS key found and removed, 349 tests green, replay 0 regressions/25. |
+| `upgrade` | outdated direct dependencies → plan → one package at a time (bump, build, test, adapt code if red, exact revert if still red), one commit each. Live on GoShop: grpc and x/crypto bumped, 349 tests, replay 0/25. Release notes are not read, and the brief says so. |
+| `database_change` | next numbered migration + rollback → tried on a fresh PostgreSQL sandbox database (up, down, row counts, checksums, schema, query plans). Live on GoShop: index on `products.category_id`, rollback exact, Seq Scan to Index Scan. |
+| Model connection | LLM client retries a dropped connection (3 times). |
+
+Known limits: model false positives in the security review (seen once, shown at the gate); PostgreSQL only; no engine changes; C++ has no dependency audit.
+
 ## Phase 9: Refactor and performance (ADR 0024)
 
 | Task | Result |

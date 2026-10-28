@@ -29,6 +29,9 @@ DEFAULT_SAMPLING: dict[str, float | int] = {"temperature": 0.7, "top_p": 0.8, "t
 MAX_TRACE_CHARS = 20_000
 
 
+DROPPED_RETRIES = 3  # extra tries after a connection that was dropped before any answer
+
+
 class LLMError(Exception):
     """The server answered, but not with a usable completion."""
 
@@ -329,7 +332,15 @@ class LLMClient:
         try:
             async with _queue_for(self.name, self.profile), self._http(self.profile.http_timeout()) as http:
                 start = time.monotonic()  # time spent waiting in the queue is not model latency
-                res = await http.post(url, json=body)
+                for attempt in range(DROPPED_RETRIES + 1):
+                    try:
+                        res = await http.post(url, json=body)
+                        break
+                    except (httpx.RemoteProtocolError, httpx.ConnectError):
+                        # A tunnel that drops a request instantly (ngrok to a GPU host) usually answers the next one.
+                        if attempt == DROPPED_RETRIES:
+                            raise
+                        await asyncio.sleep(0.5 * (attempt + 1))
             if res.status_code == 503:
                 raise LLMUnavailable("The model server is loading or overloaded (503).")
             if res.status_code >= 400:

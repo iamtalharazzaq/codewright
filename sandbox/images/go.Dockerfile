@@ -1,7 +1,8 @@
 # Codewright sandbox: Go toolchain. Modules download through the sandbox proxy (GOPROXY default).
 # Runs as uid 10001 (the API's uid, so both can write workspaces); the runner adds a read-only root, tmpfs $HOME and limits.
 FROM golang:1.26-bookworm
-RUN groupadd --gid 10001 sandbox && useradd --create-home --uid 10001 --gid 10001 sandbox \
+RUN GOBIN=/usr/local/bin go install golang.org/x/vuln/cmd/govulncheck@v1.1.4 \
+    && groupadd --gid 10001 sandbox && useradd --create-home --uid 10001 --gid 10001 sandbox \
     && mkdir -p /go/pkg && chown -R sandbox /go
 ENV GOFLAGS=-buildvcs=false GOTOOLCHAIN=local CGO_ENABLED=0
 # No setuid/setgid binaries: nothing in the sandbox can gain privileges (ADR 0020).
