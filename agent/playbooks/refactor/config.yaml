@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.9. Tier 2: approve the plan, then approve the result; the change goes on a new branch.
+title: Refactor
+description: >-
+  Maps the part of the project to refactor (graph, tests, recorded traffic), proposes a plan of small file-by-file
+  changes for your approval, makes them one at a time with the tests run after each (a step that breaks them is
+  undone), then proves behavior is unchanged by replaying the recorded traffic and shows the dependency graph before
+  and after. A fresh Tech Lead review, one more approval, and the change goes into the project on a new branch.
+intent: refactor
+lead_role: backend_developer

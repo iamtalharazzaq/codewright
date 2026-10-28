@@ -44,6 +44,13 @@ class ProjectTools(Protocol):
         """Run the components' tests in the sandbox and return each one's full result, report included (coverage,
         cases): `[{component, pack, ok, report: {tool, passed, failed, ..., coverage: {...} | None}}]`."""
 
+    def recordings(self) -> list[dict[str, Any]]:
+        """Recorded traffic of the running app (newest first): id, target, exchange count."""
+
+    async def verify(self, action: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Run a verification (`record`, `replay`, `bench`) on a fresh app: `{ok, error, report}`. `ok` is None when
+        it could not run at all (no runnable component, no recording), so a caller can say "not checked" honestly."""
+
     def files_changed(self, paths: list[str]) -> None:
         """Files were written in `work/`: update the graph and search (throttled)."""
 

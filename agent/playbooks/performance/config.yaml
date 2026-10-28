@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.10. Tier 2: approve the plan, then approve the result; the change goes on a new branch.
+title: Performance
+description: >-
+  Benchmarks the running app on its recorded traffic (k6), finds the slowest endpoints and the code behind them
+  (queries in loops, repeated work, quadratic scans), proposes file-by-file fixes for your approval, makes them with
+  the tests run after each, then proves the behavior is unchanged by replaying the traffic and shows the benchmark
+  before and after. A fresh Tech Lead review, one more approval, and the change goes on a new branch.
+intent: improve_performance
+lead_role: backend_developer

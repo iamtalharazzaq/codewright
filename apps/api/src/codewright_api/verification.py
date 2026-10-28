@@ -523,6 +523,9 @@ class VerificationService:
         }
         self.save_report(pid, data)
         await activity.emit({"type": "report", "report": _report_summary(data)})
+        activity.results.append(
+            _report_summary(data)
+        )  # so callers reading `activity.results[-1]` see it (as `_replay` does)
         if not data["ok"]:
             activity.error = f"{100 * numbers['failed_rate']:.1f}% of the benchmark's requests failed"
         return data

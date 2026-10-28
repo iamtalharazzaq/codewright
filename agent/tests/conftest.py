@@ -24,6 +24,8 @@ class FakeProject:
         lint_outputs: list[dict[str, Any]] | None = None,
         hits: list[dict[str, Any]] | None = None,
         test_results: list[list[dict[str, Any]]] | None = None,
+        recordings: list[dict[str, Any]] | None = None,
+        verifications: dict[str, list[dict[str, Any]]] | None = None,
     ) -> None:
         self._work = work
         self.graph = graph
@@ -37,6 +39,10 @@ class FakeProject:
         self.linted: list[list[str] | None] = []
         self.actions: list[str] = []
         self.tested: list[list[str] | None] = []
+        self._recordings = recordings or []
+        # `verify(action)`'s answers, one call at a time per action; an action with none says it could not run.
+        self._verifications = verifications or {}
+        self.verified: list[str] = []
         self.changed: list[str] = []
 
     @property
@@ -70,6 +76,16 @@ class FakeProject:
         self.tested.append(paths)
         i = min(len(self.tested) - 1, len(self._test_results) - 1)
         return self._test_results[i]
+
+    def recordings(self) -> list[dict[str, Any]]:
+        return self._recordings
+
+    async def verify(self, action: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        self.verified.append(action)
+        answers = self._verifications.get(action)
+        if not answers:
+            return {"ok": None, "error": "not available in this test", "report": None}
+        return answers.pop(0) if len(answers) > 1 else answers[0]
 
     def files_changed(self, paths: list[str]) -> None:
         self.changed.extend(paths)

@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.skills = SkillRegistry(cfg.skills_dir, cfg.workspaces_dir)
     manager.graphs, manager.sandbox = app.state.graphs, app.state.sandbox
     app.state.verification = VerificationService(cfg, app.state.sandbox, llm=lambda: _llm(manager))
+    manager.verification = app.state.verification
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
         app.state.run_manager = manager

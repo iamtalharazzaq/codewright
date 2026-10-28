@@ -45,6 +45,7 @@ from codewright_api.tracing import FanOutTraceSink, LangfuseTraceSink, PostgresT
 if TYPE_CHECKING:  # graph.py imports this module (EventBus)
     from codewright_api.graph import GraphService
     from codewright_api.sandbox import SandboxService
+    from codewright_api.verification import VerificationService
 
 log = logging.getLogger(__name__)
 
@@ -118,7 +119,9 @@ class _Services:
 
         if self._manager.graphs is None:
             raise RuntimeError("The run manager has no project services attached.")
-        return ApiProjectTools(project_id, self._manager.sessions, self._manager.graphs, self._manager.sandbox)
+        return ApiProjectTools(
+            project_id, self._manager.sessions, self._manager.graphs, self._manager.sandbox, self._manager.verification
+        )
 
 
 class _StreamTranslator:
@@ -204,6 +207,7 @@ class RunManager:
         # Project services for playbooks with `needs_project` (attached by the app after creating them).
         self.graphs: GraphService | None = None
         self.sandbox: SandboxService | None = None
+        self.verification: VerificationService | None = None
         # Called after every status change (the chat posts run updates and the Done card).
         self.status_listeners: list[Callable[[uuid.UUID, str], Awaitable[None]]] = []
 

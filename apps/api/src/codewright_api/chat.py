@@ -54,7 +54,7 @@ SKILL_MODEL_MIN = 0.15
 SKILL_KEYWORDS_MIN = 0.6
 CARD_KINDS = ("correction", "skill_draft")  # cards answered with Save / Discard
 # Playbooks whose artifacts are reports or snippets; the files they changed are the ones published on a branch.
-READ_MOSTLY = {"code_review", "audit", "docs", "write_code", "bug_fix", "tests"}
+READ_MOSTLY = {"code_review", "audit", "docs", "write_code", "bug_fix", "tests", "refactor", "performance"}
 RUN_INTENTS = {"review_code": "code_review", "analyze_audit": "audit"}  # tier 0, but long: a run in project chats
 REVIEW_IN_CHAT = """This is a code review of code in the chat. Group findings by severity (critical / major / minor /
 nit); for each give the line, the problem, why it matters and a fix as code. End with a score out of 10 and the top 3
@@ -809,7 +809,7 @@ class ChatService:
             if conv is None:
                 raise LookupError(conversation_id)
             project_id = conv.project_id
-        if intent in ("fix_bug", "write_tests") and project_id is None:
+        if intent in ("fix_bug", "write_tests", "refactor", "improve_performance") and project_id is None:
             return await self._append(
                 conversation_id,
                 content="This works on a project's code. Open this chat from a project (Projects → New chat), or "
@@ -938,6 +938,10 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
         text = (data.get("request") or "").lower()
         return {"target": "microservices", "mode": "audit"} if "microservice" in text else None
     inputs: dict[str, Any] = {"request": data.get("request", "")}
+    if intent in ("refactor", "improve_performance"):
+        inputs.update(
+            path=_path_arg(data.get("targets") or []), answers=data.get("answers", []), skill=data.get("skill")
+        )
     if intent in ("write_code", "fix_bug", "write_tests"):
         inputs.update(answers=data.get("answers", []), skill=data.get("skill"))
     if intent == "write_code":
@@ -955,6 +959,8 @@ SUGGESTIONS: dict[str, list[str]] = {
     "audit": ["Explain the biggest hotspot", "Review the riskiest module", "Write the architecture docs"],
     "write_code": ["Explain it step by step", "Add more edge-case tests", "Do it in another language"],
     "bug_fix": ["Explain the root cause", "Write more tests for this module", "Review the changed file"],
+    "refactor": ["Explain what changed", "Review the refactored code", "Write tests for it"],
+    "performance": ["Explain the bottleneck", "Benchmark again", "Review the changed code"],
     "tests": ["Test another module", "Review the code the tests cover", "Fix what the tests found"],
     "docs": ["Explain a part of the docs", "Review the code the docs describe", "Deliver it"],
 }

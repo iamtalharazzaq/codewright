@@ -3,7 +3,7 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 8 (Write code, fix and test), built and live-tested; the 20-example eval and the final `make check` are still to run. Phase 9 is next.
+**Current phase:** Phase 9 (Refactor and performance), built and live-tested; Phase 8's 20-example eval is still open. Phase 10 is next.
 Phase 6's audit review and M1 demo are still waiting with you, deferred to the end. Phase 1 VRAM table still pending.
 **Last updated:** 2026-10-28
 **Branch:** `codewright-phase-0`
@@ -21,6 +21,17 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 9: Refactor and performance (ADR 0024)
+
+| Task | Result |
+|---|---|
+| `refactor` | map → plan → **approve plan** → refactor (Reflection loop, undo on failure) → verify (tests + replay) → review → **approve result** → publish. Live on GoShop `pkg/utils`: 4 files refactored, 349 tests green, replay 0 regressions/25 requests, a real Tech Lead finding, committed on `codewright/refactor-*`. |
+| `improve_performance` | baseline (k6) → find (search + static scan for N+1/sleeps/rescans) → **approve plan** → optimize → verify (tests + replay + benchmark) → review → **approve result** → publish. Live on a seeded `time.Sleep` in GoShop's `ListCategories`: found and removed from the code alone, tests green, replay 0 regressions, correctly reported **not measured** instead of a fake number. |
+| Finding | GoShop's own per-IP rate limiter throttles k6's benchmark traffic (same source IP) to near-0% success regardless of endpoint. Fixed by having the benchmark recognize a high failure rate as "a guard is rejecting this load" and refuse to report it as latency, rather than bypassing the limiter. |
+| `change_core.py` | Shared by both: whole-file rewrites, Reflection loop, undo-on-failure, replay-backed "unchanged behavior". |
+
+Acceptance still open: a repeat with the sandbox's `RATE_LIMIT_REQUESTS` raised, to get a real before/after number (not just "not measured" proven honest).
 
 ## Phase 8: Write code, fix and test (ADR 0023)
 

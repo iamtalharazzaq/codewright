@@ -25,7 +25,18 @@ PLAYBOOKS_DIR = Path(__file__).resolve().parent
 TIERS_FILE = PLAYBOOKS_DIR.parents[1] / "config" / "tiers.yaml"
 
 # Playbooks with a runnable graph so far. Later phases add one per intent (config/tiers.yaml).
-_MODULES = ("sample", "architecture_change", "code_review", "audit", "docs", "write_code", "bug_fix", "tests")
+_MODULES = (
+    "sample",
+    "architecture_change",
+    "code_review",
+    "audit",
+    "docs",
+    "write_code",
+    "bug_fix",
+    "tests",
+    "refactor",
+    "performance",
+)
 
 
 @dataclass(frozen=True)

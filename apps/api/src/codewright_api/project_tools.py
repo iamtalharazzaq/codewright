@@ -15,9 +15,11 @@ from agent.chat.corrections import describe
 from codewright_api.db import MemoryItem, Project
 from codewright_api.graph import GraphService
 from codewright_api.sandbox import SandboxService, step_outputs
+from codewright_api.verification import VerificationService
 
 ACTION_TIMEOUT_S = 900
 SCRATCH = "scratch-"
+VERIFY_TIMEOUT_S = 1500
 
 
 class ApiProjectTools:
@@ -27,6 +29,7 @@ class ApiProjectTools:
         sessions: async_sessionmaker[AsyncSession],
         graphs: GraphService,
         sandbox: SandboxService | None,
+        verification: VerificationService | None = None,
     ) -> None:
         # A project's id, or `scratch-<run id>` for Write code's throwaway workspace (no graph, search or facts).
         self.key = project_id  # what the workspace and the sandbox know it by
@@ -34,6 +37,7 @@ class ApiProjectTools:
         self.sessions = sessions
         self.graphs = graphs
         self._sandbox = sandbox
+        self._verification = verification
 
     @property
     def work(self) -> Path:
@@ -78,6 +82,22 @@ class ApiProjectTools:
         if activity.error and not activity.results:
             return [{"component": ".", "pack": "", "ok": False, "error": activity.error, "report": None}]
         return activity.results
+
+    def recordings(self) -> list[dict[str, Any]]:
+        return self._verification.recordings(self.id) if self._verification is not None else []
+
+    async def verify(self, action: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+        if self._verification is None:
+            return {"ok": None, "error": "verification is not available", "report": None}
+        try:
+            activity = self._verification.start(self.id, action, options or {})  # type: ignore[arg-type]
+        except (ValueError, KeyError) as exc:
+            return {"ok": None, "error": str(exc), "report": None}
+        await asyncio.wait_for(self._verification.wait(activity.id), VERIFY_TIMEOUT_S)
+        report = activity.results[-1] if activity.results else None
+        if activity.status == "error":
+            return {"ok": None, "error": activity.error, "report": report}
+        return {"ok": activity.status == "passed", "error": activity.error, "report": report}
 
     def files_changed(self, paths: list[str]) -> None:
         self.graphs.refresh(self.id, paths, reason="docs")
