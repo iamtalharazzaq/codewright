@@ -169,7 +169,11 @@ async def run_ci(project: Any) -> list[dict[str, Any]]:
     for r in await project.test(None):
         report = r.get("report")
         results.append(
-            {"what": f"test {r.get('component', '.')}", "ok": is_green(report), "note": f"{(report or {}).get('passed', 0)} passing"}  # noqa: E501
+            {
+                "what": f"test {r.get('component', '.')}",
+                "ok": is_green(report),
+                "note": f"{(report or {}).get('passed', 0)} passing",
+            }
         )
     return results
 
@@ -181,12 +185,23 @@ def brief_of(state: DevOpsState, diff: str) -> str:
     lines += [f"- `{p}`" for p in state.get("written", [])]
     lines += [""]
     if findings:
-        lines += ["❌ **Security checks on the files:**", *[f"- {f['severity']}: `{f['file']}` {f['problem']}" for f in findings]]
+        lines += [
+            "❌ **Security checks on the files:**",
+            *[f"- {f['severity']}: `{f['file']}` {f['problem']}" for f in findings],
+        ]
     else:
-        lines += ["✅ **Security checks on the files:** pinned images, no root user, no secrets, no Docker socket, every COPY source exists, valid YAML."]  # noqa: E501
+        lines += [
+            "✅ **Security checks on the files:** pinned images, no root user, no secrets, no Docker socket, every COPY source exists, valid YAML."
+        ]
     for c in ci:
         lines.append(f"{'✅' if c['ok'] else '❌'} **CI step** {c['what']}" + (f" ({c['note']})" if c["note"] else ""))
-    lines += ["", NOT_BUILT, *[f"- {n}" for n in state.get("notes", [])], "", f"{len(diff.splitlines())} lines added; open the Report tab to read them."]  # noqa: E501
+    lines += [
+        "",
+        NOT_BUILT,
+        *[f"- {n}" for n in state.get("notes", [])],
+        "",
+        f"{len(diff.splitlines())} lines added; open the Report tab to read them.",
+    ]
     return "\n".join(lines)
 
 
@@ -200,7 +215,9 @@ def verify_node(services: RunServices) -> Any:
         ci = await run_ci(project) if written else []
         diff = git(project.work, "diff", state["base"], "HEAD", check=False) if written else ""
         brief = brief_of({**state, "findings": findings, "ci": ci}, diff)
-        artifacts = [steps.write_artifact(state, "devops.diff", diff, "diff", "The deployment files", "verify")] if diff else []  # noqa: E501
+        artifacts = (
+            [steps.write_artifact(state, "devops.diff", diff, "diff", "The deployment files", "verify")] if diff else []
+        )
         bad = len(findings) + sum(not c["ok"] for c in ci)
         return await steps.finish(
             services, state, plan, "verify", "security_engineer",

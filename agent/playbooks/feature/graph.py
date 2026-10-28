@@ -713,7 +713,7 @@ def verify_node(services: RunServices) -> Any:
             if ups:  # the new migration applied to a real PostgreSQL database, then rolled back
                 verification["migration"] = await project.db_trial(ups[0], [])
             if any(f.endswith(WEB_SUFFIXES) for f in files):
-                shot = await project.verify("screenshot", {})
+                shot = await project.verify("screens", {})
                 verification["screens"] = {"ok": shot["ok"], "why": shot.get("error")}
         # Committed only when the tests pass and a new migration (if any) applies and rolls back on PostgreSQL.
         verification["ok"] = (

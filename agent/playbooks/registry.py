@@ -40,6 +40,8 @@ _MODULES = (
     "upgrade",
     "db_change",
     "feature",
+    "frontend",
+    "devops",
 )
 
 

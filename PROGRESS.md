@@ -22,6 +22,19 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
+## Phases 12 and 14: Frontend and DevOps (ADR 0027, 0028; built, not yet run live)
+
+| Task | Result |
+|---|---|
+| `frontend_modernize` | survey (build, tests, baseline screenshots) → plan → **approve plan** → migrate → modernize → verify → **approve result** → publish. Each stage is its own commit and is undone exactly when the build or tests go red. |
+| Next.js migration | React + Vite → Next.js App Router computed from the project's files (no model): the existing `App` runs as a client component under one catch-all route; env vars, dev proxy (as rewrites), tsconfig and the test setup are carried over. Parity: screenshots compared with the baseline. |
+| Modern, accessible UI | Rule-based: a `:where()` design layer (tokens, dark mode, focus ring, reduced motion, responsive) and automatic fixes for alt text, page language, viewport, low contrast and removed focus outlines. Labels, icon-only buttons and clickable non-controls are reported, not guessed. No model redesigns layouts. |
+| `devops_deploy` | survey → plan → **approve plan** → generate → verify → **approve result** → publish. Dockerfile + `.dockerignore` per deployable component, Compose (with the databases the dependencies mention), a CI workflow from the packs' own build/lint/test steps, Kubernetes only when asked. Templates per language pack; existing files never overwritten. |
+| DevOps checks | Static: pinned images, non-root user, COPY sources exist, valid YAML, no secrets, no Docker socket. Then the CI's commands run in the sandbox. **Images are not built** (the sandbox has no Docker daemon, by design); the card says so. |
+| Fix | Phase 11 asked verification for a `screenshot` action that does not exist; it is `screens`. |
+
+Open: live runs on a real React + Vite app and on GoShop; the "page by page" split of the catch-all route and the model-written redesign are not built.
+
 ## Phase 11: Add a feature (ADR 0026)
 
 | Task | Result |

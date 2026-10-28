@@ -94,7 +94,7 @@ def _node_cmds(manager: str) -> tuple[str, str, str]:
     return "", "npm ci --no-audit --no-fund" if manager == "npm-ci" else "npm install --no-audit --no-fund", "npm run"
 
 
-def dockerfile(t: Target, work: Path) -> str:  # noqa: PLR0911, PLR0912  (one template per pack and kind)
+def dockerfile(t: Target, work: Path) -> str:
     c = t.component
     d = c.details
     root = work / c.path
@@ -113,7 +113,10 @@ def dockerfile(t: Target, work: Path) -> str:  # noqa: PLR0911, PLR0912  (one te
             )
             head = "COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /bin/uv\n"
         elif (root / "requirements.txt").exists():
-            head, install = "", "COPY requirements.txt ./\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\n"
+            head, install = (
+                "",
+                "COPY requirements.txt ./\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY . .\n",
+            )
         else:
             head, install = "", "COPY . .\nRUN pip install --no-cache-dir .\n"
         return (
@@ -143,7 +146,7 @@ def dockerfile(t: Target, work: Path) -> str:  # noqa: PLR0911, PLR0912  (one te
         if "next" in fw:
             return (
                 f"FROM node:22-slim\nENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1\n{deps}RUN {run} build\n"
-                f"USER node\nEXPOSE {t.port}\nCMD [\"npx\", \"next\", \"start\", \"-H\", \"0.0.0.0\", \"-p\", \"{t.port}\"]\n"
+                f'USER node\nEXPOSE {t.port}\nCMD ["npx", "next", "start", "-H", "0.0.0.0", "-p", "{t.port}"]\n'
             )
         if c.kind == "web":
             out = "dist" if "vite" in fw else "build"
@@ -286,9 +289,7 @@ def _yaml_str(text: str) -> str:
 # ── Kubernetes ───────────────────────────────────────────────────────────────
 def k8s_manifest(t: Target, observability: bool) -> str:
     port = serving_port(t)
-    probe: dict[str, Any] = (
-        {"httpGet": {"path": t.health, "port": port}} if t.health else {"tcpSocket": {"port": port}}
-    )
+    probe: dict[str, Any] = {"httpGet": {"path": t.health, "port": port}} if t.health else {"tcpSocket": {"port": port}}
     env = [{"name": "PORT", "value": str(port)}]
     if observability:
         env.append({"name": "OTEL_SERVICE_NAME", "value": t.name})
@@ -351,18 +352,22 @@ def plan_files(work: Path, request: str) -> tuple[list[GeneratedFile], list[str]
         add(f"{base}.dockerignore", DOCKERIGNORE, f"keeps secrets and junk out of {t.name}'s image")
     if not ts:
         notes.append("No deployable component (web, API or app) was found, so no images were planned")
-    existing = [f for f in ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml") if (work / f).exists()]
+    existing = [
+        f for f in ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml") if (work / f).exists()
+    ]
     if ts and existing:
         notes.append(f"`{existing[0]}` already exists and was left as it is")
     elif ts:
         add("docker-compose.yml", compose_file(ts, work, opts["observability"]), "runs the whole app locally")
-    docker_paths = [
-        f"{'' if t.component.path == '.' else t.component.path + '/'}Dockerfile" for t in ts
-    ]
+    docker_paths = [f"{'' if t.component.path == '.' else t.component.path + '/'}Dockerfile" for t in ts]
     add(".github/workflows/ci.yml", ci_workflow(work, docker_paths), "CI: build, lint and test every component")
     if opts["kubernetes"]:
         for t in ts:
-            add(f"k8s/{t.name}.yaml", k8s_manifest(t, opts["observability"]), f"Kubernetes Deployment + Service for {t.name}")
+            add(
+                f"k8s/{t.name}.yaml",
+                k8s_manifest(t, opts["observability"]),
+                f"Kubernetes Deployment + Service for {t.name}",
+            )
     return files, notes
 
 
@@ -379,7 +384,8 @@ def check_files(work: Path, files: list[GeneratedFile]) -> list[dict[str, str]]:
         if f.path.endswith("Dockerfile"):
             context = work / Path(f.path).parent
             froms = [ln for ln in text.splitlines() if ln.startswith("FROM ")]
-            if any(re.search(r":latest\b|^FROM \S+$", ln.split(" AS ")[0]) and "scratch" not in ln for ln in froms):
+            images = [ln.split()[1] for ln in froms if len(ln.split()) > 1]
+            if any(i != "scratch" and (":" not in i.rsplit("/", 1)[-1] or i.endswith(":latest")) for i in images):
                 bad(f.path, "major", "a base image has no pinned version tag")
             last = text.rsplit("FROM ", 1)[-1]
             if "USER " not in last and "unprivileged" not in last:

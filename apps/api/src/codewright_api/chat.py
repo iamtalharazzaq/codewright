@@ -68,6 +68,8 @@ READ_MOSTLY = {
     "upgrade",
     "db_change",
     "feature",
+    "frontend",
+    "devops",
 }
 RUN_INTENTS = {"review_code": "code_review", "analyze_audit": "audit"}  # tier 0, but long: a run in project chats
 REVIEW_IN_CHAT = """This is a code review of code in the chat. Group findings by severity (critical / major / minor /
@@ -837,6 +839,8 @@ class ChatService:
             "upgrade",
             "database_change",
             "add_feature",
+            "frontend_modernize",
+            "devops_deploy",
         )
         if intent in needs_project and project_id is None:
             return await self._append(
@@ -974,6 +978,8 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
         "upgrade",
         "database_change",
         "add_feature",
+        "frontend_modernize",
+        "devops_deploy",
     ):
         inputs.update(
             path=_path_arg(data.get("targets") or []), answers=data.get("answers", []), skill=data.get("skill")
@@ -999,6 +1005,8 @@ SUGGESTIONS: dict[str, list[str]] = {
     "performance": ["Explain the bottleneck", "Benchmark again", "Review the changed code"],
     "upgrade": ["Explain what changed", "Review the adapted code", "Upgrade the next package"],
     "db_change": ["Explain the migration", "Add another index", "Review the queries it affects"],
+    "frontend": ["Explain what changed", "Review the changed code", "Add the next feature"],
+    "devops": ["Explain the Dockerfiles", "Review the CI workflow", "Run the security review"],
     "feature": ["Explain how it works", "Review the new code", "Add another feature"],
     "security": ["Explain the top finding", "Fix the critical and major findings", "Scan another module"],
     "tests": ["Test another module", "Review the code the tests cover", "Fix what the tests found"],

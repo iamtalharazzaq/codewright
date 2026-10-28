@@ -1,0 +1,13 @@
+# CODEWRIGHT.md Section 5.14. Tier 2: approve the plan, then approve the result; every stage is its own commit.
+title: Frontend migration and modern UI
+description: >-
+  The Frontend Developer finds the project's web frontend, builds it and runs its tests and takes screenshots of its
+  pages, then plans for your approval: moving a React + Vite app to Next.js (the existing App keeps running under one
+  route, env variables and the dev proxy carried over) and/or a modern, accessible UI (a small design layer with
+  focus rings, dark mode, reduced motion and responsive defaults, plus automatic fixes for missing alt text, page
+  language, viewport, low contrast and removed focus outlines). Each stage is built and tested and goes back exactly
+  as it was when it cannot be made green. After a migration the pages are screenshotted again and compared with the
+  originals (parity); after the modernization the screenshots show before and after. Whatever accessibility problems
+  cannot be fixed from the source (labels, icon-only buttons, clickable non-controls) are listed, not hidden.
+intent: frontend_modernize
+lead_role: frontend_developer

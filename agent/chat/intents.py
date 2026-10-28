@@ -83,7 +83,7 @@ PLAYBOOK_PHASE: dict[str, str] = {
     "translate_language": "18",
 }
 
-BUILT_PHASES = 11  # playbooks of phases up to this one exist (raise it as phases land)
+BUILT_PHASES = 14  # playbooks of phases up to this one exist (raise it as phases land)
 
 
 def built(intent: str) -> bool:
