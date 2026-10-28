@@ -1,0 +1,12 @@
+# CODEWRIGHT.md Section 5.15. Tier 2: approve the plan, then approve the result; the files go on a new branch.
+title: Dockerize and set up CI/CD
+description: >-
+  The DevOps Engineer looks at every deployable part of the project (web app, API, service), plans a Dockerfile and
+  .dockerignore for each, a Compose file that runs the app with the databases it uses, a CI workflow that runs the
+  same build, lint and test commands, and, when you ask for it, Kubernetes manifests, for your approval. Existing
+  files are never overwritten. Then the files are written on a new branch from templates for the project's language,
+  the Security Engineer checks them (pinned images, no root user, no secrets, no Docker socket), and the CI's own
+  commands are run in the sandbox. Building the images themselves is not run: the sandbox has no Docker daemon by
+  design, and the report says so.
+intent: devops_deploy
+lead_role: devops_engineer
