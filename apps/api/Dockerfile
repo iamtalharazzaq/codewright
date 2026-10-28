@@ -27,16 +27,18 @@ COPY connectors connectors
 COPY apps/api apps/api
 COPY config config
 COPY templates templates
+COPY skills/builtin skills/builtin
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package codewright-api
 
 RUN useradd --system --uid 10001 --home-dir /app codewright \
-    && mkdir -p /app/workspaces && chown codewright /app/workspaces
+    && mkdir -p /app/workspaces /app/skills/user && chown codewright /app/workspaces /app/skills/user
 USER codewright
 
 ENV PATH=/app/.venv/bin:$PATH \
     MODELS_CONFIG=/app/config/models.yaml \
-    WORKSPACES_DIR=/app/workspaces
+    WORKSPACES_DIR=/app/workspaces \
+    SKILLS_DIR=/app/skills/user
 WORKDIR /app/apps/api
 EXPOSE 8000
 # Migrations run on start so `docker compose up` is enough on a fresh machine.

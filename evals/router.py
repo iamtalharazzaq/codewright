@@ -61,7 +61,7 @@ async def main() -> None:
         print("Misses:\n" + "\n".join(wrong))
     args.out.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-    (args.out / f"router-{stamp}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    (args.out / f"router-{stamp}.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

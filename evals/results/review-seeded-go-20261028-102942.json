@@ -1,0 +1,486 @@
+{
+  "case": "seeded-go",
+  "project": "",
+  "run": "6bde498e-5f76-411a-879c-62c368c423ac",
+  "seconds": 0,
+  "issues": [
+    {
+      "id": "sql-injection",
+      "file": "store/store.go",
+      "line": 33,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 33,
+        "severity": "critical",
+        "category": "security",
+        "problem": "SQL Injection vulnerability.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "scan-error-ignored",
+      "file": "store/store.go",
+      "line": 41,
+      "found": false,
+      "severity": null,
+      "severity_ok": true,
+      "finding": null
+    },
+    {
+      "id": "rows-not-closed",
+      "file": "store/store.go",
+      "line": 34,
+      "found": true,
+      "severity": "minor",
+      "severity_ok": true,
+      "finding": {
+        "line": 39,
+        "severity": "minor",
+        "category": "performance",
+        "problem": "Resource leak.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "map-race",
+      "file": "lending/lending.go",
+      "line": 47,
+      "found": false,
+      "severity": null,
+      "severity_ok": true,
+      "finding": null
+    },
+    {
+      "id": "nil-after-error",
+      "file": "lending/lending.go",
+      "line": 41,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 39,
+        "severity": "major",
+        "category": "bug",
+        "problem": "Swallowed error: the function logs the error but continues execution, potentially decrementing availability on a failed lookup.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "off-by-one",
+      "file": "lending/lending.go",
+      "line": 75,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 75,
+        "severity": "critical",
+        "category": "bug",
+        "problem": "Off-by-one error: the loop condition `i <= len(loans)` causes an index out of bounds panic.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "hardcoded-secret",
+      "file": "config/config.go",
+      "line": 7,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 7,
+        "severity": "critical",
+        "category": "security",
+        "problem": "Hard-coded secret assignment in the source.",
+        "sources": [
+          "secret_scan",
+          "security_engineer",
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "body-not-closed",
+      "file": "covers/covers.go",
+      "line": 12,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 16,
+        "severity": "major",
+        "category": "security",
+        "problem": "Resource leak: the response body returned by `http.Get` is never closed. This causes a file descriptor leak in long-running processes and can prevent garbage collection of the response until the function returns.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "atoi-error-ignored",
+      "file": "main.go",
+      "line": 33,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 33,
+        "severity": "major",
+        "category": "bug",
+        "problem": "Ignoring the error from strconv.Atoi allows invalid or non-numeric IDs to proceed with undefined behavior.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    }
+  ],
+  "false_alarms": [
+    {
+      "line": 19,
+      "evidence": "days := int(math.Ceil(returned.Sub(l.Due).Hours() / 24))",
+      "problem": "Logic error: if a loan is returned 1 second late, `Hours()` returns a value slightly greater than 0. Dividing by 24 yields a small positive float (e.g., 0.00001). `math.Ceil` of any positive float is 1, so the fee is 25 cents. This seems correct based on the comment 'a started day counts as a day'. However, if the duration is exactly 24 hours, `Hours()` is 24.0. `24.0/24` is 1.0. `math.Ceil(1.0)` is 1.0. The fee is 25 cents. But if the user is late by exactly 24 hours, they have completed one full day of lateness. Depending on business rules, this might require 2 days of fees if the rule is 'every 24 hours'. The comment implies rounding up any fractional day. If 24 hours is exactly 1 day, `Ceil` returns 1. If the rule is 'started day counts', and 24 hours completes the first day, does the second day start? No. So 1 day fee is correct. \n\nWait, check the `int` conversion. `int(1.0)` is 1. `int(1.999)` is 1. `Ceil` ensures we round up. \n\nIs there a precision issue? Floating point division `Hours() / 24` might result in `0.9999999999999999` for exactly 24 hours due to float representation, causing `Ceil` to return 1 instead of 2 if the logic expects >24 hours for the next day? No, 24 hours / 24 = 1.0 exactly in float usually. But if it were 24h 1s, it's >1. \n\nActually, the biggest issue is likely `l.Due` access on line 16 if `l` is a nil element in the slice, causing a panic. The code does not check for nil loans in `TotalFees` before calling `LateFee`. This is a robustness bug.",
+      "why": "If `loans` slice contains a nil `Loan` element, accessing `l.Due` on line 16 will cause a runtime panic (nil pointer dereference). The code assumes all loan objects are valid, which is not guaranteed by the function signature.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Add a nil check for `l` in the loop in `TotalFees` or ensure `loans` is filtered before passing to `TotalFees`.",
+      "file": "lending/fees.go",
+      "code": "days := int(math.Ceil(returned.Sub(l.Due).Hours() / 24)) // a started day counts as a day",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 9
+    }
+  ],
+  "other_findings": [
+    {
+      "line": 76,
+      "evidence": "if loans[i].Due.Before(now) {",
+      "problem": "Panic on nil slice: if `loans` is `nil` (member has no loans), accessing `loans[i]` inside the loop (if loop condition wasn't fixed) or relying on `len(loans)` is safe, but if `loans` were accessed directly without checking length first, it would panic. However, with the fixed loop, the main issue is the previous line.",
+      "why": "If `loans` is `nil`, `len(loans)` is 0, so the loop won't run. The real risk is if `loans` is accessed before length check, but here it's inside the loop. The primary bug remains line 75.",
+      "category": "bug",
+      "severity": "critical",
+      "fix": "Ensure `loans` is not nil before iterating or fix the loop condition.",
+      "file": "lending/lending.go",
+      "code": "if loans[i].Due.Before(now) {",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 3
+    },
+    {
+      "line": 16,
+      "evidence": "config.DatabaseURL()",
+      "problem": "hard-coded secrets",
+      "why": "The database URL is retrieved from a config function that likely contains hardcoded credentials or secrets in the repository, violating security best practices.",
+      "category": "security",
+      "severity": "critical",
+      "fix": "Move database credentials to environment variables or a secure secrets manager.",
+      "file": "main.go",
+      "code": "db, err := sql.Open(\"postgres\", config.DatabaseURL())",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 4
+    },
+    {
+      "line": 14,
+      "evidence": "return \"postgres://localhost/library?sslmode=disable\"",
+      "problem": "Default database configuration disables SSL (`sslmode=disable`) and points to localhost.",
+      "why": "Disabling SSL in production exposes the database connection to man-in-the-middle attacks. Additionally, hardcoding localhost as a default may cause failures in containerized or distributed environments where the database is not on the host machine.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Remove the default return statement or set `sslmode=require` and use a generic placeholder that forces the user to provide a valid URL.",
+      "file": "config/config.go",
+      "code": "return \"postgres://localhost/library?sslmode=disable\"",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 6
+    },
+    {
+      "line": 12,
+      "evidence": "https://covers.example.org/isbn/%s.jpg",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "The ISBN parameter is directly interpolated into the URL without validation, allowing potential path traversal or injection attacks.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Validate the ISBN format (e.g., regex) before constructing the URL to ensure only safe characters are included.",
+      "file": "covers/covers.go",
+      "code": "resp, err := http.Get(fmt.Sprintf(\"https://covers.example.org/isbn/%s.jpg\", isbn))",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 7
+    },
+    {
+      "line": 63,
+      "evidence": "return d.books.SetAvailable(bookID, book.Available+1)",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "bookID from external input is passed directly to a state-modifying call without validation to ensure it matches the loan record being processed, allowing potential IDOR or state corruption if the store layer lacks strict checks.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Validate bookID against the loan record before modifying state.",
+      "file": "lending/lending.go",
+      "code": "return d.books.SetAvailable(bookID, book.Available+1)",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 11
+    },
+    {
+      "line": 18,
+      "evidence": "log.Fatal(err)",
+      "problem": "Calling log.Fatal after sql.Open blocks the entire process on startup failure, preventing graceful shutdown and leaving open database connections if the error occurs after some internal initialization; use a non-fatal exit path or defer cleanup.",
+      "why": "Resource leak and poor error handling on startup.",
+      "category": "bug",
+      "severity": "major",
+      "fix": "Replace log.Fatal with a non-blocking exit that ensures db.Close() is called before returning, or use a context-aware open with deferred cleanup.",
+      "file": "main.go",
+      "code": "log.Fatal(err)",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 12
+    },
+    {
+      "line": 24,
+      "evidence": "books.Search(r.URL.Query().Get(\"q\"))",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "User-supplied query parameter 'q' is passed directly to a database search function without sanitization or validation, potentially allowing SQL injection or inefficient query execution.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Use parameterized queries or safe search functions instead of string concatenation.",
+      "file": "main.go",
+      "code": "found, err := books.Search(r.URL.Query().Get(\"q\"))",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 13
+    },
+    {
+      "line": 33,
+      "evidence": "id, _ := strconv.Atoi(r.URL.Query().Get(\"id\"))",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "User-supplied query parameter 'id' is parsed without validation and passed to business logic that likely modifies database state, risking SQL injection or logic bypass if not handled safely downstream.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Validate that the parsed ID is a positive integer before use and ensure downstream calls use parameterized queries.",
+      "file": "main.go",
+      "code": "id, _ := strconv.Atoi(r.URL.Query().Get(\"id\"))",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 15
+    },
+    {
+      "line": 34,
+      "evidence": "if err := desk.Lend(id, r.URL.Query().Get(\"member\"));",
+      "problem": "Passing a potentially malformed or zero value 'id' (if parsing failed and error was ignored) to desk.Lend without validation.",
+      "why": "Could cause database errors or logical inconsistencies.",
+      "category": "bug",
+      "severity": "major",
+      "fix": "Validate 'id' > 0 before calling desk.Lend, or ensure the error check on line 33 prevents bad IDs from reaching this point.",
+      "file": "main.go",
+      "code": "if err := desk.Lend(id, r.URL.Query().Get(\"member\")); err != nil {",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 16
+    },
+    {
+      "line": 34,
+      "evidence": "desk.Lend(id, r.URL.Query().Get(\"member\"))",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "User-supplied query parameter 'member' is passed directly to a lending function without validation, allowing potential injection attacks or privilege escalation.",
+      "category": "security",
+      "severity": "major",
+      "fix": "Validate and sanitize the 'member' input before passing it to the lending function.",
+      "file": "main.go",
+      "code": "if err := desk.Lend(id, r.URL.Query().Get(\"member\")); err != nil {",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 17
+    },
+    {
+      "line": 63,
+      "evidence": "_, err := s.db.Exec(\"UPDATE books SET available = $1 WHERE id = $2\", n, id)",
+      "problem": "Race condition / Lost update.",
+      "why": "Updating `available` without checking the current count or using `UPDATE ... WHERE available > n` allows over-allocation in concurrent scenarios.",
+      "category": "bug",
+      "severity": "major",
+      "fix": "Use `UPDATE books SET available = ? WHERE id = ? AND available > ?` to prevent over-allocation.",
+      "file": "store/store.go",
+      "code": "_, err := s.db.Exec(\"UPDATE books SET available = $1 WHERE id = $2\", n, id)",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 18
+    },
+    {
+      "line": 12,
+      "evidence": "resp, err := http.Get(fmt.Sprintf(\"https://covers.example.org/isbn/%s.jpg\", isbn))",
+      "problem": "Unverified certificate/transport security: The code uses `http.Get` without setting a custom transport or verifying TLS certificates explicitly, which may allow man-in-the-middle attacks if the server's certificate is invalid or if the environment is misconfigured.",
+      "why": "Production code should enforce secure transport settings, such as using `http.DefaultTransport` with explicit certificate verification or ensuring the `http.Client` is configured correctly to avoid accepting invalid certificates.",
+      "category": "security",
+      "severity": "minor",
+      "fix": "Use `http.DefaultTransport` or create a custom `http.Client` with appropriate TLS settings.",
+      "file": "covers/covers.go",
+      "code": "resp, err := http.Get(fmt.Sprintf(\"https://covers.example.org/isbn/%s.jpg\", isbn))",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 19
+    },
+    {
+      "line": 16,
+      "evidence": "return io.ReadAll(resp.Body)",
+      "problem": "Nil pointer dereference risk: If `resp.Body` is nil (unlikely but possible in some edge cases or custom transports), `io.ReadAll` will panic.",
+      "why": "While `http.Get` usually returns a valid body, defensive programming suggests checking for nil or ensuring the response status is 200 before reading.",
+      "category": "bug",
+      "severity": "minor",
+      "fix": "Check if `resp` or `resp.Body` is nil before reading, or wrap the read in a recoverable block.",
+      "file": "covers/covers.go",
+      "code": "return io.ReadAll(resp.Body)",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 20
+    },
+    {
+      "line": 39,
+      "evidence": "log.Printf(\"lend: get book %d: %v\", bookID, err)",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "bookID from external input is interpolated directly into log output without sanitization, potentially exposing sensitive data or causing log injection depending on the logger implementation.",
+      "category": "security",
+      "severity": "minor",
+      "fix": "Use %v for all arguments or sanitize bookID before logging.",
+      "file": "lending/lending.go",
+      "code": "log.Printf(\"lend: get book %d: %v\", bookID, err)",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 21
+    },
+    {
+      "line": 55,
+      "evidence": "loans := d.loans[member]",
+      "problem": "Uninitialized map access: accessing `d.loans[member]` returns `nil` if the key doesn't exist.",
+      "why": "While the loop handles `nil` safely, this pattern is inconsistent with concurrent map access rules if the map is not fully guarded, and it silently fails to find loans for new members.",
+      "category": "bug",
+      "severity": "minor",
+      "fix": "Initialize `d.loans[member] = []Loan{}` before access or use a safer lookup.",
+      "file": "lending/lending.go",
+      "code": "loans := d.loans[member]",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 22
+    },
+    {
+      "line": 76,
+      "evidence": "if loans[i].Due.Before(now) {",
+      "problem": "unvalidated input reaching dangerous calls",
+      "why": "The loop index 'i' is used to access 'loans' which is derived from the unvalidated 'member' string key. If 'member' is manipulated, it could lead to unexpected behavior or information disclosure, though less direct than SQL injection.",
+      "category": "security",
+      "severity": "minor",
+      "fix": "Ensure 'member' is validated and sanitized before being used as a map key.",
+      "file": "lending/lending.go",
+      "code": "if loans[i].Due.Before(now) {",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 23
+    },
+    {
+      "line": 35,
+      "evidence": "http.Error(w, err.Error(), http.StatusConflict)",
+      "problem": "Using http.Error to write the response body while the handler has already set the status code via desk.Lend's error handling, but the actual error message might be empty or misleading if err.Error() returns nothing useful.",
+      "why": "Poor user experience and potential security issues if err.Error() leaks internal details.",
+      "category": "bug",
+      "severity": "minor",
+      "fix": "Ensure err.Error() is sanitized before sending to the client, or use a custom error message.",
+      "file": "main.go",
+      "code": "http.Error(w, err.Error(), http.StatusConflict)",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 24
+    },
+    {
+      "line": 50,
+      "evidence": "err := s.db.QueryRow(\"SELECT id, title, author, available FROM books WHERE id = $1\", id).",
+      "problem": "Unnecessary variable assignment.",
+      "why": "The result of `QueryRow` is immediately passed to `Scan` via method chaining; assigning it to `err` shadows the error variable and is syntactically incorrect logic (it assigns a `*sql.Row` to an `error` variable contextually if not handled, though here it's used correctly as a receiver, but the variable name `err` is misleading and confusing). Actually, the code does `err := s.db.QueryRow(...)`. This assigns a `*sql.Row` to `err`. Then `Scan` is called on that row. This is valid Go syntax but the variable name `err` is semantically wrong as it holds a Row, not an error. This is confusing code.",
+      "category": "bug",
+      "severity": "minor",
+      "fix": "Rename the variable to `row` to avoid confusion with the error returned by `Scan`.",
+      "file": "store/store.go",
+      "code": "err := s.db.QueryRow(\"SELECT id, title, author, available FROM books WHERE id = $1\", id).",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 26
+    }
+  ],
+  "summary": {
+    "score": 0.0,
+    "counts": {
+      "critical": 5,
+      "major": 13,
+      "minor": 8,
+      "nit": 0
+    },
+    "total": 26,
+    "files_reviewed": 6,
+    "top": [
+      {
+        "id": 1,
+        "file": "config/config.go",
+        "line": 7,
+        "problem": "Hard-coded secret assignment in the source."
+      },
+      {
+        "id": 2,
+        "file": "lending/lending.go",
+        "line": 75,
+        "problem": "Off-by-one error: the loop condition `i <= len(loans)` causes an index out of bounds panic."
+      },
+      {
+        "id": 3,
+        "file": "lending/lending.go",
+        "line": 76,
+        "problem": "Panic on nil slice: if `loans` is `nil` (member has no loans), accessing `loans[i]` inside the loop (if loop condition wasn't fixed) or relying on `len(loans)` is safe, but if `loans` were accessed directly without checking length first, it would panic. However, with the fixed loop, the main issue is the previous line."
+      }
+    ]
+  }
+}

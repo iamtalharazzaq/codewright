@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI
 
+from agent.skills import SkillRegistry
 from codewright_api import __version__
 from codewright_api.chat import ChatService
 from codewright_api.db import get_engine, get_sessionmaker
@@ -23,6 +24,7 @@ from codewright_api.routes import (
     runs,
     sandbox,
     settings,
+    skills,
     traces,
     uploads,
 )
@@ -40,10 +42,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.graphs = GraphService(cfg, get_sessionmaker(), manager.bus)
     app.state.projects = ProjectService(cfg, get_sessionmaker(), on_ready=app.state.graphs.refresh)
     app.state.sandbox = SandboxService(cfg)
+    app.state.skills = SkillRegistry(cfg.skills_dir, cfg.workspaces_dir)
+    manager.graphs, manager.sandbox = app.state.graphs, app.state.sandbox
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
         app.state.run_manager = manager
-        app.state.chat = ChatService(manager, app.state.graphs)
+        app.state.chat = ChatService(manager, app.state.graphs, app.state.skills)
     except Exception:
         # Keep serving /api/health so the problem is visible; /api/health/ready reports it.
         log.exception("run manager failed to start")
@@ -80,6 +84,7 @@ def create_app() -> FastAPI:
     api.include_router(connectors.router)
     api.include_router(graph.router)
     api.include_router(sandbox.router)
+    api.include_router(skills.router)
     app.include_router(api)
     return app
 

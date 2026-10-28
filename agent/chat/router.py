@@ -34,6 +34,7 @@ class RouterOutput(BaseModel):
     )
     targets: list[str] = Field(default_factory=list, max_length=5, description="Files, folders, modules named.")
     clarifying_question: str = Field(default="", description="One short question if the request is unclear.")
+    skill: str = Field(default="", description="The name of the user's skill this message asks for, or empty.")
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,7 @@ class Route:
     command: str | None = None  # the slash command used, if any
     question: str | None = None  # ask this instead of acting (low confidence)
     decline: str | None = None
+    skill: str | None = None  # a custom skill the model matched (Section 8.6.3); the chat confirms it by keywords
     usage: Usage = field(default_factory=Usage)
 
 
@@ -104,8 +106,10 @@ async def route(
     *,
     history: Sequence[Message] = (),
     has_project: bool = False,
+    skills: Sequence[tuple[str, str]] = (),
 ) -> Route:
-    """Classify one user message. `history` gives the last few turns for follow-ups ("now in Python")."""
+    """Classify one user message. `history` gives the last few turns for follow-ups ("now in Python").
+    `skills` are the user's custom skills that may be used automatically, as (name, description)."""
     slash = parse_slash(text)
     if slash is not None:
         cfg = intent_config(slash.intent)
@@ -129,6 +133,12 @@ async def route(
     user = (
         f"Earlier in the chat:\n{context}\n\n" if context else ""
     ) + f"Project attached: {'yes' if has_project else 'no'}\nMessage: {text}"
+    if skills:
+        listing = "\n".join(f"- {name}: {desc[:160]}" for name, desc in skills[:12])
+        user += (
+            "\n\nThe user's own skills (set `skill` to one name only if the message clearly asks for what it does):\n"
+            + listing
+        )
     result = await structured(
         client,
         RouterOutput,
@@ -155,6 +165,7 @@ async def route(
         out.confidence,
         targets=out.targets,
         question=question,
+        skill=out.skill if out.skill and out.skill in {n for n, _ in skills} else None,
         usage=result.usage,
     )
 

@@ -50,7 +50,12 @@ function elements(
         target: e.target,
         width: 1 + Math.min(5, Math.log2(1 + e.weight)),
       },
-      classes: [newEdges.has(`${e.source}->${e.target}`) && "added", e.weight === 0 && "inferred"]
+      classes: [
+        newEdges.has(`${e.source}->${e.target}`) && "added",
+        e.weight === 0 && !e.user_fact && "inferred",
+        e.user_fact && "fact",
+        e.disputed && "disputed",
+      ]
         .filter(Boolean)
         .join(" "),
     }));
@@ -126,6 +131,19 @@ export function GraphCanvas({
             },
           },
           { selector: "edge.inferred", style: { "line-style": "dashed" } },
+          // Your corrections (USER_FACT): a fact you added is solid and strong; a link you said is wrong is dotted.
+          {
+            selector: "edge.fact",
+            style: { "line-color": STATE_COLORS.highlight, "target-arrow-color": STATE_COLORS.highlight, opacity: 0.9 },
+          },
+          {
+            selector: "edge.disputed",
+            style: {
+              "line-style": "dotted",
+              "line-color": STATE_COLORS.removed,
+              "target-arrow-color": STATE_COLORS.removed,
+            },
+          },
           {
             selector: "edge.added",
             style: { "line-color": STATE_COLORS.added, "target-arrow-color": STATE_COLORS.added },

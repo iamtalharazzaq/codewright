@@ -14,7 +14,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, exists, or_, select
 
-from agent.chat.intents import SLASH_COMMANDS
+from agent.skills import SkillError, SkillRegistry
 from codewright_api.chat import ChatBusy, ChatService
 from codewright_api.db import Conversation, MemoryItem, Message, SessionDep
 from codewright_api.runs import RunConflict
@@ -76,11 +76,20 @@ class ConfirmChoice(BaseModel):
 
 
 @router.get("/commands")
-async def commands() -> list[dict[str, str]]:
-    """Slash commands for the `/` menu (Phase 6 adds custom skills)."""
+async def commands(request: Request, project_id: uuid.UUID | None = None) -> list[dict[str, Any]]:
+    """Slash commands for the `/` menu: the built-in skills, then the enabled custom skills (Section 8.6)."""
+    registry: SkillRegistry | None = getattr(request.app.state, "skills", None)
+    if registry is None:
+        return []
     return [
-        {"command": f"/{name}", "intent": intent, "description": desc}
-        for name, (intent, desc) in SLASH_COMMANDS.items()
+        {
+            "command": s.meta.command,
+            "intent": s.meta.playbook,
+            "description": s.meta.description,
+            "title": s.meta.display,
+            "source": s.source,
+        }
+        for s in registry.enabled(str(project_id) if project_id else None)
     ]
 
 
@@ -168,10 +177,18 @@ async def send_message(
     return SendResult(conversation=ConversationOut.model_validate(conv), user=user, reply=reply)
 
 
+class RegenerateIn(BaseModel):
+    without_skill: bool = Field(default=False, description="Run without the skill that was picked automatically.")
+
+
 @router.post("/conversations/{conversation_id}/messages/{message_id}/regenerate", status_code=201)
-async def regenerate(conversation_id: uuid.UUID, message_id: uuid.UUID, request: Request) -> dict[str, Any]:
+async def regenerate(
+    conversation_id: uuid.UUID, message_id: uuid.UUID, request: Request, body: RegenerateIn | None = None
+) -> dict[str, Any]:
     try:
-        return await _chat(request).regenerate(conversation_id, message_id)
+        return await _chat(request).regenerate(
+            conversation_id, message_id, without_skill=body.without_skill if body else False
+        )
     except LookupError:
         raise HTTPException(404, "Message not found") from None
     except ChatBusy as exc:
@@ -196,6 +213,28 @@ async def confirm(
         raise HTTPException(404, "Message not found") from None
     except RunConflict as exc:
         raise HTTPException(409, str(exc)) from None
+
+
+class CardAction(BaseModel):
+    action: Literal["save", "discard"]
+    markdown: str | None = Field(default=None, max_length=64_000, description="An edited skill draft.")
+    project_id: uuid.UUID | None = Field(default=None, description="Save the skill in this project's scope.")
+
+
+@router.post("/conversations/{conversation_id}/messages/{message_id}/resolve")
+async def resolve_card(
+    conversation_id: uuid.UUID, message_id: uuid.UUID, body: CardAction, request: Request
+) -> dict[str, Any]:
+    """Save / Discard on a correction card (facts on the graph) or a skill draft card."""
+    payload = {"markdown": body.markdown, "project_id": str(body.project_id) if body.project_id else None}
+    try:
+        return await _chat(request).resolve_card(conversation_id, message_id, body.action, payload)
+    except LookupError:
+        raise HTTPException(404, "Message not found") from None
+    except RunConflict as exc:
+        raise HTTPException(409, str(exc)) from None
+    except SkillError as exc:
+        raise HTTPException(422, {"message": str(exc), "problems": exc.problems}) from None
 
 
 @router.post("/conversations/{conversation_id}/stop", status_code=204)

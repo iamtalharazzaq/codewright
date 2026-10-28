@@ -17,3 +17,16 @@ defaults:
 tiers:
   0:
     per_run: { max_tokens: 60000, max_hours: 0.5 }
+
+# Per-playbook overrides, applied after the tier's: tier-0 playbooks that read a whole project make many small calls
+# (one per file chunk), so they get room for that while staying answer-only.
+playbooks:
+  code_review:
+    per_step: { max_llm_calls: 120, max_tokens: 500000 }
+    per_run: { max_tokens: 600000, max_hours: 2 }
+  audit:
+    per_step: { max_llm_calls: 60, max_tokens: 250000 }
+    per_run: { max_tokens: 600000, max_hours: 2 }
+  docs:
+    per_step: { max_llm_calls: 30, max_tokens: 150000 }
+    per_run: { max_tokens: 400000, max_hours: 2 }

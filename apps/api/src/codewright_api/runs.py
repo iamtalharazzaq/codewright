@@ -17,7 +17,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
@@ -35,11 +35,16 @@ from agent.llm.langchain_model import chat_model
 from agent.playbooks.llm_step import RunStopped
 from agent.playbooks.plan import plan_from
 from agent.playbooks.registry import Playbook, get_playbook, playbooks
+from agent.playbooks.services import ProjectTools
 from agent.playbooks.state import RunState, empty_budget
 from codewright_api.db import Approval, Project, Run, RunEvent
 from codewright_api.llm_settings import EffectiveLLM, effective_llm
 from codewright_api.settings import Settings
 from codewright_api.tracing import FanOutTraceSink, LangfuseTraceSink, PostgresTraceSink, langfuse_client
+
+if TYPE_CHECKING:  # graph.py imports this module (EventBus)
+    from codewright_api.graph import GraphService
+    from codewright_api.sandbox import SandboxService
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +112,13 @@ class _Services:
     def chat_model(self, profile: ProfileName, *, run_id: str, step: str, role: str, **kwargs: Any) -> BaseChatModel:
         client = self._manager.llm.client(profile, self._tracer(run_id, step, role))
         return chat_model(client, trace_name=f"{step}_agent", **kwargs)
+
+    def project(self, project_id: str) -> ProjectTools:
+        from codewright_api.project_tools import ApiProjectTools  # noqa: PLC0415  (imports graph.py, which imports us)
+
+        if self._manager.graphs is None:
+            raise RuntimeError("The run manager has no project services attached.")
+        return ApiProjectTools(project_id, self._manager.sessions, self._manager.graphs, self._manager.sandbox)
 
 
 class _StreamTranslator:
@@ -189,6 +201,9 @@ class RunManager:
         self._graphs: dict[str, CompiledStateGraph[Any, Any, Any, Any]] = {}
         self._llm: EffectiveLLM | None = None
         self.langfuse: Any | None = langfuse_client()
+        # Project services for playbooks with `needs_project` (attached by the app after creating them).
+        self.graphs: GraphService | None = None
+        self.sandbox: SandboxService | None = None
         # Called after every status change (the chat posts run updates and the Done card).
         self.status_listeners: list[Callable[[uuid.UUID, str], Awaitable[None]]] = []
 
@@ -267,6 +282,7 @@ class RunManager:
         llm_profile: ProfileName | None = None,
         tier: int | None = None,
         conversation_id: uuid.UUID | None = None,
+        project_id: uuid.UUID | None = None,
     ) -> Run:
         """Start a playbook. `tier` may raise the playbook's default tier (more approvals), never lower it."""
         pb: Playbook = get_playbook(playbook)
@@ -275,8 +291,9 @@ class RunManager:
             active = await session.scalar(select(Run.id).where(Run.status.in_(ACTIVE_STATUSES)).limit(1))
             if active:
                 raise RunConflict(f"Run {active} is still active. Codewright runs one job at a time.")
-            project_id = None
-            if project_name:
+            if pb.spec.needs_project and project_id is None:
+                raise ValueError(f"The {pb.title} playbook works on a project: start it from a project chat.")
+            if project_name and project_id is None:
                 project = Project(name=project_name, status="active")
                 session.add(project)
                 await session.flush()
@@ -411,7 +428,7 @@ class RunManager:
             "workspace": str(workspace.resolve()),
             "llm_profile": run.llm_profile,  # type: ignore[typeddict-item]
             "started_at": run.created_at.timestamp(),
-            "limits": limits_for_tier(run.tier),
+            "limits": limits_for_tier(run.tier, playbook=run.playbook),
             "plan": plan_from(pb.spec.initial_plan(run.inputs)),
             "budget": empty_budget(),
         }

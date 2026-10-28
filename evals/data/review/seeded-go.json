@@ -1,0 +1,15 @@
+{
+  "repo": "evals/repos/seeded-go",
+  "clean": ["lending/fees.go"],
+  "issues": [
+    {"id": "sql-injection", "file": "store/store.go", "at": "query := fmt.Sprintf(\"SELECT", "about": "sql|inject", "serious": true},
+    {"id": "scan-error-ignored", "file": "store/store.go", "at": "rows.Scan(&b.ID", "about": "scan|error|ignor|unchecked"},
+    {"id": "rows-not-closed", "file": "store/store.go", "at": "rows, err := s.db.Query(query)", "about": "close|leak", "to": "return books, nil"},
+    {"id": "map-race", "file": "lending/lending.go", "at": "d.loans[member] = append(d.loans[member], Loan{", "about": "race|mutex|lock|concurren|synchroni|goroutine", "serious": true},
+    {"id": "nil-after-error", "file": "lending/lending.go", "at": "if book.Available == 0", "about": "nil|continu|ignor|after.*(error|log)|panic|not return", "serious": true},
+    {"id": "off-by-one", "file": "lending/lending.go", "at": "for i := 0; i <= len(loans); i++", "about": "off.by.one|out of (range|bounds)|index|<=|panic|bound", "serious": true},
+    {"id": "hardcoded-secret", "file": "config/config.go", "at": "const JWTSecret", "about": "secret|hard.?coded|credential|key", "serious": true},
+    {"id": "body-not-closed", "file": "covers/covers.go", "at": "resp, err := http.Get(", "about": "close|leak", "to": "return io.ReadAll(resp.Body)"},
+    {"id": "atoi-error-ignored", "file": "main.go", "at": "id, _ := strconv.Atoi", "about": "ignor|error|invalid|atoi|valid|discard"}
+  ]
+}

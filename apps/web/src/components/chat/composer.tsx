@@ -8,7 +8,8 @@ import { listCommands, uploadFile, type SlashCommand, type UploadInfo } from "@/
 import { cn } from "@/lib/utils";
 
 /**
- * The message box. Enter sends, Shift+Enter adds a line. Typing `/` opens the command menu (Tab or click picks one).
+ * The message box. Enter sends, Shift+Enter adds a line. Typing `/` opens the command menu (Tab or click picks one):
+ * the built-in skills, then the user's own (global, and this project's when the chat is in one).
  * While a reply is being written the send button becomes Stop. The clip uploads files (secret-scanned on the server);
  * they go with the next message.
  */
@@ -18,12 +19,14 @@ export function Composer({
   onSend,
   busy = false,
   onStop,
+  projectId = null,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSend: (text: string, attachments: string[]) => void;
   busy?: boolean;
   onStop?: () => void;
+  projectId?: string | null;
 }) {
   const id = useId();
   const input = useRef<HTMLTextAreaElement>(null);
@@ -51,10 +54,10 @@ export function Composer({
   }
 
   useEffect(() => {
-    listCommands()
+    listCommands(projectId)
       .then(setCommands)
       .catch(() => setCommands([]));
-  }, []);
+  }, [projectId]);
 
   // The menu shows while the first word is being typed: "/rev" → /review-code.
   const typing = /^\/[\w-]*$/.test(value);
@@ -121,6 +124,11 @@ export function Composer({
               )}
             >
               <span className="font-mono">{c.command}</span>
+              {c.source && c.source !== "builtin" && (
+                <span className="shrink-0 rounded bg-muted px-1.5 text-[0.7rem] text-muted-foreground">
+                  {c.source === "project" ? "project skill" : "your skill"}
+                </span>
+              )}
               <span className="truncate text-xs text-muted-foreground">{c.description}</span>
             </li>
           ))}

@@ -73,6 +73,7 @@ def app_factory(migrated_db: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     Each call creates a fresh app, like a restarted API process. Use it as a context manager."""
     monkeypatch.setenv("DATABASE_URL", migrated_db)
     monkeypatch.setenv("WORKSPACES_DIR", str(tmp_path / "workspaces"))
+    monkeypatch.setenv("SKILLS_DIR", str(tmp_path / "skills"))  # user skills never land in the repo's folder
     # Model servers that can't be reached: tests never depend on a real LLM.
     monkeypatch.setenv("LLM_LOCAL_CPU_URL", "http://127.0.0.1:9/v1")
     monkeypatch.setenv("LLM_REMOTE_GPU_URL", "http://127.0.0.1:9/v1")

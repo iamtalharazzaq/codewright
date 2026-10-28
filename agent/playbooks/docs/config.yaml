@@ -1,0 +1,8 @@
+# CODEWRIGHT.md Section 5.5. Tier 1: one approval on the result; the docs go into the project on a branch.
+title: Docs
+description: >-
+  README, API reference, architecture and runbook for a project, written from facts collected from the code
+  (endpoints, commands, settings, modules, data stores) and checked against it: every endpoint and file mentioned must
+  exist and the documented build runs in the sandbox. One approval, then the files go into the project on a new branch.
+intent: write_docs
+lead_role: technical_writer

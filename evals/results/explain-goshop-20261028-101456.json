@@ -1,0 +1,209 @@
+[
+  {
+    "id": "place-order",
+    "question": "/explain How does PlaceOrder work?",
+    "facts": [
+      "validat",
+      "coupon",
+      "transaction",
+      "reserv",
+      "pending.?payment",
+      "notif|SendOrderPlaced"
+    ],
+    "file": "internal/order/service/order.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 18.2,
+    "diagram": true,
+    "conversation": "0b01b2a8-066e-427c-b5db-2692cf4e5efe",
+    "answer": "`PlaceOrder` validates the request, calculates totals, applies coupons, and then atomically creates the order and reserves stock within a database transaction. After the transaction commits, it sends a background notification to the user.\n\n### Step-by-Step Flow\n\n1.  **Validation**\n    *   `internal/order/service/order.go` L88: The method first validates the incoming `PlaceOrderReq` using `s.validator.ValidateStruct`. If validation fails, it returns the error immediately.\n\n2.  **Preparation of Order Lines**\n    *   `internal/order/service/order.go` L92: It initializes a slice of `OrderLine` structs.\n    *   `internal/order/service/order.go` L98\u2013L104: It iterates through the lines to fetch product details from `s.productRepo`. It calculates the total price for each line item (`Price * Quantity`) and stores the product in a map for later reference.\n\n3.  **Coupon Application**\n    *   `internal/order/service/order.go` L115: If a `CouponCode` is provided, it calls `s.couponSvc.Apply` to calculate the discount and retrieve coupon metadata.\n    *   `internal/order/service/order.go` L120\u2013L122: If the coupon application succeeds, it stores the discount amount and coupon details; otherwise, it propagates the error.\n\n4.  **Atomic Transaction (Create Order & Reserve Stock)**\n    *   `internal/order/service/order.go` L129: The code enters a database transaction via `s.db.WithTransaction`.\n    *   `internal/order/service/order.go` L130: It creates the order record in the database with `s.repo.CreateOrder`, passing the user ID, lines, and discount info.\n    *   `internal/order/service/order.go` L134\u2013L136: It updates the order status to `PendingPayment` and persists the change.\n    *   `internal/order/service/order.go` L140\u2013L147: It iterates through the lines to reserve stock for each product via `s.productRepo.ReserveStock`. If stock is insufficient, it returns a specific `InsufficientStockError`.\n    *   `internal/order/service/order.go` L156: It persists the created `StockReservation` records to the database.\n    *   `internal/order/service/order.go` L161: If a coupon was used, it increments the usage count for that coupon ID.\n    *   `internal/order/service/order.go` L165: If the transaction succeeds, it assigns the created order to the local variable `order`.\n\n5.  **Background Notification**\n    *   `internal/order/service/order.go` L176: After the transaction completes successfully, it spawns a goroutine.\n    *   `internal/order/service/order.go` L177\u2013L184: The goroutine fetches the user's email and attempts to send an order placed notification via `s.notifier.SendOrderPlaced`. Errors here are logged but do not affect the returned order.\n\n6.  **Return**\n    *   `internal/order/service/order.go` L172\u2013L174: Before returning, it enriches the `Order` object by attaching the full `Product` details from the `productMap` to each line.\n    *   `internal/order/service/order.go` L187: It returns the populated `Order` object and `nil` (no error)."
+  },
+  {
+    "id": "mark-paid",
+    "question": "/explain What does MarkOrderPaid do?",
+    "facts": [
+      "idempoten|already paid",
+      "CommitReservation|commit",
+      "paid",
+      "LowStock|low.stock"
+    ],
+    "file": "internal/order/service/order.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 16.1,
+    "diagram": true,
+    "conversation": "65d69d18-2c2e-4aa2-a4c5-1ac33953d144",
+    "answer": "MarkOrderPaid updates an order to a \"Paid\" status and permanently commits any associated product reservations within a database transaction. It ensures idempotency by returning early if the order is already paid and rejects transitions from cancelled or failed states.\n\n**Step-by-Step Flow:**\n\n1.  **Retrieve Order**\n    *   `internal/order/service/order.go` L241: Calls `s.repo.GetOrderByID` to fetch the order with full details.\n    *   **Action:** If retrieval fails, the function returns the error immediately.\n\n2.  **Validate Current Status**\n    *   `internal/order/service/order.go` L245: Checks if `order.Status` is already `model.OrderStatusPaid`.\n    *   **Action:** If true, it returns the existing order (idempotent operation).\n    *   `internal/order/service/order.go` L248: Checks if the status is `model.OrderStatusCancelled` or `model.OrderStatusPaymentFailed`.\n    *   **Action:** If true, it returns an invalid status error, preventing payment on cancelled/failed orders.\n\n3.  **Execute Database Transaction**\n    *   `internal/order/service/order.go` L253: Enters a transaction via `s.db.WithTransaction`.\n    *   **Step 3a: Commit Reservations**\n        *   `internal/order/service/order.go` L254: Fetches active reservations linked to the order ID using `s.reservationRepo.FindActiveByOrderID`.\n        *   `internal/order/service/order.go` L259: Iterates through reservations and calls `s.productRepo.CommitReservation` for each product to finalize inventory allocation.\n        *   `internal/order/service/order.go` L262: Collects the committed product IDs into a slice.\n    *   **Step 3b: Update Reservation Status**\n        *   `internal/order/service/order.go` L264: Generates a list of reservation IDs using the helper `reservationIDs`.\n        *   `internal/order/service/order.go` L265: Calls `s.reservationRepo.UpdateStatus` to change all involved reservations to `model.ReservationStatusCommitted`.\n    *   **Step 3c: Update Order Status**\n        *   `internal/order/service/order.go` L268: Sets `order.Status` to `model.OrderStatusPaid`.\n        *   `internal/order/service/order.go` L269: Persists the change by calling `s.repo.UpdateOrder`.\n\n4.  **Handle Transaction Result**\n    *   `internal/order/service/order.go` L271: Checks for any errors (`txErr`) returned from the transaction block.\n    *   **Action:** If an error occurred, it returns nil and the error.\n\n5.  **Publish Low Stock Event**\n    *   `internal/order/service/order.go` L274: Calls `s.publishLowStock` with the slice of `committedProductIDs` to notify other services or logic about the newly reserved inventory.\n\n6.  **Return Success**\n    *   `internal/order/service/order.go` L275: Returns the updated `order` object and a nil error."
+  },
+  {
+    "id": "coupon-apply",
+    "question": "/explain How does couponSvc.Apply calculate the discount?",
+    "facts": [
+      "expir",
+      "MaxUsage|max.?usage|UsedCount|used.count|usage limit",
+      "MinOrderAmount|minimum",
+      "fixed",
+      "percent"
+    ],
+    "file": "internal/order/service/coupon.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 12.1,
+    "diagram": true,
+    "conversation": "fe7a4986-1d7e-4baa-a1be-380124052436",
+    "answer": "It calculates the discount by validating the coupon against expiration and usage limits, then applying either a fixed amount or a percentage based on the `DiscountType`.\n\n### Step-by-Step Flow\n\n1.  **Retrieve Coupon**\n    *   `internal/order/service/coupon.go` L55\n    *   Fetches the coupon record using `s.repo.GetByCode`. If it doesn't exist, it returns an error.\n\n2.  **Validate Expiration**\n    *   `internal/order/service/coupon.go` L60-L63\n    *   Checks if `coupon.ExpiresAt` is set and if the current time is past that date. If so, it returns an error.\n\n3.  **Validate Usage Limits**\n    *   `internal/order/service/coupon.go` L64-L66\n    *   Checks if `coupon.MaxUsage` is set and if the current `UsedCount` has reached the limit. If so, it returns an error.\n\n4.  **Validate Minimum Order Amount**\n    *   `internal/order/service/coupon.go` L67-L69\n    *   Ensures the `totalPrice` provided is greater than or equal to `coupon.MinOrderAmount`. If not, it returns an error.\n\n5.  **Calculate Discount Value**\n    *   `internal/order/service/coupon.go` L71-L82\n    *   It initializes `discount` to 0 and switches on `coupon.DiscountType`:\n        *   **Fixed (`model.DiscountTypeFixed`)**: Uses `coupon.DiscountValue`. If this value exceeds `totalPrice`, it caps the discount at `totalPrice` to avoid negative totals.\n        *   **Percentage (`model.DiscountTypePercentage`)**: Calculates `totalPrice * coupon.DiscountValue / 100`.\n\n6.  **Return Result**\n    *   `internal/order/service/coupon.go` L82\n    *   Returns the calculated `discount` amount, the `coupon` object, and `nil` for the error."
+  },
+  {
+    "id": "webhook",
+    "question": "/explain How does HandleWebhook process a payment event?",
+    "facts": [
+      "VerifyWebhook|signature",
+      "RecordProviderEvent|dedup|duplicate|already processed",
+      "MarkOrderPaid",
+      "fail",
+      "cancel"
+    ],
+    "file": "internal/payment/service/service.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 16.1,
+    "diagram": true,
+    "conversation": "31a05621-181f-4d9f-bd07-aefe8e9c28c3",
+    "answer": "HandleWebhook processes a payment event by verifying the webhook signature, deduplicating the event, retrieving the associated order record, and then updating the payment and order statuses based on the specific event type.\n\nHere is the step-by-step flow:\n\n1.  **Verify Signature**: The function receives the raw payload and signature header. It calls `s.provider.VerifyWebhook` to validate the authenticity of the request.\n    *   `internal/payment/service/service.go` L108: `event, err := s.provider.VerifyWebhook(payload, signatureHeader)`\n    *   If verification fails, the function returns the error immediately (L109-L111).\n\n2.  **Deduplicate Event**: Before performing any side effects, the function records the event ID in the repository to prevent processing the same event twice.\n    *   `internal/payment/service/service.go` L114: `if err := s.repo.RecordProviderEvent(ctx, s.providerName, event.ID); err != nil`\n    *   If the error indicates the event was already processed (`ErrEventAlreadyProcessed`), it returns `nil` safely (L115-L117).\n    *   Other database errors are returned immediately (L118).\n\n3.  **Validate and Fetch Order**: The function checks if the event contains an `order_id`. If missing, it returns an error. Otherwise, it fetches the payment record associated with that order.\n    *   `internal/payment/service/service.go` L121-L123: Checks for empty `OrderID`.\n    *   `internal/payment/service/service.go` L124: `rec, err := s.repo.GetByOrderID(ctx, event.OrderID)`\n\n4.  **Process Event Type**: It switches on `event.Type` to handle the specific payment outcome:\n    *   **Succeeded (L130)**: Sets payment status to `Succeeded`, saves the record, and calls `orderService.MarkOrderPaid` (L131-L137).\n    *   **Failed (L138)**: Sets payment status to `Failed`, saves the record, and updates the order status to `PaymentFailed` (L139-L145).\n    *   **Canceled (L146)**: Sets payment status to `Canceled`, saves the record, and updates the order status to `Cancelled` (L149-L155).\n    *   **Processing (L156)**: Sets payment status to `Processing` to reflect async methods like bank debits (L159-L162).\n    *   **RequiresAction (L163)**: Sets payment status to `RequiresAction` for challenges like 3DS without changing the order status (L166-L169).\n    *   **Unknown (L170)**: Does nothing other than returning `nil` since the event is already deduplicated (L171-L172)."
+  },
+  {
+    "id": "payment-intent",
+    "question": "/explain How does CreateIntentForOrder work?",
+    "facts": [
+      "pending.?payment|PendingPayment",
+      "idempoten",
+      "FinalPrice|\\* ?100|cents|minor units"
+    ],
+    "file": "internal/payment/service/service.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 16.1,
+    "diagram": true,
+    "conversation": "13b7fcdf-8b92-4da4-a72f-d902ab8b3cbb",
+    "answer": "`CreateIntentForOrder` creates a Stripe payment intent for a pending order, optionally persisting a local payment record on first creation. It validates the order status, calculates the amount in cents, calls the Stripe provider, and saves a database row only if it doesn't already exist.\n\n### Step-by-Step Flow\n\n1.  **Fetch Order**\n    *   `internal/payment/service/service.go` L59: Calls `s.orderQuery.GetOrderByID` to retrieve the order.\n    *   If the order is not found or an error occurs, the function returns immediately (L61).\n\n2.  **Validate Status**\n    *   `internal/payment/service/service.go` L63: Checks if `order.Status` equals `orderModel.OrderStatusPendingPayment`.\n    *   If the status is incorrect, it returns an error (L64).\n\n3.  **Lookup Existing Payment Record**\n    *   `internal/payment/service/service.go` L71: Calls `s.repo.GetByOrderID` to check for an existing local payment row.\n    *   If the record is not found, `existing` is `nil`. If a generic error occurs, it returns early (L72-L73).\n    *   *Note:* The function does not short-circuit here; it continues to create the Stripe intent even if a local row exists, relying on Stripe's idempotency.\n\n4.  **Prepare and Create Stripe Intent**\n    *   `internal/payment/service/service.go` L76-L77: Calculates `amount` as `order.FinalPrice * 100` and sets `currency` to \"usd\".\n    *   `internal/payment/service/service.go` L78-L83: Calls `s.provider.CreateIntent` with the amount, currency, order ID, and an idempotency key (`order_` + `order.ID`).\n    *   If the provider call fails, it returns the error (L84-L85).\n\n5.  **Persist Local Record (If Needed)**\n    *   `internal/payment/service/service.go` L91: Checks if `existing` is `nil` (first time for this order).\n    *   If `nil`, it creates a new `model.Payment` record (L92-L99) with status `Pending`.\n    *   `internal/payment/service/service.go` L100: Saves the record via `s.repo.Create`. If this fails, it returns the error (L100-L102).\n    *   If a record already exists, this step is skipped.\n\n6.  **Return Result**\n    *   `internal/payment/service/service.go` L104: Returns the Stripe `intent` object and `nil` error."
+  },
+  {
+    "id": "login",
+    "question": "/explain How does Login work in the user service?",
+    "facts": [
+      "Authentik|OIDC",
+      "bcrypt|CompareHashAndPassword",
+      "mintTokens|refresh"
+    ],
+    "file": "internal/user/service/user.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 14.1,
+    "diagram": true,
+    "conversation": "b06615c5-936e-4aba-b377-e55c26aaa1ce",
+    "answer": "The `Login` function in the user service authenticates users by first checking for an integrated Authentik OIDC provider, then falling back to local database credentials. It returns the user object along with access and refresh tokens upon successful authentication.\n\nHere is the step-by-step flow:\n\n1.  **Input Validation**\n    *   `internal/user/service/user.go` L61: The function receives a request containing email and password. It immediately validates the request structure using `s.validator.ValidateStruct`. If validation fails, it returns an error without proceeding.\n\n2.  **Authentik OIDC Check (If Enabled)**\n    *   `internal/user/service/user.go` L65: The code checks if the `s.authentik` provider is configured.\n    *   `internal/user/service/user.go` L68: If enabled, it delegates the credential check to Authentik via `s.authentik.PasswordLogin`, passing the email and password.\n    *   `internal/user/service/user.go` L73: Upon successful OIDC login, it calls `s.UpsertUserFromOIDC` to create or update the user record in the database using the OIDC claims (Sub, Email, Name).\n    *   `internal/user/service/user.go` L77: Finally, it generates new JWT tokens (`access`, `refresh`) by calling `mintTokens` with the updated user.\n\n3.  **Local Database Check (Fallback)**\n    *   `internal/user/service/user.go` L81: If Authentik is not used, it retrieves the user from the database by email using `s.repo.GetUserByEmail`.\n    *   `internal/user/service/user.go` L87: It compares the provided password hash against the stored hash using `bcrypt.CompareHashAndPassword`.\n    *   `internal/user/service/user.go` L92: If the password matches, it generates JWT tokens via `mintTokens` using the retrieved user object.\n\n4.  **Token Minting**\n    *   `internal/user/service/user.go` L77 / L92: The `mintTokens` function is called in both paths to produce the `accessToken` and `refreshToken` strings returned to the client.\n\n5.  **Return Values**\n    *   `internal/user/service/user.go` L78 / L93: The function returns the `model.User`, the `access` token string, the `refresh` token string, and a `nil` error.\n\nThe HTTP and gRPC handlers (`internal/user/port/http/handlers.go` and `internal/user/port/grpc/handlers.go`) simply unpack these four return values and package them into the respective response structures (`domain.LoginRes` or `pb.LoginRes`) before sending them to the client."
+  },
+  {
+    "id": "sweeper",
+    "question": "/explain What does SweepExpiredReservations do?",
+    "facts": [
+      "expire|FindExpired",
+      "ReleaseReservation|releas",
+      "cancel",
+      "notif|SendOrderStatusChanged"
+    ],
+    "file": "internal/order/service/order.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 16.2,
+    "diagram": true,
+    "conversation": "1f49bf93-0450-42ff-b88b-ef79eae4e1e0",
+    "answer": "`SweepExpiredReservations` iterates through expired stock reservations, releases the held inventory, marks the reservations as released, and cancels the associated orders if they are still pending. It handles orphaned reservations (where the order is missing) and gracefully skips releases if the stock counter is already drained.\n\n### Step-by-Step Flow\n\n1.  **Initialization and Batch Fetch**\n    *   `internal/order/service/order.go` L336-342: The function accepts a `batchSize` (defaulting to 100). It calls `s.reservationRepo.FindExpired` to fetch a batch of reservations that have exceeded their expiration time. If the fetch fails or returns no rows, the function exits early.\n\n2.  **Grouping by Order**\n    *   `internal/order/service/order.go` L348-351: The code groups the fetched `expired` reservations by their `OrderID` into a map (`byOrder`). This ensures that each parent order is processed only once within a transaction.\n\n3.  **Processing Each Order Group**\n    *   `internal/order/service/order.go` L354-392: The function iterates through each order group. It opens a database transaction (`s.db.WithTransaction`) to ensure atomicity for the specific order's updates.\n        *   **Fetch Order:** It retrieves the parent order via `s.repo.GetOrderByID` (`internal/order/service/order.go` L357).\n        *   **Handle Orphaned Reservations:** If the order is not found (`gorm.ErrRecordNotFound`), it sets `orderMissing = true` and skips cancellation logic, but proceeds to release stock.\n        *   **Skip Completed Orders:** If the order status is not `PendingPayment` or `New` (e.g., it's already paid or fulfilled), the transaction returns `nil` immediately, skipping stock release and cancellation.\n        *   **Release Stock:** For each reservation in the group, it calls `s.productRepo.ReleaseReservation` (`internal/order/service/order.go` L373). If the stock is already drained (returning `ErrReservationAlreadyReleased`), it logs a warning and treats the release as successful to avoid an error loop.\n        *   **Update Reservation Status:** It updates all reservation IDs in the group to `model.ReservationStatusReleased` via `s.reservationRepo.UpdateStatus` (`internal/order/service/order.go` L384).\n        *   **Cancel Order:** If the order exists and was not skipped, it updates the order status to `model.OrderStatusCancelled` via `s.repo.UpdateOrder` (`internal/order/service/order.go` L391).\n\n4.  **Transaction Handling and Notification**\n    *   `internal/order/service/order.go` L393-401: If the transaction fails, it logs the error and continues to the next order. If the order was orphaned (`orderMissing`), it logs a warning and increments the `released` counter. Otherwise, it increments the counter for successfully processed groups.\n    *   `internal/order/service/order.go` L405-417: After the transaction commits, it spawns a goroutine to send a notification to the user. It fetches the order and user details again, then calls `s.notifier.SendOrderStatusChanged` to inform the user that their order was cancelled.\n\n5.  **Return**\n    *   `internal/order/service/order.go` L419: The function returns the total count of released reservations and a `nil` error."
+  },
+  {
+    "id": "cancel-order",
+    "question": "/explain How does CancelOrder work?",
+    "facts": [
+      "ErrForbidden|forbidden|owner|belongs",
+      "ErrInvalidStatus|invalid status|already",
+      "releas",
+      "cancel"
+    ],
+    "file": "internal/order/service/order.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 16.1,
+    "diagram": true,
+    "conversation": "d6324d7a-06f5-4959-be7f-e98fd30ea924",
+    "answer": "CancelOrder allows a user to cancel their own order by updating its status to \"Cancelled\" within a database transaction that first releases any active reservations. It validates user ownership and order state before executing the change.\n\n**Flow:**\n\n1.  **Request Entry (HTTP/GRPC)**\n    *   `internal/order/port/http/handlers.go` L182: The HTTP handler extracts the `userId` from the context and the `orderID` from the URL path.\n    *   It validates that both are present, returning `ErrUnauthorized` or `ErrBadRequest` if missing.\n    *   It calls `a.service.CancelOrder(c, orderID, userID)`.\n\n2.  **Service Logic**\n    *   `internal/order/service/order.go` L306: The service method retrieves the order by ID using `s.repo.GetOrderByID`.\n    *   `internal/order/service/order.go` L312: It checks if the provided `userID` matches the `order.UserID`. If not, it returns `apperror.ErrForbidden`.\n    *   `internal/order/service/order.go` L316: It checks if the order status is `Done`, `Cancelled`, or `Paid`. If so, it returns `apperror.ErrInvalidStatus`.\n\n3.  **Transaction Execution**\n    *   `internal/order/service/order.go` L322: It begins a database transaction via `s.db.WithTransaction`.\n    *   `internal/order/service/order.go` L323: Inside the transaction, it calls `s.releaseActiveReservations(ctx, order.ID)` to free up any held inventory or resources.\n    *   `internal/order/service/order.go` L326: It updates the order's status to `model.OrderStatusCancelled`.\n    *   `internal/order/service/order.go` L327: It persists the change by calling `s.repo.UpdateOrder(ctx, order)`.\n\n4.  **Response**\n    *   If the transaction succeeds, the updated `order` object is returned to the handler.\n    *   The handler formats the response (e.g., `domain.OrderFromModel(order)` for HTTP) and sends it back to the client."
+  },
+  {
+    "id": "low-stock",
+    "question": "/explain How does publishLowStock decide when to send a LowStock event?",
+    "facts": [
+      "LowStockThreshold|threshold",
+      "ReservedQuantity|reserved",
+      "Publish|event bus|eventbus"
+    ],
+    "file": "internal/order/service/order.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 16.1,
+    "diagram": true,
+    "conversation": "af07f7e4-1c37-4b55-a98e-2e6ebf36f4fe",
+    "answer": "`publishLowStock` sends a `LowStock` event whenever a product's calculated available stock is less than or equal to the global `LowStockThreshold`. It iterates through a list of product IDs, fetches each product, calculates its available stock, and publishes the event if the threshold is met.\n\nHere is the step-by-step flow:\n\n1.  **Check Input List**\n    *   `internal/order/service/order.go` L282: It returns immediately if the `productIDs` slice is empty.\n2.  **Select Event Bus**\n    *   `internal/order/service/order.go` L285-288: It initializes the event bus (`bus`) from the service, falling back to the default event bus if the service's bus is nil.\n3.  **Iterate Products**\n    *   `internal/order/service/order.go` L289: It loops through each `pid` in the `productIDs` list.\n4.  **Fetch Product**\n    *   `internal/order/service/order.go` L290: It calls `s.productRepo.GetProductByID` to retrieve the product details.\n    *   `internal/order/service/order.go` L291-293: If fetching fails, it logs an error and continues to the next product (best-effort).\n5.  **Calculate Available Stock**\n    *   `internal/order/service/order.go` L295: It calculates `available` stock by subtracting `ReservedQuantity` from `StockQuantity`.\n6.  **Check Threshold**\n    *   `internal/order/service/order.go` L296: It checks if `available` is less than or equal to `LowStockThreshold`.\n7.  **Publish Event**\n    *   `internal/order/service/order.go` L297-301: If the threshold is met, it publishes a `LowStock` event containing the `ProductID`, `Available` count, and `Threshold`."
+  },
+  {
+    "id": "reservation-ttl",
+    "question": "/explain What is ReservationTTL and what happens when it runs out?",
+    "facts": [
+      "15",
+      "minute",
+      "sweep|releas",
+      "cancel"
+    ],
+    "file": "internal/order/service/order.go",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 0,
+    "ok": true,
+    "seconds": 12.1,
+    "diagram": false,
+    "conversation": "c3d53300-ce28-4ae5-9245-d5ff1cd01208",
+    "answer": "`ReservationTTL` is a constant defining the 15-minute window an order holds reserved stock before it expires. When this time runs out, a background sweeper process releases the stock and cancels the order.\n\n**Definition and Purpose**\n*   **Location:** `internal/order/service/order.go` L23\u201326\n*   **Value:** `15 * time.Minute`\n*   **Purpose:** It balances allowing users time to complete payment while preventing abandoned carts from locking up inventory for other shoppers.\n\n**Expiration Flow**\n1.  **Trigger:** The system sets an expiration timestamp by adding the `ReservationTTL` to the current time (`internal/order/service/order.go` L128).\n2.  **Action:** Once the current time exceeds this timestamp, a sweeper process identifies the order.\n3.  **Result:** The sweeper releases the reserved stock back into the general pool and cancels the order."
+  },
+  {
+    "id": "payment-deps",
+    "question": "/explain Which modules does the payment module depend on, and why?",
+    "facts": [
+      "order"
+    ],
+    "file": "",
+    "missing": [],
+    "cites_file": true,
+    "hedges": 1,
+    "ok": true,
+    "seconds": 12.1,
+    "diagram": true,
+    "conversation": "1f4f2544-85d0-4ff0-8f0c-a4363eaf47a2",
+    "answer": "The payment module depends on `internal/order` for domain data consistency and `pkg/payment` for provider-specific implementations like Stripe. These dependencies allow the payment logic to reference order details and delegate external payment processing without duplicating provider code.\n\n### 1. Dependency on `internal/order`\n**Why:** To ensure payments are always linked to valid orders and to access order-specific data (like `OrderID`) when creating payment intents or recording events.\n\n*   **Usage:** The service layer imports the order model to validate relationships.\n*   **Evidence:**\n    ```go\n    // internal/payment/service/service.go L10\n    orderModel \"goshop/internal/order/model\"\n    ```\n*   **Flow:** When `CreateIntentForOrder` is called, it likely uses this model to construct the payment context.\n\n### 2. Dependency on `pkg/payment`\n**Why:** To abstract payment provider logic (e.g., Stripe) from the core business logic, allowing the system to switch providers or integrate multiple gateways easily.\n\n*   **Usage:** The module uses the `payment.Intent` and `payment.Event` types to communicate with providers.\n*   **Evidence:**\n    ```go\n    // internal/payment/service/service.go L14\n    \"goshop/pkg/payment\"\n    ```\n*   **Flow:**\n    1.  The `paymentService` calls `provider.CreateIntent` (defined in `pkg/payment/stripe/stripe.go`).\n    2.  It receives a `*payment.Intent` (defined in `pkg/payment/payment.go`).\n    3.  It stores this intent in the database (via `internal/payment/repository`).\n\n### 3. Internal Dependencies\nThe module also defines its own repositories and handlers within `internal/payment` to manage data persistence and HTTP interactions, which rely on the above two modules.\n\n*   **Repository:** `internal/payment/repository` handles GORM database operations for the `Payment` model.\n*   **Handler:** `internal/payment/port/http` exposes REST endpoints that call the `paymentService`."
+  }
+]

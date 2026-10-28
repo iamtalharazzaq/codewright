@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     public_url: str = "http://localhost:3000"  # where the browser reaches the app (OAuth redirect)
     # Sandbox runner (Phase 5, ADR 0020): the only service with Docker access.
     sandbox_url: str = "http://sandbox-runner:8200"
+    # Global custom skills (Phase 6, ADR 0021); built-ins live in skills/builtin, project skills in the workspace.
+    skills_dir: Path = REPO_ROOT / "skills" / "user"
 
     def load_models(self) -> ModelsConfig:
         """models.yaml with the environment's URL overrides applied (Settings-page overrides come on top)."""

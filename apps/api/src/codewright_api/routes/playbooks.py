@@ -19,6 +19,7 @@ class PlaybookOut(BaseModel):
     intent: str | None
     lead_role: str
     tier: int
+    needs_project: bool
     steps: list[dict[str, Any]]
     gates: list[dict[str, Any]]
     inputs_schema: dict[str, Any]
@@ -32,6 +33,7 @@ def playbook_out(pb: Playbook) -> PlaybookOut:
         intent=pb.intent,
         lead_role=pb.lead_role,
         tier=pb.tier,
+        needs_project=pb.spec.needs_project,
         steps=[{"id": s.id, "title": s.title, "role": s.role, "number": s.number} for s in pb.spec.steps],
         gates=[
             {"id": g.id, "title": g.title, "kind": g.kind, "number": g.number, "reworks": g.reworks}

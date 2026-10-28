@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.4. Tier 0 (nothing changes); one custom gate to confirm or correct the As-Is.
+title: Audit
+description: >-
+  Architecture, quality and security audit of a project: the As-Is (C4 context, containers and components,
+  dependencies, database map, hotspots) from the code, confirmed or corrected by you (corrections become facts on the
+  graph), then security and quality findings, risks and recommendations with effort, and which architecture fits
+  when that's relevant.
+intent: analyze_audit
+lead_role: solution_architect

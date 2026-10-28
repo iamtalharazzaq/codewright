@@ -23,6 +23,14 @@ def test_scan_finds_common_secrets() -> None:
     assert kinds[3] == "password in URL"
 
 
+def test_in_code_only_string_literals_are_hard_coded_secrets() -> None:
+    go = 'Password: cfg.RedisPassword,\nSecretKey: os.Getenv("KEY"),\nconst JWTSecret = "q8f3k2m9x7v1p0z4"\n'
+    assert [f.line for f in scan_text(go, "main.go")] == [3]
+    assert [f.line for f in scan_text("password: cfg.RedisPassword\n", "config.yaml")] == [1]  # config files keep it
+    names = "AccessTokenType = \"x-access\"\nexport const TOKEN_KEY = 'app_access_token'\n"
+    assert scan_text(names, "names.ts") == []  # plain-word values are names, not secrets
+
+
 def test_mask_keeps_the_code_readable() -> None:
     masked = mask(f'api_key = "s3cr3tvalue123"\nDB=postgres://u:hunter2pass@h/x\nT={GH_TOKEN}')
     assert "s3cr3tvalue123" not in masked

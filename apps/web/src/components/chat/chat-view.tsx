@@ -8,14 +8,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Composer } from "@/components/chat/composer";
 import { MessageView, type MessageActions } from "@/components/chat/message";
 import { ModelPicker } from "@/components/chat/model-picker";
-import { SidePanel } from "@/components/chat/side-panel";
+import { SidePanel, defaultTab } from "@/components/chat/side-panel";
 import { useConversation } from "@/components/chat/use-conversation";
 import { Button } from "@/components/ui/button";
 import {
   getGraph,
   getProject,
   notifyConversationsChanged,
+  type DiagramData,
   regenerateMessage,
+  resolveCard,
   sendMessage,
   startConversation,
   stopConversation,
@@ -62,7 +64,32 @@ export function ChatView({
   // Modules the last reply talks about ("internal/order", "order/service/..."), highlighted in the Graph tab.
   const lastReply = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
   const [modules, setModules] = useState<string[]>([]);
-  const mentioned = useMemo(() => modules.filter((m) => lastReply.includes(m)), [modules, lastReply]);
+  const lastData = [...messages].reverse().find((m) => m.role === "assistant")?.data;
+  const mentioned = useMemo(() => {
+    const used = Array.isArray(lastData?.modules) ? (lastData.modules as string[]) : [];
+    return [...new Set([...used, ...modules.filter((m) => lastReply.includes(m))])];
+  }, [modules, lastReply, lastData]);
+  // The last explanation's diagram and the last run started here feed the Diagram and Report tabs.
+  const diagramMessage = [...messages].reverse().find((m) => m.data.diagram);
+  const diagram = (diagramMessage?.data.diagram as DiagramData | undefined) ?? null;
+  const runMessage = [...messages].reverse().find((m) => m.run_id);
+  const runId = runMessage?.run_id ?? null;
+  const doneId = [...messages].reverse().find((m) => m.kind === "done" && m.run_id)?.id ?? null;
+  const [tab, setTab] = useState(defaultTab(activeProject));
+  const shown = useRef<{ diagram?: string; done?: string }>({});
+
+  // Open the Diagram tab when an explanation brings a new one, and the Report tab when a run finishes. Messages that
+  // were already there when the chat opened don't switch tabs.
+  useEffect(() => {
+    if (!detail) return;
+    const first = shown.current.diagram === undefined && shown.current.done === undefined;
+    const newDiagram = diagramMessage && diagramMessage.id !== shown.current.diagram;
+    const newDone = doneId && doneId !== shown.current.done;
+    shown.current = { diagram: diagramMessage?.id ?? "", done: doneId ?? "" };
+    if (first) return;
+    if (newDone) setTab("report");
+    else if (newDiagram) setTab("diagram");
+  }, [detail, diagramMessage, doneId]);
 
   useEffect(() => {
     if (!activeProject) return;
@@ -108,7 +135,13 @@ export function ChatView({
   const actions: MessageActions = {
     onSend: send,
     onEdit: (id, text) => conversationId && void act(() => sendMessage(conversationId, text, id)),
-    onRegenerate: (id) => conversationId && void act(() => regenerateMessage(conversationId, id)),
+    onRegenerate: (id, withoutSkill) =>
+      conversationId && void act(() => regenerateMessage(conversationId, id, withoutSkill)),
+    onResolve: (id, body) => conversationId && void act(() => resolveCard(conversationId, id, body)),
+    onShowTab: (name) => {
+      setTab(name);
+      if (!panelVisible) setPanel("open");
+    },
     onSwitch: (id) => conversationId && void act(() => switchBranch(conversationId, id)),
     onChangeRequested: () => document.querySelector<HTMLTextAreaElement>("#chat-composer textarea")?.focus(),
   };
@@ -201,6 +234,7 @@ export function ChatView({
             onSend={send}
             busy={busy}
             onStop={conversationId ? () => void act(() => stopConversation(conversationId)) : undefined}
+            projectId={activeProject}
           />
         </div>
       </section>
@@ -220,6 +254,11 @@ export function ChatView({
           onClose={() => setPanel("closed")}
           projectId={activeProject}
           highlight={mentioned}
+          tab={tab}
+          onTabChange={setTab}
+          diagram={diagram}
+          runId={runId}
+          runTick={runTick}
         />
       </aside>
     </div>

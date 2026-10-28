@@ -15,22 +15,26 @@ import contextlib
 import logging
 import re
 import uuid
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, update
 
-from agent.chat import intake, router
+from agent.chat import corrections, explain, intake, router, skill_draft
 from agent.chat.answer import stream_answer
-from agent.chat.intents import INTENT_LABELS, PLAYBOOK_PHASE, intent_config, named_language
+from agent.chat.intents import INTENT_LABELS, PLAYBOOK_PHASE, intent_config, named_language, split_slash
 from agent.chat.write_code import stream_code
 from agent.llm.client import LLMClient, LLMError, LLMUnavailable
 from agent.llm.client import Message as LLMMessage
 from agent.llm.structured import StructuredOutputError
 from agent.playbooks.registry import playbooks
+from agent.skills import Skill, SkillRegistry, keyword_score
 from codewright_api.db import Conversation, MemoryItem, Message, Project, Run, Upload
 from codewright_api.graph import GraphService
+from codewright_api.project_tools import save_facts
 from codewright_api.routes.uploads import read_masked
 from codewright_api.runs import RunConflict, RunManager
 from codewright_api.tracing import PostgresTraceSink
@@ -44,10 +48,42 @@ PROJECT_CHARS = 1500
 ATTACHMENT_CHARS = 4000
 GRAPH_CHARS = 1200
 SNIPPET_CHARS = 700
+# Replies a correction ("that's wrong, payment also calls notification") may follow (Phase 6 task 4).
+CORRECTABLE = {"explain_code", "analyze_audit", "general_help"}
+# Auto-use (Section 8.6.3): the router's pick needs some keyword support; a strong keyword match is enough alone.
+SKILL_MODEL_MIN = 0.15
+SKILL_KEYWORDS_MIN = 0.6
+CARD_KINDS = ("correction", "skill_draft")  # cards answered with Save / Discard
+READ_MOSTLY = {"code_review", "audit", "docs"}  # their artifacts are reports, not changes to the project
+RUN_INTENTS = {"review_code": "code_review", "analyze_audit": "audit"}  # tier 0, but long: a run in project chats
+REVIEW_IN_CHAT = """This is a code review of code in the chat. Group findings by severity (critical / major / minor /
+nit); for each give the line, the problem, why it matters and a fix as code. End with a score out of 10 and the top 3
+things to fix first. Never claim something is wrong unless the code shown proves it."""
 
 
 class ChatBusy(Exception):
     """A reply is still being written in this conversation."""
+
+
+@dataclass
+class Turn:
+    """Everything one reply is built from."""
+
+    conversation_id: uuid.UUID
+    reply_id: uuid.UUID
+    reply_data: dict[str, Any]
+    user: Message
+    previous: Message | None
+    history: list[LLMMessage]
+    preferences: list[str]
+    project: Project | None
+    context: str
+    text_so_far: list[str]
+    base_context: str = ""  # `context` without the code graph and search snippets
+
+    @property
+    def pid(self) -> str | None:
+        return str(self.project.id) if self.project is not None else None
 
 
 def message_dict(m: Message, siblings: list[uuid.UUID] | None = None) -> dict[str, Any]:
@@ -91,9 +127,12 @@ def _card_markdown(card: intake.ConfirmCard) -> str:
 
 
 class ChatService:
-    def __init__(self, manager: RunManager, graphs: GraphService | None = None) -> None:
+    def __init__(
+        self, manager: RunManager, graphs: GraphService | None = None, skills: SkillRegistry | None = None
+    ) -> None:
         self.manager = manager
         self.graphs = graphs  # project graph + code search, for chats inside a project
+        self.skills = skills  # Section 8.6: custom slash commands, auto-use, drafts
         self.sessions = manager.sessions
         self._tasks: dict[uuid.UUID, asyncio.Task[None]] = {}
         manager.status_listeners.append(self._on_run_status)
@@ -160,8 +199,10 @@ class ChatService:
         use_parent: bool = False,
         project_id: uuid.UUID | None = None,
         attachments: list[uuid.UUID] | None = None,
+        skill: str | None = None,
     ) -> tuple[Conversation, dict[str, Any], dict[str, Any]]:
-        """Add a user message (after the head, or after `parent_id` when editing) and start the reply."""
+        """Add a user message (after the head, or after `parent_id` when editing) and start the reply.
+        `skill` forces that skill, even a disabled one (the Skills screen's test-run)."""
         text = text.strip()
         if not text:
             raise ValueError("The message is empty.")
@@ -195,7 +236,7 @@ class ChatService:
                 parent_id=parent_id if use_parent else conv.head_id,
                 role="user",
                 content=text,
-                data={"attachments": files} if files else {},
+                data={**({"attachments": files} if files else {}), **({"skill": skill} if skill else {})},
             )
             session.add(user)
             await session.flush()
@@ -211,8 +252,11 @@ class ChatService:
         self._start(conv.id, reply.id)
         return conv, message_dict(user), message_dict(reply)
 
-    async def regenerate(self, conversation_id: uuid.UUID, message_id: uuid.UUID) -> dict[str, Any]:
-        """A new reply to the same user message, as a sibling of `message_id`."""
+    async def regenerate(
+        self, conversation_id: uuid.UUID, message_id: uuid.UUID, *, without_skill: bool = False
+    ) -> dict[str, Any]:
+        """A new reply to the same user message, as a sibling of `message_id` (optionally without the skill that was
+        picked automatically: "Run without it")."""
         if self.busy(conversation_id):
             raise ChatBusy("Codewright is still replying. Stop it first or wait.")
         async with self.sessions() as session:
@@ -220,7 +264,11 @@ class ChatService:
             if old is None or old.conversation_id != conversation_id or old.role != "assistant":
                 raise LookupError(message_id)
             reply = Message(
-                conversation_id=conversation_id, parent_id=old.parent_id, role="assistant", status="streaming"
+                conversation_id=conversation_id,
+                parent_id=old.parent_id,
+                role="assistant",
+                status="streaming",
+                data={"without_skill": True} if without_skill else {},
             )
             session.add(reply)
             await session.flush()
@@ -332,11 +380,18 @@ class ChatService:
             await self._finish(reply_id, kind="error", status="error", content=f"Something went wrong: {exc}")
 
     async def _turn(self, conversation_id: uuid.UUID, reply_id: uuid.UUID, text_so_far: list[str]) -> None:
+        t = await self._load_turn(conversation_id, reply_id, text_so_far)
+        if await self._continue_intake(t) or await self._special(t):
+            return
+        await self._routed(t)
+
+    async def _load_turn(self, conversation_id: uuid.UUID, reply_id: uuid.UUID, text_so_far: list[str]) -> Turn:
         async with self.sessions() as session:
             reply = await session.get(Message, reply_id)
             conv = await session.get(Conversation, conversation_id)
             if reply is None or conv is None or reply.parent_id is None:
                 raise LookupError(reply_id)
+            reply_data = dict(reply.data or {})
             path = await self._history(session, reply.parent_id)
             prefs = list(
                 await session.scalars(
@@ -349,57 +404,255 @@ class ChatService:
             uploads = [await session.get(Upload, uuid.UUID(a["id"])) for a in path[-1].data.get("attachments", [])]
         user = path[-1]
         before = path[:-1]
-        previous = before[-1] if before else None
-        history: list[LLMMessage] = [
-            {"role": m.role, "content": m.content} for m in before if m.content and m.kind != "error"
-        ]
-        preferences = [f"{p.key}: {p.value}" for p in prefs]
-        has_project = project is not None
-        context = _context(project, prefs, [u for u in uploads if u is not None])
+        base = context = _context(project, prefs, [u for u in uploads if u is not None])
         if project is not None and self.graphs is not None:
             context = "\n\n".join(p for p in (context, await self._code_context(project.id, user.content)) if p)
+        return Turn(
+            conversation_id=conversation_id,
+            reply_id=reply_id,
+            reply_data=reply_data,
+            user=user,
+            previous=before[-1] if before else None,
+            history=[{"role": m.role, "content": m.content} for m in before if m.content and m.kind != "error"],
+            preferences=[f"{p.key}: {p.value}" for p in prefs],
+            project=project,
+            context=context,
+            text_so_far=text_so_far,
+            base_context=base,
+        )
 
-        # A reply to open questions, or a typed answer to an open confirm card, continues the intake.
-        if previous is not None and previous.kind == "questions":
-            await self._intake_round(reply_id, previous.data, user.content, preferences)
-            return
-        card_state = previous.data.get("state") if previous is not None and previous.kind == "confirm" else None
-        if previous is not None and card_state == "open" and YES.match(user.content):
-            await self._finish(reply_id, content="Starting.", kind="text")
-            await self.confirm(conversation_id, previous.id, "start")
-            return
+    async def _continue_intake(self, t: Turn) -> bool:
+        """A reply to open questions, or a typed answer to an open confirm card, continues the intake."""
+        previous, text = t.previous, t.user.content
+        if previous is None:
+            return False
+        if previous.kind == "questions":
+            await self._intake_round(t.reply_id, previous.data, text, t.preferences)
+            return True
+        card_state = previous.data.get("state") if previous.kind == "confirm" else None
+        if card_state == "open" and YES.match(text):
+            await self._finish(t.reply_id, content="Starting.", kind="text")
+            await self.confirm(t.conversation_id, previous.id, "start")
+            return True
         # A typed change to the card. Repeating the request (or asking something new) on an open card starts over.
-        if previous is not None and (
-            card_state == "changing"
-            or (card_state == "open" and not _same_request(user.content, previous.data.get("request", "")))
+        if card_state == "changing" or (
+            card_state == "open" and not _same_request(text, previous.data.get("request", ""))
         ):
             await self._close_card(previous.id, "changed")
-            data = {**previous.data, "answers": [*previous.data.get("answers", []), ["Change requested", user.content]]}
-            await self._intake_round(reply_id, data, None, preferences, force_card=True)
-            return
-        if previous is not None and card_state == "open":
+            data = {**previous.data, "answers": [*previous.data.get("answers", []), ["Change requested", text]]}
+            await self._intake_round(t.reply_id, data, None, t.preferences, force_card=True)
+            return True
+        if card_state == "open":
             await self._close_card(previous.id, "replaced")
+        return False
 
-        route = await router.route(self._client("router"), user.content, history=history, has_project=has_project)
-        meta = {"intent": route.intent, "tier": route.tier, "confidence": route.confidence, "command": route.command}
+    async def _special(self, t: Turn) -> bool:
+        """Built-in commands handled here (`/graph`, `/create-skill`, "save this as a skill") and corrections."""
+        slash = split_slash(t.user.content)
+        command = slash[0] if slash else None
+        if command == "graph":
+            await self._finish(t.reply_id, content=_graph_link(t.project), data={"command": "/graph"})
+            return True
+        if command == "create-skill" or (command is None and skill_draft.SAVE_AS_SKILL.search(t.user.content)):
+            request = slash[1] if slash else t.user.content
+            await self._draft_skill(t.reply_id, request, t.history if command is None else [], t.pid)
+            return True
+        previous = t.previous
+        return (
+            t.project is not None
+            and previous is not None
+            and previous.role == "assistant"
+            and previous.data.get("intent") in CORRECTABLE
+            and corrections.looks_like_correction(t.user.content)
+            and await self._correction(t.reply_id, t.project.id, t.user.content)
+        )
+
+    async def _routed(self, t: Turn) -> None:
+        """Route the message (with the user's skills as candidates), then answer, start a run or ask."""
+        slash = split_slash(t.user.content)
+        skill, skill_args = self._explicit_skill(t.user, t.pid, slash)
+        candidates: list[Skill] = []
+        if skill is None and slash is None and not t.reply_data.get("without_skill") and self.skills is not None:
+            candidates = self.skills.custom_for_matching(t.pid, _project_language(t.project))
+        route = await router.route(
+            self._client("router"),
+            t.user.content,
+            history=t.history,
+            has_project=t.project is not None,
+            skills=[(c.name, c.meta.description) for c in candidates],
+        )
+        auto = False
+        if skill is None and candidates:
+            skill = _auto_skill(candidates, route.skill, t.user.content)
+            auto = skill is not None
+            skill_args = t.user.content
+        if skill is not None and not route.decline:  # skills never bypass the language rule (Section 8.6)
+            route = _skill_route(skill, skill_args)
+        meta: dict[str, Any] = {
+            "intent": route.intent,
+            "tier": route.tier,
+            "confidence": route.confidence,
+            "command": route.command,
+        }
+        if skill is not None:
+            meta["skill"] = {**skill.summary(), "auto": auto}
         if route.decline:
-            await self._finish(reply_id, kind="decline", content=route.decline, data=meta)
-            return
-        if route.question:
-            await self._finish(reply_id, content=route.question, data=meta)
-            return
-        if route.intent is None:  # only declines have no intent
+            await self._finish(t.reply_id, kind="decline", content=route.decline, data=meta)
+        elif route.question and skill is None:
+            await self._finish(t.reply_id, content=route.question, data=meta)
+        elif route.intent is None:  # only declines have no intent
             raise LLMError("The router returned no intent.")
-        if route.tier == 0:
-            await self._stream(
-                reply_id, history, route.args or user.content, route.intent, has_project, meta, text_so_far, context
-            )
-            return
-        request = route.args if route.command and route.args else user.content
-        state = {**meta, "request": request, "targets": route.targets, "answers": [], "round": 0, "context": context}
-        if project is not None and project.summary.get("languages"):
-            state["project_language"] = next(iter(project.summary["languages"]))
-        await self._intake_round(reply_id, state, None, preferences)
+        elif route.tier == 0:
+            await self._tier0(t, route, meta, skill)
+        else:
+            request = route.args if route.command and route.args else t.user.content
+            state: dict[str, Any] = {**meta, "request": request, "targets": route.targets, "answers": [], "round": 0}
+            state["context"] = t.context
+            if skill is not None:
+                state["skill"] = _skill_payload(skill)
+            if t.project is not None and t.project.summary.get("languages"):
+                state["project_language"] = next(iter(t.project.summary["languages"]))
+            await self._intake_round(t.reply_id, state, None, t.preferences)
+
+    async def _tier0(self, t: Turn, route: router.Route, meta: dict[str, Any], skill: Skill | None) -> None:
+        """Answer-only intents: Explain in a project, Review / Audit as runs in a project, else a streamed answer."""
+        assert route.intent is not None  # noqa: S101  (checked by the caller)
+        question = route.args or t.user.content
+        instructions = _skill_instructions(skill)
+        if t.project is not None and route.intent == "explain_code" and self.graphs is not None:
+            await self._explain(t, question, meta, instructions)
+        elif t.project is not None and route.intent in RUN_INTENTS:
+            await self._finish(t.reply_id, content=_run_intro(route.intent, route.targets), data=meta)
+            inputs = {"request": question, "path": _path_arg(route.targets), "skill": _skill_payload(skill)}
+            await self._start_run(t.conversation_id, route.intent, inputs, route.tier, t.project.id)
+        else:
+            if route.intent == "review_code":
+                instructions = "\n\n".join(p for p in (REVIEW_IN_CHAT, instructions) if p)
+            await self._stream(t, question, route.intent, meta, instructions)
+
+    def _explicit_skill(
+        self, user: Message, pid: str | None, slash: tuple[str, str] | None
+    ) -> tuple[Skill | None, str]:
+        """A skill the user asked for: forced by a test-run, or a custom slash command."""
+        if self.skills is None:
+            return None, user.content
+        forced = user.data.get("skill")
+        if forced:
+            try:
+                return self.skills.get(forced, pid), slash[1] if slash else user.content
+            except LookupError:
+                return None, user.content
+        if slash is not None:
+            found = self.skills.by_command(slash[0], pid)
+            if found is not None and found.source != "builtin":
+                return found, slash[1]
+        return None, user.content
+
+    async def _explain(self, t: Turn, question: str, meta: dict[str, Any], instructions: str) -> None:
+        """Explain (Section 5.3): graph facts + search in the prompt, the answer streamed, then a diagram."""
+        if self.graphs is None or t.project is None:
+            raise RuntimeError("Explain needs a project and its graph.")
+        store = self.graphs.store(t.project.id)
+        graph = store.modules()
+        ids = [n["id"] for n in graph["nodes"]] if graph else []
+        try:
+            hits = await self.graphs.search(t.project.id, question, limit=3)
+        except Exception:
+            log.exception("code search failed")
+            hits = []
+        work = self.graphs.workspace(t.project.id).work
+        found = await asyncio.to_thread(
+            explain.gather, question, ids, store.explain if store.raw.exists() else None, hits, work, graph
+        )
+        meta = {**meta, "modules": found.modules, "files": found.files}
+        rules = "\n\n".join(p for p in (explain.EXPLAIN_RULES, instructions) if p)
+
+        async def with_diagram(answer: str) -> dict[str, Any]:
+            if found.text == explain.NOTHING_FOUND:
+                return {}
+            try:
+                drawn = await explain.diagram(self._client("code_analyst"), question, answer)
+            except (LLMError, StructuredOutputError) as exc:
+                log.info("no diagram for the explanation: %s", exc)
+                drawn = None
+            return {"diagram": drawn} if drawn else {}
+
+        # The code Explain found replaces the generic module map and search snippets: the 4K context can't hold both.
+        context = "\n\n".join(p for p in ((t.base_context if found.has_code else t.context), found.text) if p)
+        await self._stream(t, question, "explain_code", meta, rules, context=context, after=with_diagram)
+
+    async def _correction(self, reply_id: uuid.UUID, project_id: uuid.UUID, text: str) -> bool:
+        """A correction about the architecture → facts on a card to Save or Discard. False when none were found."""
+        if self.graphs is None:
+            return False
+        graph = self.graphs.store(project_id).modules()
+        if not graph:
+            return False
+        facts = await corrections.parse(self._client("code_analyst"), text, [n["id"] for n in graph["nodes"]])
+        if not facts:
+            return False
+        lines = "\n".join(f"- {corrections.describe(f)}" for f in facts)
+        await self._finish(
+            reply_id,
+            kind="correction",
+            content=f"Thanks, I'll correct the project graph. I understood:\n\n{lines}\n\nSave this as a fact?",
+            data={"intent": "explain_code", "facts": facts, "state": "open", "project_id": str(project_id)},
+        )
+        return True
+
+    async def _draft_skill(
+        self, reply_id: uuid.UUID, request: str, history: list[LLMMessage], project_id: str | None
+    ) -> None:
+        markdown = await skill_draft.draft(self._client("project_manager"), request, history)
+        await self._finish(
+            reply_id,
+            kind="skill_draft",
+            content="Here's a draft of the skill. Change anything you like, then save it.",
+            data={"markdown": markdown, "state": "open", "project_id": project_id},
+        )
+
+    async def resolve_card(
+        self, conversation_id: uuid.UUID, message_id: uuid.UUID, action: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Save / Discard on a correction card, Save / Discard on a skill draft card."""
+        async with self.sessions() as session:
+            card = await session.get(Message, message_id)
+            if (
+                card is None
+                or card.conversation_id != conversation_id
+                or card.kind not in ("correction", "skill_draft")
+            ):
+                raise LookupError(message_id)
+            if card.data.get("state") != "open":
+                raise RunConflict("This card was already answered.")
+            data = dict(card.data)
+        if action == "discard":
+            data["state"] = "discarded"
+        elif card.kind == "correction":
+            if self.graphs is None:
+                raise RunConflict("The project graph isn't available.")
+            pid = uuid.UUID(data["project_id"])
+            await save_facts(self.sessions, self.graphs, pid, data["facts"])
+            data["state"] = "saved"
+        else:
+            if self.skills is None:
+                raise RunConflict("Skills aren't available.")
+            markdown = str(payload.get("markdown") or data["markdown"])
+            scope_project = payload.get("project_id")
+            if scope_project:
+                markdown = _with_scope(markdown, f"project:{scope_project}")
+            saved = self.skills.save(markdown)  # SkillError → 422 in the route
+            data.update({"state": "saved", "markdown": markdown, "skill": saved.summary()})
+        async with self.sessions() as session:
+            row = await session.get(Message, message_id)
+            if row is None:
+                raise LookupError(message_id)
+            row.data = data
+            await session.commit()
+            await session.refresh(row)
+        out = message_dict(row)
+        self._publish(conversation_id, {"type": "message", "message": out})
+        return out
 
     async def _code_context(self, project_id: uuid.UUID, question: str) -> str:
         """The module map and the code chunks that best match the question (Code Analyst, Section 5.1)."""
@@ -431,28 +684,37 @@ class ChatService:
 
     async def _stream(
         self,
-        reply_id: uuid.UUID,
-        history: list[LLMMessage],
+        t: Turn,
         question: str,
         intent: str,
-        has_project: bool,
         meta: dict[str, Any],
-        text_so_far: list[str],
-        context: str = "",
+        instructions: str = "",
+        *,
+        context: str | None = None,
+        after: Callable[[str], Awaitable[dict[str, Any]]] | None = None,
     ) -> None:
+        """Stream an answer; `after` may add data from the finished text (Explain's diagram)."""
         async with self.sessions() as session:
-            reply = await session.get(Message, reply_id)
+            reply = await session.get(Message, t.reply_id)
             if reply is None:
-                raise LookupError(reply_id)
+                raise LookupError(t.reply_id)
             reply.data = meta
-            conversation_id = reply.conversation_id
             await session.commit()
         async for token in stream_answer(
-            self._client("project_manager"), history, question, intent=intent, has_project=has_project, context=context
+            self._client("project_manager"),
+            t.history,
+            question,
+            intent=intent,
+            has_project=t.project is not None,
+            context=t.context if context is None else context,
+            instructions=instructions,
+            no_diagram=intent == "explain_code" and after is not None,
         ):
-            text_so_far.append(token)
-            self._publish(conversation_id, {"type": "token", "message_id": str(reply_id), "text": token})
-        await self._finish(reply_id, content="".join(text_so_far))
+            t.text_so_far.append(token)
+            self._publish(t.conversation_id, {"type": "token", "message_id": str(t.reply_id), "text": token})
+        text = "".join(t.text_so_far)
+        extra = await after(text) if after is not None else {}
+        await self._finish(t.reply_id, content=text, **({"data": {**meta, **extra}} if extra else {}))
 
     async def _intake_round(
         self,
@@ -551,6 +813,18 @@ class ChatService:
             )
             return reply
         inputs = _run_inputs(intent, card.data)
+        async with self.sessions() as session:
+            conv = await session.get(Conversation, conversation_id)
+            if conv is None:
+                raise LookupError(conversation_id)
+            project_id = conv.project_id
+        if intent == "write_docs" and project_id is None:
+            return await self._append(
+                conversation_id,
+                content="Docs are written for a project. Open this chat from a project (Projects → New chat), or "
+                "connect one first.",
+                data={"intent": intent},
+            )
         if cfg.playbook not in playbooks() or inputs is None:
             return await self._append(
                 conversation_id,
@@ -561,22 +835,27 @@ class ChatService:
                 ),
                 data={"intent": intent, "pending_phase": PLAYBOOK_PHASE[intent]},
             )
-        async with self.sessions() as session:
-            conv = await session.get(Conversation, conversation_id)
-            if conv is None:
-                raise LookupError(conversation_id)
+        return await self._start_run(conversation_id, intent, inputs, int(card.data.get("tier") or 0), project_id)
+
+    async def _start_run(
+        self,
+        conversation_id: uuid.UUID,
+        intent: str,
+        inputs: dict[str, Any],
+        tier: int,
+        project_id: uuid.UUID | None,
+    ) -> dict[str, Any]:
+        playbook = intent_config(intent).playbook
         try:
             run = await self.manager.create_run(
-                playbook=cfg.playbook,
-                inputs=inputs,
-                tier=int(card.data.get("tier") or 0),
-                conversation_id=conversation_id,
+                playbook=playbook, inputs=inputs, tier=tier, conversation_id=conversation_id, project_id=project_id
             )
-        except RunConflict as exc:
+        except (RunConflict, ValueError) as exc:
             return await self._append(conversation_id, kind="error", status="error", content=str(exc))
-        return await self._append(
-            conversation_id, kind="run", run_id=run.id, content="", data={"intent": intent, "playbook": cfg.playbook}
-        )
+        data: dict[str, Any] = {"intent": intent, "playbook": playbook}
+        if inputs.get("skill"):
+            data["skill"] = {k: inputs["skill"][k] for k in ("name", "title", "command")}
+        return await self._append(conversation_id, kind="run", run_id=run.id, content="", data=data)
 
     async def _write_code(self, conversation_id: uuid.UUID, reply_id: uuid.UUID, data: dict[str, Any]) -> None:
         text: list[str] = []
@@ -632,16 +911,25 @@ class ChatService:
             guide = (Path(workspace) / "GUIDE.md").read_text(encoding="utf-8")[:20000]
         steps = [s for s in state.get("plan", []) if isinstance(s, dict)]
         summary = f"{title} finished: {sum(1 for s in steps if s.get('status') == 'done')} of {len(steps)} steps done."
+        skill = (run.inputs or {}).get("skill")
+        if skill:
+            summary += f" Skill used: {skill.get('title') or skill.get('name')}."
+        if state.get("done_summary"):
+            summary += "\n\n" + str(state["done_summary"])
         return {
             "content": summary,
             "data": {
                 "summary": summary,
-                "changed": [a.get("path") for a in artifacts if a.get("path")],
+                # Files written into the project (Docs publishes on a branch); reports stay in the run folder.
+                "changed": list((state.get("published") or {}).get("files", []))
+                if run.playbook in READ_MOSTLY
+                else [a.get("path") for a in artifacts if a.get("path")],
                 "artifacts": artifacts,
                 "proof": [],  # tests, replay and benchmark results arrive with the Verification engine (Phase 7)
                 "delivered": None,  # delivery targets arrive in Phase 3
                 "guide": guide,
                 "suggestions": _suggestions(run.playbook),
+                "skill": skill,
             },
         }
 
@@ -686,10 +974,95 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
     if intent == "change_architecture":
         text = (data.get("request") or "").lower()
         return {"target": "microservices", "mode": "audit"} if "microservice" in text else None
-    return {"request": data.get("request", "")}
+    inputs: dict[str, Any] = {"request": data.get("request", "")}
+    if intent in ("write_docs", "review_code", "analyze_audit"):
+        inputs.update(path=_path_arg(data.get("targets") or []), skill=data.get("skill"))
+    if intent == "write_docs":
+        inputs["answers"] = data.get("answers", [])
+    return inputs
 
 
 def _suggestions(playbook: str) -> list[str]:
     if playbook == "architecture_change":
         return ["Explain the To-Be design", "Run the full conversion", "Deliver the report"]
+    if playbook == "code_review":
+        return ["Explain the top finding", "Fix all critical and major findings", "Review another module"]
+    if playbook == "audit":
+        return ["Explain the biggest hotspot", "Review the riskiest module", "Write the architecture docs"]
+    if playbook == "docs":
+        return ["Explain a part of the docs", "Review the code the docs describe", "Deliver it"]
     return ["Explain what was done", "Review the result", "Deliver it"]
+
+
+def _path_arg(targets: list[str]) -> str:
+    """The first target that looks like a path or module ("internal/payment", "web"), else whole project."""
+    for target in targets:
+        cleaned = target.strip().strip("`'\"")
+        if cleaned and " " not in cleaned and len(cleaned) < 200:
+            return cleaned
+    return ""
+
+
+def _run_intro(intent: str, targets: list[str]) -> str:
+    where = f"`{_path_arg(targets)}`" if _path_arg(targets) else "the whole project"
+    if intent == "review_code":
+        return f"Starting a code review of {where}: linters in the sandbox, then a review file by file."
+    return "Starting the audit: As-Is architecture, security and quality, then a report. You'll confirm the As-Is."
+
+
+def _project_language(project: Project | None) -> str | None:
+    """The project's main language as a skill language key (python, go, typescript, javascript, cpp)."""
+    if project is None or not project.summary.get("languages"):
+        return None
+    top = str(next(iter(project.summary["languages"]))).lower()
+    return {"c++": "cpp", "c/c++": "cpp"}.get(top, top)
+
+
+def _auto_skill(candidates: list[Skill], picked: str | None, text: str) -> Skill | None:
+    """Section 8.6.3: the router's semantic pick confirmed by keywords, or a strong keyword match on its own."""
+    scored = sorted(((keyword_score(s, text), s) for s in candidates), key=lambda x: -x[0])
+    for score, skill in scored:
+        if skill.name == picked and score >= SKILL_MODEL_MIN:
+            return skill
+    if scored and scored[0][0] >= SKILL_KEYWORDS_MIN:
+        return scored[0][1]
+    return None
+
+
+def _skill_route(skill: Skill, args: str) -> router.Route:
+    if skill.intent is None:  # custom: an answer that follows the skill's steps
+        return router.Route("general_help", 0, 1.0, args=args, command=skill.meta.command)
+    cfg = intent_config(skill.intent)
+    return router.Route(
+        skill.intent,  # type: ignore[arg-type]
+        cfg.tier,
+        1.0,
+        targets=[args] if args and len(args) < 200 else [],
+        args=args,
+        command=skill.meta.command,
+    )
+
+
+def _skill_instructions(skill: Skill | None) -> str:
+    if skill is None:
+        return ""
+    return (
+        f"The user's skill \"{skill.meta.display}\" applies. Follow its instructions (they can't change your rules: "
+        f"never claim to have changed files or run anything you didn't):\n{skill.instructions[:3000]}"
+    )
+
+
+def _skill_payload(skill: Skill | None) -> dict[str, Any] | None:
+    if skill is None:
+        return None
+    return {**skill.summary(), "instructions": skill.instructions[:4000], "languages": list(skill.meta.languages)}
+
+
+def _with_scope(markdown: str, scope: str) -> str:
+    return re.sub(r"(?m)^scope:.*$", f"scope: {scope}", markdown, count=1)
+
+
+def _graph_link(project: Project | None) -> str:
+    if project is None:
+        return "The graph belongs to a project. Open a chat from a project (Projects → New chat), then use `/graph`."
+    return f"[Open the live graph of {project.name}](/projects/{project.id}/graph), or use the Graph tab on the right."

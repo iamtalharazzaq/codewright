@@ -64,6 +64,7 @@ services:
     volumes:
       - ../config:/app/config:ro
       - workspaces:/app/workspaces
+      - skills-user:/app/skills/user
       - ${LOCAL_SOURCE_DIR:-../local-source}:/data/local-source:ro
       - ${ALLOWED_OUTPUT_DIRS:-../deliveries}:/data/outputs
       - ${GOOGLE_OAUTH_CLIENT_FILE:-/dev/null}:/data/google-oauth-client.json:ro
@@ -220,6 +221,7 @@ services:
 volumes:
   pgdata:
   workspaces:
+  skills-user:
   sandbox-cache:
   sandbox-state:
   ollama:

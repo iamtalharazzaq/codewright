@@ -255,6 +255,11 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
       const data = (await res.json()) as { detail?: unknown };
       if (typeof data.detail === "string") detail = data.detail;
       else if (Array.isArray(data.detail)) detail = data.detail.map((d: { msg?: string }) => d.msg).join("; ");
+      else if (data.detail && typeof data.detail === "object" && "message" in data.detail) {
+        // Skill validation: {message, problems}
+        const d = data.detail as { message: string; problems?: string[] };
+        detail = d.problems?.length ? d.problems.join("\n") : d.message;
+      }
     } catch {
       // keep the generic message
     }
@@ -272,6 +277,10 @@ async function postForm<T>(path: string, form: FormData): Promise<T> {
     try {
       const data = (await res.json()) as { detail?: unknown };
       if (typeof data.detail === "string") detail = data.detail;
+      else if (data.detail && typeof data.detail === "object" && "message" in data.detail) {
+        const d = data.detail as { message: string; problems?: string[] };
+        detail = d.problems?.length ? d.problems.join("\n") : d.message;
+      }
     } catch {
       // keep the generic message
     }
@@ -324,7 +333,11 @@ export interface GraphEdge {
   target: string;
   weight: number;
   relations: Record<string, number>;
-  sources: { source: string; confidence: string | number; commits?: number }[];
+  sources: { source: string; confidence: string | number; commits?: number; note?: string }[];
+  /** Added or confirmed by the user (USER_FACT). */
+  user_fact?: boolean;
+  /** The user said this link doesn't exist; kept so it can be seen. */
+  disputed?: boolean;
 }
 
 export interface GraphDiff {
@@ -429,7 +442,8 @@ export interface ConfirmCardData {
   deliver: string;
 }
 
-export type MessageKind = "text" | "questions" | "confirm" | "run" | "done" | "decline" | "error";
+export type MessageKind =
+  "text" | "questions" | "confirm" | "run" | "done" | "decline" | "error" | "correction" | "skill_draft";
 
 export interface ChatMessage {
   id: string;
@@ -474,6 +488,32 @@ export interface SlashCommand {
   command: string;
   intent: string;
   description: string;
+  title?: string;
+  source?: SkillSource;
+}
+
+/** The skill a reply used (Section 8.6): shown as "Using skill: …" with "Run without it" when picked automatically. */
+export interface SkillRef {
+  name: string;
+  title: string;
+  command: string;
+  source?: SkillSource;
+  auto?: boolean;
+}
+
+/** A diagram drawn from an explanation, for the Diagram tab. */
+export interface DiagramData {
+  title: string;
+  kind: "sequence" | "flowchart";
+  mermaid: string;
+}
+
+export interface GraphFact {
+  source: string;
+  target: string;
+  relation: "calls" | "uses" | "depends_on" | "not_calls";
+  note: string;
+  at?: number;
 }
 
 export const listConversations = (q?: string, signal?: AbortSignal) =>
@@ -488,13 +528,23 @@ export const patchConversation = (id: string, body: { title?: string; pinned?: b
   request<Conversation>("PATCH", `/conversations/${id}`, body);
 export const deleteConversation = (id: string) => request<void>("DELETE", `/conversations/${id}`);
 export const stopConversation = (id: string) => request<void>("POST", `/conversations/${id}/stop`);
-export const regenerateMessage = (id: string, messageId: string) =>
-  request<ChatMessage>("POST", `/conversations/${id}/messages/${messageId}/regenerate`);
+export const regenerateMessage = (id: string, messageId: string, withoutSkill = false) =>
+  request<ChatMessage>(
+    "POST",
+    `/conversations/${id}/messages/${messageId}/regenerate`,
+    withoutSkill ? { without_skill: true } : undefined,
+  );
+export const resolveCard = (
+  id: string,
+  messageId: string,
+  body: { action: "save" | "discard"; markdown?: string; project_id?: string | null },
+) => request<ChatMessage>("POST", `/conversations/${id}/messages/${messageId}/resolve`, body);
 export const switchBranch = (id: string, messageId: string) =>
   request<void>("POST", `/conversations/${id}/messages/${messageId}/switch`);
 export const answerConfirm = (id: string, messageId: string, choice: "start" | "change") =>
   request<ChatMessage | null>("POST", `/conversations/${id}/messages/${messageId}/confirm`, { choice });
-export const listCommands = (signal?: AbortSignal) => request<SlashCommand[]>("GET", "/commands", undefined, signal);
+export const listCommands = (projectId?: string | null, signal?: AbortSignal) =>
+  request<SlashCommand[]>("GET", projectId ? `/commands?project_id=${projectId}` : "/commands", undefined, signal);
 
 /** Tells the sidebar's chat list to reload (a chat was created, renamed, pinned or deleted). */
 export const CONVERSATIONS_CHANGED = "codewright:conversations-changed";
@@ -601,3 +651,87 @@ export const activityEventsUrl = (id: string, activityId: string) =>
   `/api/projects/${id}/sandbox/actions/${activityId}/events`;
 export const previewOutputUrl = (id: string, previewId: string) =>
   `/api/projects/${id}/sandbox/previews/${previewId}/output`;
+
+// ── Skills (Phase 6, ADR 0021) ──────────────────────────────────────────────
+export type SkillSource = "builtin" | "user" | "project";
+
+export interface Skill {
+  name: string;
+  command: string;
+  title: string;
+  description: string;
+  languages: string[];
+  scope: string;
+  playbook: string;
+  intent_label: string;
+  tier: number;
+  inputs: { name: string; required: boolean; description: string }[];
+  allowed_tools: string[];
+  output: string;
+  enabled: boolean;
+  auto_use: boolean;
+  instructions: string;
+  source: SkillSource;
+  editable: boolean;
+  files: string[];
+  markdown: string;
+}
+
+export interface ImportResult {
+  folder: string;
+  ok: boolean;
+  problems?: string[];
+  name?: string;
+  command?: string;
+  description?: string;
+  allowed_tools?: string[];
+  playbook?: string;
+  instructions_preview?: string;
+  replaced?: boolean;
+}
+
+const scopeQuery = (projectId?: string | null) => (projectId ? `?project_id=${projectId}` : "");
+
+export const listSkills = (projectId?: string | null, signal?: AbortSignal) =>
+  request<Skill[]>("GET", `/skills${scopeQuery(projectId)}`, undefined, signal);
+export const getSkillTemplate = () => request<{ markdown: string; tools: string[] }>("GET", "/skills/template");
+export const createSkill = (markdown: string, projectId?: string | null) =>
+  request<Skill>("POST", "/skills", { markdown, project_id: projectId ?? null });
+export const replaceSkill = (name: string, markdown: string, projectId?: string | null) =>
+  request<Skill>("PUT", `/skills/${encodeURIComponent(name)}`, { markdown, project_id: projectId ?? null });
+export const setSkillFlags = (
+  name: string,
+  flags: { enabled?: boolean; auto_use?: boolean },
+  projectId?: string | null,
+) => request<Skill>("PATCH", `/skills/${encodeURIComponent(name)}${scopeQuery(projectId)}`, flags);
+export const deleteSkill = (name: string, projectId?: string | null) =>
+  request<void>("DELETE", `/skills/${encodeURIComponent(name)}${scopeQuery(projectId)}`);
+export const skillExportUrl = (name: string, projectId?: string | null) =>
+  `/api/skills/${encodeURIComponent(name)}/export${scopeQuery(projectId)}`;
+export const trySkill = (name: string, input: string, projectId?: string | null) =>
+  request<{ conversation_id: string }>("POST", `/skills/${encodeURIComponent(name)}/try`, {
+    input,
+    project_id: projectId ?? null,
+  });
+export const importSkills = (source: { file?: File; gitUrl?: string; folder?: string }, projectId?: string | null) => {
+  const form = new FormData();
+  if (source.file) form.append("file", source.file);
+  if (source.gitUrl) form.append("git_url", source.gitUrl);
+  if (source.folder) form.append("folder", source.folder);
+  if (projectId) form.append("project_id", projectId);
+  return postForm<{ results: ImportResult[]; imported: number }>("/skills/import", form);
+};
+
+// ── Run artifacts and graph facts (Phase 6) ─────────────────────────────────
+export async function getRunArtifact(runId: string, path: string, signal?: AbortSignal): Promise<string> {
+  const res = await fetch(`/api/runs/${runId}/artifact?path=${encodeURIComponent(path)}`, { signal });
+  if (!res.ok) throw new ApiError(`Couldn't load ${path} (${res.status})`, res.status);
+  return res.text();
+}
+export const listFacts = (projectId: string, signal?: AbortSignal) =>
+  request<GraphFact[]>("GET", `/projects/${projectId}/graph/facts`, undefined, signal);
+export const removeFact = (projectId: string, source: string, target: string) =>
+  request<void>(
+    "DELETE",
+    `/projects/${projectId}/graph/facts?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`,
+  );

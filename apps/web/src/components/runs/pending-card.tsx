@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,10 @@ import {
 /** A gate card: what was decided, the data behind it, and Approve / Edit / Reject (README 9.1). */
 export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt: GatePrompt; onAnswered: () => void }) {
   const [comment, setComment] = useState("");
+  // A playbook can summarise a decision as Markdown (the audit's As-Is, the docs' result); shown as is.
+  const texts = Object.values(prompt.summary ?? {}).filter((v): v is string => typeof v === "string" && v.length > 0);
+  const markdown =
+    texts.length > 0 && texts.length === Object.keys(prompt.summary ?? {}).length ? texts.join("\n\n") : null;
   const [busy, setBusy] = useState<Decision | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,12 +69,18 @@ export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt:
         <CardDescription>{prompt.question}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <details className="rounded-md border bg-muted/40 p-3 text-sm">
-          <summary className="cursor-pointer font-medium">What this decision is about</summary>
-          <pre className="mt-2 max-h-64 overflow-auto font-mono text-xs whitespace-pre-wrap">
-            {JSON.stringify(prompt.summary, null, 2)}
-          </pre>
-        </details>
+        {markdown ? (
+          <div className="max-h-[28rem] overflow-y-auto rounded-md border bg-muted/40 p-3 text-sm">
+            <Markdown>{markdown}</Markdown>
+          </div>
+        ) : (
+          <details className="rounded-md border bg-muted/40 p-3 text-sm">
+            <summary className="cursor-pointer font-medium">What this decision is about</summary>
+            <pre className="mt-2 max-h-64 overflow-auto font-mono text-xs whitespace-pre-wrap">
+              {JSON.stringify(prompt.summary, null, 2)}
+            </pre>
+          </details>
+        )}
         <div className="grid gap-1.5">
           <Label htmlFor="gate-comment">Comment (required for Edit and Reject)</Label>
           <Textarea

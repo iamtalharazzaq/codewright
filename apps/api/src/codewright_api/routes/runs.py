@@ -4,9 +4,11 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, select
@@ -24,6 +26,7 @@ router = APIRouter(prefix="/runs", tags=["runs"])
 class RunCreate(BaseModel):
     playbook: str = Field(default="sample", min_length=1, max_length=40)
     project_name: str | None = Field(default=None, min_length=1, max_length=200)
+    project_id: uuid.UUID | None = Field(default=None, description="An existing project (needed by code playbooks).")
     inputs: dict[str, Any] = Field(default_factory=dict, description="Validated by the playbook's input model.")
     llm_profile: ProfileName | None = None
     tier: int | None = Field(default=None, ge=0, le=3, description="Raise the playbook's tier (more approvals).")
@@ -72,11 +75,14 @@ async def create_run(body: RunCreate, manager: ManagerDep) -> RunOut:
             project_name=body.project_name,
             llm_profile=body.llm_profile,
             tier=body.tier,
+            project_id=body.project_id,
         )
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(422, exc.errors(include_url=False, include_context=False)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     except RunConflict as exc:
         raise HTTPException(409, str(exc)) from exc
     return RunOut.model_validate(run)
@@ -124,6 +130,23 @@ async def get_run(run_id: uuid.UUID, session: SessionDep, manager: ManagerDep) -
         artifacts=list(values.get("artifacts", [])),
         budget=values.get("budget"),
     )
+
+
+@router.get("/{run_id}/artifact")
+async def get_artifact(run_id: uuid.UUID, path: str, session: SessionDep, manager: ManagerDep) -> PlainTextResponse:
+    """The text of one of the run's artifacts (reports, diagrams, docs) for the side panel and the run page."""
+    run = await session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(404, "Run not found")
+    values = await manager.state_values(run)
+    if not any(a.get("path") == path for a in values.get("artifacts", [])):
+        raise HTTPException(404, "No such artifact in this run")
+    workspace = Path(str(values.get("workspace", ""))).resolve()
+    target = (workspace / path).resolve()
+    if not target.is_relative_to(workspace) or not target.is_file():
+        raise HTTPException(404, "Artifact file not found")
+    media = "application/json" if target.suffix == ".json" else "text/markdown"
+    return PlainTextResponse(target.read_text(encoding="utf-8", errors="replace")[:2_000_000], media_type=media)
 
 
 class Answer(BaseModel):

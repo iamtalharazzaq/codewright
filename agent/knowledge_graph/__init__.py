@@ -128,6 +128,42 @@ def enrich(graph: ModuleGraph, work: Path) -> ModuleGraph:
     return graph
 
 
+NEGATIVE = "not_calls"
+
+
+def apply_facts(graph: ModuleGraph, facts: list[dict[str, Any]]) -> ModuleGraph:
+    """The user's confirmed facts on top of a module graph. A fact is the strongest source (confidence 1.0): it adds a
+    missing edge, or marks an edge the user says doesn't exist as `disputed` (kept, so the user can see it)."""
+    if not facts:
+        return graph
+    known = {n["id"] for n in graph["nodes"]}
+    edges = {(e["source"], e["target"]): e for e in graph["edges"]}
+    for fact in facts:
+        a, b = fact["source"], fact["target"]
+        if a not in known or b not in known:
+            continue
+        evidence = {
+            "source": "user_fact",
+            "confidence": 1.0,
+            "relation": fact["relation"],
+            "note": fact.get("note", ""),
+        }
+        edge = edges.get((a, b))
+        if fact["relation"] == NEGATIVE:
+            if edge is not None:
+                edge["disputed"] = True
+                edge["sources"].append(evidence)
+            continue
+        if edge is None:
+            edge = {"source": a, "target": b, "weight": 0, "relations": {}, "sources": []}
+            graph["edges"].append(edge)
+            edges[(a, b)] = edge
+        edge["relations"][fact["relation"]] = edge["relations"].get(fact["relation"], 0) + 1
+        edge["sources"].append(evidence)
+        edge["user_fact"] = True
+    return graph
+
+
 # ── diff and hygiene ─────────────────────────────────────────────────────────
 def _edge_key(e: dict[str, Any]) -> str:
     return f"{e['source']}->{e['target']}"

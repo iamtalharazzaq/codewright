@@ -1,0 +1,295 @@
+{
+  "case": "seeded-python",
+  "project": "0d0a5c9b-2bbe-4203-aaaa-6d9ca6e9e19c",
+  "run": "a1f71eff-403a-4db2-a07e-ab9087ed7cb9",
+  "seconds": 56,
+  "issues": [
+    {
+      "id": "sql-injection",
+      "file": "reports/db.py",
+      "line": 22,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 22,
+        "severity": "critical",
+        "category": "security",
+        "problem": "SQL injection vulnerability due to unparameterized string interpolation with the 'store' argument.",
+        "sources": [
+          "security_engineer",
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "divide-by-empty",
+      "file": "reports/stats.py",
+      "line": 8,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 8,
+        "severity": "major",
+        "category": "bug",
+        "problem": "Division by zero risk: if `sales` is empty, `len(sales)` is 0, causing a ZeroDivisionError.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "skips-first",
+      "file": "reports/stats.py",
+      "line": 15,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 15,
+        "severity": "major",
+        "category": "bug",
+        "problem": "Off-by-one error: The loop skips the first sale (index 0).",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "mutable-default",
+      "file": "reports/stats.py",
+      "line": 21,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 21,
+        "severity": "major",
+        "category": "bug",
+        "problem": "Mutable default argument: The default value `[]` is shared across all function calls if `tagged` is omitted.",
+        "sources": [
+          "linter:ruff",
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "command-injection",
+      "file": "reports/files.py",
+      "line": 12,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 12,
+        "severity": "critical",
+        "category": "security",
+        "problem": "Security vulnerability: The use of `shell=True` with an f-string directly interpolates user-controlled `store` input into a shell command. This allows command injection attacks if the `store` parameter contains malicious shell metacharacters (e.g., `; rm -rf /`).",
+        "sources": [
+          "security_engineer",
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "path-traversal",
+      "file": "reports/files.py",
+      "line": 18,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 18,
+        "severity": "critical",
+        "category": "security",
+        "problem": "Path traversal via unvalidated input `name`.",
+        "sources": [
+          "security_engineer"
+        ]
+      }
+    },
+    {
+      "id": "hardcoded-password",
+      "file": "reports/session.py",
+      "line": 6,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 6,
+        "severity": "critical",
+        "category": "security",
+        "problem": "Hard-coded secret assignment in the source.",
+        "sources": [
+          "secret_scan",
+          "security_engineer"
+        ]
+      }
+    },
+    {
+      "id": "pickle-untrusted",
+      "file": "reports/session.py",
+      "line": 12,
+      "found": true,
+      "severity": "critical",
+      "severity_ok": true,
+      "finding": {
+        "line": 12,
+        "severity": "critical",
+        "category": "security",
+        "problem": "Using `pickle` to deserialize data from untrusted sources (like cookies) is a severe security vulnerability.",
+        "sources": [
+          "tech_lead"
+        ]
+      }
+    },
+    {
+      "id": "bare-except",
+      "file": "reports/session.py",
+      "line": 13,
+      "found": true,
+      "severity": "major",
+      "severity_ok": true,
+      "finding": {
+        "line": 13,
+        "severity": "major",
+        "category": "security",
+        "problem": "S110 `try`-`except`-`pass` detected, consider logging the exception",
+        "sources": [
+          "linter:ruff",
+          "tech_lead"
+        ]
+      }
+    }
+  ],
+  "false_alarms": [
+    {
+      "line": 18,
+      "evidence": "base, extra = divmod(cents, parts)",
+      "problem": "Incorrect distribution logic for negative amounts. `divmod` rounds towards negative infinity, making `extra` positive. Adding 1 to the first `extra` items results in values that are less negative (closer to zero) than the remaining items, violating the typical expectation of distributing the 'remainder' consistently (e.g., -10 split into 3 should be [-4, -3, -3] or similar, but the current logic yields [-3, -3, -4] which is actually correct for sum, but the distribution of the 'extra' cents is inverted relative to the base). More critically, if the intent is to distribute the remainder evenly, the logic holds, but the sign handling of `extra` via `divmod` with negatives is non-intuitive and prone to off-by-one errors in manual verification or edge cases where `extra` becomes 0 or 1 incorrectly due to Python's floor division semantics.",
+      "why": "Python's `divmod(-10, 3)` returns `(-4, 2)`. The code adds 1 to the first 2 items: `[-3, -3, -4]`. Sum is -10. This is mathematically valid. However, the logic fails if `cents` is negative and `extra` is calculated incorrectly relative to the user's mental model of 'adding cents'. A safer approach is `base = cents // parts`, `extra = abs(cents % parts)`, then distribute `extra` to the first items. The current reliance on `divmod` with negatives works but is brittle.",
+      "category": "bug",
+      "severity": "major",
+      "fix": "Use explicit integer division and modulo to handle negative numbers correctly: `base = cents // parts`, `extra = abs(cents % parts)`.",
+      "file": "reports/money.py",
+      "code": "base, extra = divmod(cents, parts)",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 9
+    }
+  ],
+  "other_findings": [
+    {
+      "line": 12,
+      "evidence": "return pickle.loads(base64.b64decode(cookie))",
+      "problem": "unsafe deserialization",
+      "why": "Using `pickle.loads` on untrusted input (the cookie) allows an attacker to execute arbitrary code during deserialization, bypassing any intended security boundaries.",
+      "category": "security",
+      "severity": "critical",
+      "fix": "Replace `pickle` with a safe serialization format like JSON and validate the schema of the resulting data.",
+      "file": "reports/session.py",
+      "code": "return pickle.loads(base64.b64decode(cookie))",
+      "source": "security_engineer",
+      "sources": [
+        "security_engineer"
+      ],
+      "id": 6
+    },
+    {
+      "line": 17,
+      "evidence": "return sqlite3.connect(path)",
+      "problem": "Database connection is not closed or committed after use.",
+      "why": "This creates a resource leak (file handle) and leaves the database in a transaction state if an exception occurs after the connection is returned to the caller.",
+      "category": "performance",
+      "severity": "major",
+      "fix": "Implement a context manager (contextlib.contextmanager) or ensure the caller uses 'with connect(...) as conn:'.",
+      "file": "reports/db.py",
+      "code": "return sqlite3.connect(path)",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 7
+    },
+    {
+      "line": 28,
+      "evidence": "conn.commit()",
+      "problem": "Transaction is committed unconditionally even if the INSERT fails.",
+      "why": "If the INSERT raises an exception, the commit on the next line will commit partial changes or fail, leading to data inconsistency.",
+      "category": "bug",
+      "severity": "major",
+      "fix": "Wrap the execute/commit in a try/except block and only commit on success, or rely on the caller to handle the transaction lifecycle.",
+      "file": "reports/db.py",
+      "code": "conn.commit()",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 8
+    },
+    {
+      "line": 21,
+      "evidence": "def tag_sales(sales: list[Sale], tag: str, tagged: list = []) -> list:",
+      "problem": "Incorrect return value: The function returns the modified default list object instead of a new list.",
+      "why": "Even if the mutable default issue is fixed, returning `tagged` directly means the caller receives the same list object used internally. If the caller expects a fresh list, they might inadvertently share state or be surprised by the implementation. While less critical than the mutable default, it violates the principle of immutability for function outputs in this context.",
+      "category": "bug",
+      "severity": "minor",
+      "fix": "Return `list(tagged)` or create a new list comprehension to ensure a copy is returned.",
+      "file": "reports/stats.py",
+      "code": "def tag_sales(sales: list[Sale], tag: str, tagged: list = []) -> list:",
+      "source": "tech_lead",
+      "sources": [
+        "tech_lead"
+      ],
+      "id": 14
+    },
+    {
+      "file": "reports/session.py",
+      "line": 13,
+      "severity": "nit",
+      "category": "style",
+      "problem": "E722 Do not use bare `except`",
+      "why": "Reported by ruff.",
+      "fix": "",
+      "source": "linter:ruff",
+      "sources": [
+        "linter:ruff"
+      ],
+      "id": 15
+    }
+  ],
+  "summary": {
+    "score": 0.0,
+    "counts": {
+      "critical": 6,
+      "major": 7,
+      "minor": 1,
+      "nit": 1
+    },
+    "total": 15,
+    "files_reviewed": 6,
+    "top": [
+      {
+        "id": 1,
+        "file": "reports/db.py",
+        "line": 22,
+        "problem": "SQL injection vulnerability due to unparameterized string interpolation with the 'store' argument."
+      },
+      {
+        "id": 2,
+        "file": "reports/files.py",
+        "line": 12,
+        "problem": "Security vulnerability: The use of `shell=True` with an f-string directly interpolates user-controlled `store` input into a shell command. This allows command injection attacks if the `store` parameter contains malicious shell metacharacters (e.g., `; rm -rf /`)."
+      },
+      {
+        "id": 3,
+        "file": "reports/files.py",
+        "line": 18,
+        "problem": "Path traversal via unvalidated input `name`."
+      }
+    ]
+  }
+}

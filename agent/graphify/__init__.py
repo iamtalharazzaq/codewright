@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from agent.knowledge_graph import ModuleGraph, diff, enrich, hygiene, module_graph
+from agent.knowledge_graph import ModuleGraph, apply_facts, diff, enrich, hygiene, module_graph
 
 ENV = {"GRAPHIFY_BACKEND": "none", "NO_COLOR": "1"}
 OUT = "graphify-out"
@@ -86,7 +86,8 @@ class GraphStore:
         data: list[dict[str, Any]] = json.loads(index.read_text(encoding="utf-8"))
         return data
 
-    def modules(self, number: int | None = None) -> ModuleGraph | None:
+    def modules(self, number: int | None = None, *, with_facts: bool = True) -> ModuleGraph | None:
+        """A module graph version (the latest by default), with the user's facts on top unless `with_facts=False`."""
         versions = self.versions()
         if not versions:
             return None
@@ -95,7 +96,37 @@ class GraphStore:
         if not path.exists():
             return None
         data: ModuleGraph = json.loads(path.read_text(encoding="utf-8"))
+        return apply_facts(data, self.facts()) if with_facts else data
+
+    # ── user facts (USER_FACT, Section 5.18 step 3): corrections the user confirmed ─────────────────────────────
+    @property
+    def facts_file(self) -> Path:
+        return self.dir / "user_facts.json"
+
+    def facts(self) -> list[dict[str, Any]]:
+        if not self.facts_file.exists():
+            return []
+        data: list[dict[str, Any]] = json.loads(self.facts_file.read_text(encoding="utf-8"))
         return data
+
+    def add_facts(self, facts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Save confirmed facts ({source, target, relation, note}); a newer fact about the same pair replaces it."""
+        stored = {(f["source"], f["target"]): f for f in self.facts()}
+        for f in facts:
+            stored[(f["source"], f["target"])] = {
+                "source": f["source"],
+                "target": f["target"],
+                "relation": f["relation"],
+                "note": f.get("note", ""),
+                "at": time.time(),
+            }
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.facts_file.write_text(json.dumps(list(stored.values())), encoding="utf-8")
+        return list(stored.values())
+
+    def remove_fact(self, source: str, target: str) -> None:
+        kept = [f for f in self.facts() if (f["source"], f["target"]) != (source, target)]
+        self.facts_file.write_text(json.dumps(kept), encoding="utf-8")
 
     def build(self, work: Path, reason: str = "build") -> Version:
         """Run Graphify on `work/`, then save a new version with its module graph, diff and hygiene report."""
@@ -110,7 +141,7 @@ class GraphStore:
 
         self.dir.mkdir(parents=True, exist_ok=True)
         versions = self.versions()
-        previous = self.modules()
+        previous = self.modules(with_facts=False)
         number = versions[-1]["number"] + 1 if versions else 1
         version = Version(
             number=number,

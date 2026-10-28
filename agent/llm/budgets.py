@@ -31,9 +31,11 @@ def _load(path: Path) -> dict[str, Any]:
     return data
 
 
-def limits_for_tier(tier: int, path: Path = BUDGETS_FILE) -> BudgetLimits:
+def limits_for_tier(tier: int, path: Path = BUDGETS_FILE, *, playbook: str | None = None) -> BudgetLimits:
     data = _load(path)
     resolved = _deep_merge(data["defaults"], (data.get("tiers") or {}).get(tier, {}))
+    if playbook:
+        resolved = _deep_merge(resolved, (data.get("playbooks") or {}).get(playbook, {}))
     return {
         "step_max_tokens": int(resolved["per_step"]["max_tokens"]),
         "step_max_llm_calls": int(resolved["per_step"]["max_llm_calls"]),

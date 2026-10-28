@@ -3,8 +3,8 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 5 (Language Packs + sandbox), done; waiting for your UI review ("next" starts Phase 6:
-Explain, Audit, Docs, Review, Skills). Phase 1 VRAM table still pending.
+**Current phase:** Phase 6 (Explain, Audit, Docs, Review, Skills; Milestone M1), done; waiting for your review of
+the audit and the M1 demo ("next" starts Phase 7: Verification engine). Phase 1 VRAM table still pending.
 **Last updated:** 2026-10-28
 **Branch:** `codewright-phase-0`
 
@@ -21,6 +21,34 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 6: Explain, Audit, Docs, Review, Skills, done (ADR 0021)
+
+| Task | Result |
+|---|---|
+| 1. `explain_code` | `/explain` (or a question) in a project chat. The Code Analyst gathers the code first: the definitions of the names asked about in all 5 languages (implementation before handlers, with its doc comment, cut where it ends), where they're used, a module's outline and the code behind its dependencies, graph facts; search hits only if nothing else fits. Answer streamed, then a diagram drawn from the steps (Diagram tab); modules highlighted in the Graph tab. "Not found" instead of a story when the project has no such code. |
+| 2. `analyze_audit` | `/audit`: As-Is (C4, dependencies, database map, hotspots) computed from the code, **Confirm As-Is** gate, security, quality, recommendations, `audit.md` + `findings.json` in the Report tab. |
+| 3. `write_docs` | `/docs`: README, API, architecture and runbook from the code's facts; every endpoint and file checked; approval; a `codewright/docs-<time>` branch. |
+| 4. Corrections | "That's wrong, X also calls Y" after an explanation or on the audit gate → facts on known modules, Save / Discard card, the As-Is redrawn; saved as `USER_FACT` on the graph and in project memory. |
+| 5. `review_code` | `/review-code [file, folder or module]`: linters + secret scan + Tech Lead and Security Engineer per chunk; every finding must quote its code (checked; wrong lines corrected, invented ones dropped), severity capped by category, findings by severity with a suggested fix, score and top 3 (Report tab). Fixes come in Phase 8. |
+| 6. Skills | Registry with 23 built-in skills (the `/` menu), user and project skills; Skills screen (create by form or Markdown, edit, test-run, enable, auto-use toggle, import/export); `/create-skill` and "save this as a skill" from a chat; auto-use with "Using skill"; imports validated, secret-scanned and disabled until enabled. |
+
+### Acceptance results (2026-10-28, live on the running stack)
+
+| Check | Result |
+|---|---|
+| GoShop questions answered correctly (eval set) | ✅ **11/11** (`python3 evals/explain.py --project <id>`; facts checked against the source). Was 7/11 before the context rework: long functions were cut, constants weren't found, module questions got no code. |
+| `/review-code` correct on seeded issues in two languages | ✅ Python **9/9** (all with the right severity), Go **7-8/9** depending on the run (`python3 evals/review.py evals/data/review/seeded-<lang>.json`). ⚠️ About one false alarm per run in the clean file (the model argues itself into a bug); a second-opinion check is Phase 7. |
+| Custom skill created from a chat, exported, re-imported, auto-used | ✅ "save this as a skill" → draft card → Save → export ZIP → delete → import (arrives **disabled**) → enable → a new request shows "Using skill: Generate Release Notes". |
+| Audit reviewed by you | ⏳ ready for your review. Live on GoShop (~5 min): the correction "payment also calls product" on the Confirm As-Is gate became a saved fact and the As-Is was redrawn with it; report with C4 diagrams (the project's name, not its id), PostgreSQL and Redis (not the ORM), hotspots without generated files, 19 security findings (test fixtures grouped per file, names like `"x-access"` no longer read as secrets, type casts rated as types issues), 53 quality findings, 3 risks, 3 recommendations. |
+| `/docs` | ✅ Live on GoShop (~45 s): README, API reference (43 endpoints from the code), architecture and runbook; every endpoint and file mentioned checked (0 problems); the documented build ran in the sandbox; committed on a `codewright/docs-<time>` branch after approval. Commands are shown as people type them (no report flags or `.codewright/` paths). |
+| `make check` | ✅ ruff, format, mypy clean; pytest **235 passed**, 6 skipped (sandbox tests: `make check-sandbox`); ESLint, tsc, Prettier clean, Vitest **24 passed**. The flaky settings test from Phase 5 passed in this run; its cause (an event written for a run the database doesn't show) isn't found yet. |
+| M1 demo | ⏳ with you |
+
+Found on the way: Explain's definition patterns could run across lines (`\s` matched newlines), so an interface
+declaration swallowed the real function; importing a skill reset its auto-use; a drafted skill could pick a
+code-changing playbook and start an intake instead of answering; ESLint errors were reported as style nits. The
+architecture-change stub still defaults its services to GoShop's names; it is replaced when that playbook is built.
 
 ## Phase 5: Language Packs + sandbox, done (ADR 0020)
 

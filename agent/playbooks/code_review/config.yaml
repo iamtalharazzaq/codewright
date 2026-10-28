@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.1c. Tier 0: findings only; applying fixes is a tier 1-2 change (Phase 8).
+title: Code review
+description: >-
+  Reviews code like a senior engineer: a file, folder, module or the whole project. Linters run in the sandbox, then
+  the Tech Lead (every file) and the Security Engineer (files that touch input, queries, files, auth or crypto) review
+  it with the Code Analyst's graph context. Findings by severity with file, line and a suggested fix, a score and the
+  top 3 to fix first.
+intent: review_code
+lead_role: tech_lead

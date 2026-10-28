@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+import httpx
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
@@ -12,6 +14,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 
 from agent.llm.budgets import limits_for_tier
+from agent.llm.client import LLMClient
+from agent.llm.config import LLMProfile
 from agent.playbooks.plan import plan_from
 from agent.playbooks.registry import get_playbook
 from agent.playbooks.services import RunServices
@@ -80,3 +84,47 @@ def gates_of(prompts: Sequence[dict[str, Any]]) -> list[str]:
 
 def started(events: Sequence[tuple[str, str | None, dict[str, Any]]]) -> list[str | None]:
     return [step for (event, step, _) in events if event == "step_started"]
+
+
+def llm_returning(*replies: Any) -> tuple[LLMClient, list[dict[str, Any]]]:
+    """A model client whose server answers with `replies` in turn (dicts are sent as JSON; the last one repeats),
+    and the request bodies it received."""
+    bodies: list[dict[str, Any]] = []
+    queue = [r if isinstance(r, str) else json.dumps(r) for r in replies]
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        content = queue.pop(0) if len(queue) > 1 else queue[0]
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 5},
+            },
+        )
+
+    prof = LLMProfile(base_url="http://llm.internal/v1", model="m", num_ctx=4096)
+    return LLMClient("remote_gpu", prof, transport=httpx.MockTransport(handler)), bodies
+
+
+def llm_by_task(replies: dict[str, Any]) -> tuple[LLMClient, list[str]]:
+    """A model client that answers each structured call by its task name (`replies[task]`, sent as JSON), and the
+    task names it was asked for, in order. An unknown task fails the test."""
+    asked: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        task = body.get("response_format", {}).get("json_schema", {}).get("name", "")
+        asked.append(task)
+        if task not in replies:
+            raise AssertionError(f"unexpected model call: {task}")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": json.dumps(replies[task])}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 5, "completion_tokens": 5},
+            },
+        )
+
+    prof = LLMProfile(base_url="http://llm.internal/v1", model="m", num_ctx=4096)
+    return LLMClient("remote_gpu", prof, transport=httpx.MockTransport(handler)), asked

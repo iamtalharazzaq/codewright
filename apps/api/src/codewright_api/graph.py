@@ -94,6 +94,12 @@ class GraphService:
         except Exception:
             log.exception("code search indexing failed for %s", key)
 
+    def facts_changed(self, project_id: uuid.UUID | str) -> None:
+        """The user saved or removed facts: open graph views reload (facts are applied when the graph is read)."""
+        versions = self.store(project_id).versions()
+        if versions:
+            self.bus.publish(bus_key(str(project_id)), {"type": "graph", "version": versions[-1], "facts": True})
+
     async def wait(self, project_id: uuid.UUID | str) -> None:
         task = self._tasks.get(str(project_id))
         if task is not None:

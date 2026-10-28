@@ -246,12 +246,20 @@ export function RunCard({ runId, tick }: { runId: string; tick: number }) {
 /** Done card (Section 3.5): what was done, what changed, the guide and next steps. */
 export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (text: string) => void }) {
   const { summary, changed = [], proof = [], guide, suggestions = [] } = message.data;
+  // The first line is the headline; a run's own summary (score, top findings, risks) follows as Markdown.
+  const [headline, ...rest] = (summary ?? message.content).split("\n\n");
+  const details = rest.join("\n\n");
   return (
     <div className={CARD}>
       <p className="flex items-center gap-2 font-medium">
         <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
-        {summary ?? message.content}
+        {headline}
       </p>
+      {details && (
+        <div className="text-sm">
+          <Markdown>{details}</Markdown>
+        </div>
+      )}
       {changed.length > 0 && (
         <div className="text-sm">
           <p className="text-muted-foreground">What changed</p>

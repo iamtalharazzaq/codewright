@@ -49,7 +49,8 @@ members = ["apps/api", "sandbox/runner"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["apps/web", "*.md", "templates", "workspaces"]  # templates are linted inside each generated project
+extend-exclude = ["apps/web", "*.md", "templates", "workspaces", "evals/repos"]  # templates: linted inside each generated
+# project; evals/repos: sample projects with deliberately seeded bugs (the review eval)
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL"]
@@ -75,7 +76,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 files = ["agent", "apps/api/src", "apps/api/tests", "sandbox/runner/src", "sandbox/runner/tests", "evals"]
 mypy_path = "apps/api/src:sandbox/runner/src"
-exclude = ["/fixtures/"]  # sample projects the Language Pack golden tests read
+exclude = ["/fixtures/", "^evals/repos/"]  # sample projects (Language Pack golden tests, seeded review eval)
 
 [tool.pytest.ini_options]
 testpaths = ["agent/tests", "connectors/tests", "apps/api/tests", "sandbox/runner/tests"]

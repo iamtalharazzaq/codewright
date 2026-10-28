@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderGit2, Menu, MessageSquarePlus, PenTool, Settings, Workflow, X } from "lucide-react";
+import { FolderGit2, Menu, MessageSquarePlus, PenTool, Settings, Sparkles, Workflow, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, useState, type ReactNode } from "react";
@@ -116,6 +116,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-0.5">
             <NavLink href="/" icon={MessageSquarePlus} onNavigate={close}>
               New chat
+            </NavLink>
+            <NavLink href="/skills" icon={Sparkles} onNavigate={close}>
+              Skills
             </NavLink>
           </div>
 

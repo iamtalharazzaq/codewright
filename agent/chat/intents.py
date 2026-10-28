@@ -39,29 +39,25 @@ Intent = Literal[
     "review_code",
 ]
 
-# Built-in slash commands (Section 2.2). Phase 6 turns these into skills, with custom ones added by the user.
-SLASH_COMMANDS: dict[str, tuple[Intent, str]] = {
-    "ask": ("general_help", "Ask a software question"),
-    "write-code": ("write_code", "Write a function, algorithm or data structure"),
-    "new-app": ("new_app", "Build a new app"),
-    "review-code": ("review_code", "Review code: findings by severity with fixes"),
-    "explain": ("explain_code", "Explain how some code works"),
-    "audit": ("analyze_audit", "Audit a project's architecture and quality"),
-    "fix-bug": ("fix_bug", "Find and fix a bug"),
-    "write-tests": ("write_tests", "Add tests"),
-    "write-docs": ("write_docs", "Write documentation"),
-    "refactor": ("refactor", "Restructure code without changing behavior"),
-    "optimize": ("improve_performance", "Make something faster"),
-    "security-review": ("security_review", "Check for security problems"),
-    "upgrade": ("upgrade", "Upgrade a framework or dependency"),
-    "db-change": ("database_change", "Change the database schema or engine"),
-    "add-feature": ("add_feature", "Add a feature to a project"),
-    "modernize-ui": ("frontend_modernize", "Modernize a frontend"),
-    "dockerize": ("devops_deploy", "Docker, CI/CD and deployment"),
-    "translate": ("translate_language", "Rewrite code in another supported language"),
-    "change-architecture": ("change_architecture", "Modules, modular monolith, microservices, merge, serverless"),
-    "project": ("project_manage", "Project actions: connect, status, deliver"),
-}
+BUILTIN_SKILLS_DIR = CONFIG_DIR.parent / "skills" / "builtin"
+# Built-in commands that aren't an intent: the chat handles them itself (Section 8.6).
+SPECIAL_COMMANDS = ("graph", "create-skill")
+
+
+@cache
+def _builtin_commands() -> dict[str, tuple[str, str]]:
+    """Slash commands from the built-in skills (`skills/builtin/*/SKILL.md`): name → (intent or "custom", text)."""
+    commands: dict[str, tuple[str, str]] = {}
+    for path in sorted(BUILTIN_SKILLS_DIR.glob("*/SKILL.md")):
+        front = path.read_text(encoding="utf-8").split("---", 2)[1]
+        meta = yaml.safe_load(front)
+        commands[meta["command"].lstrip("/")] = (meta["playbook"], meta["description"])
+    return commands
+
+
+def slash_commands() -> dict[str, tuple[str, str]]:
+    return dict(_builtin_commands())
+
 
 # The phase in which each intent's playbook is built (Section 15). `general_help` (Answer) is built in Phase 2.
 PLAYBOOK_PHASE: dict[str, str] = {
@@ -86,6 +82,15 @@ PLAYBOOK_PHASE: dict[str, str] = {
     "change_architecture": "15-17",
     "translate_language": "18",
 }
+
+BUILT_PHASES = 6  # playbooks of phases up to this one exist (raise it as phases land)
+
+
+def built(intent: str) -> bool:
+    """Whether the intent's playbook exists yet (Write code has a chat version before Phase 8)."""
+    phase = PLAYBOOK_PHASE[intent].split("-")[0]
+    return int(phase) <= BUILT_PHASES
+
 
 INTENT_LABELS: dict[str, str] = {
     "general_help": "Answer",
@@ -171,9 +176,18 @@ _SLASH = re.compile(r"^/([a-z][a-z0-9-]*)(?:\s+(.*))?$", re.DOTALL)
 def parse_slash(text: str) -> SlashCommand | None:
     """`/review-code internal/payment` → (review-code, review_code, "internal/payment"). Unknown commands → None."""
     match = _SLASH.match(text.strip())
-    if not match or match.group(1) not in SLASH_COMMANDS:
+    if not match:
         return None
-    return SlashCommand(match.group(1), SLASH_COMMANDS[match.group(1)][0], (match.group(2) or "").strip())
+    found = _builtin_commands().get(match.group(1))
+    if found is None or found[0] == "custom":
+        return None
+    return SlashCommand(match.group(1), found[0], (match.group(2) or "").strip())  # type: ignore[arg-type]
+
+
+def split_slash(text: str) -> tuple[str, str] | None:
+    """`/any-command rest` → ("any-command", "rest"), for built-in specials and custom skills."""
+    match = _SLASH.match(text.strip())
+    return (match.group(1), (match.group(2) or "").strip()) if match else None
 
 
 # A language the user asks to *use*: "in Java", "using PHP", "with Rust", "Java project", "rewrite ... to Kotlin".

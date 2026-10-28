@@ -25,7 +25,7 @@ PLAYBOOKS_DIR = Path(__file__).resolve().parent
 TIERS_FILE = PLAYBOOKS_DIR.parents[1] / "config" / "tiers.yaml"
 
 # Playbooks with a runnable graph so far. Later phases add one per intent (config/tiers.yaml).
-_MODULES = ("sample", "architecture_change")
+_MODULES = ("sample", "architecture_change", "code_review", "audit", "docs")
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,8 @@ class PlaybookSpec:
     initial_plan: Callable[[dict[str, Any]], list[tuple[str, str, str]]] = lambda _inputs: []
     # The tier these inputs need when it's above the playbook's default (e.g. a microservices target is tier 3).
     min_tier: Callable[[dict[str, Any]], int] = lambda _inputs: 0
+    # Playbooks that read or change a project's code need one (the run's workspace is the project's).
+    needs_project: bool = False
 
 
 @dataclass(frozen=True)

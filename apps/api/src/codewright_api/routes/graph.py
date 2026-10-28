@@ -55,6 +55,21 @@ async def get_graph(
     }
 
 
+@router.get("/graph/facts")
+async def list_facts(project_id: uuid.UUID, request: Request, session: SessionDep) -> list[dict[str, Any]]:
+    """Corrections the user confirmed (USER_FACT): the strongest evidence on the graph."""
+    await _project(session, project_id)
+    return _graphs(request).store(project_id).facts()
+
+
+@router.delete("/graph/facts", status_code=204)
+async def remove_fact(project_id: uuid.UUID, source: str, target: str, request: Request, session: SessionDep) -> None:
+    await _project(session, project_id)
+    graphs = _graphs(request)
+    graphs.store(project_id).remove_fact(source, target)
+    graphs.facts_changed(project_id)
+
+
 @router.post("/graph", status_code=202)
 async def refresh_graph(
     project_id: uuid.UUID, body: RefreshIn, request: Request, session: SessionDep

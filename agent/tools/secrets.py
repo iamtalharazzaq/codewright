@@ -50,11 +50,28 @@ class Finding:
         return {"kind": self.kind, "path": self.path, "line": self.line}
 
 
+# Source code: a secret assignment is only a finding when the value is a string literal. `Password: cfg.DBPassword`
+# reads a value from configuration; config files (.env, YAML, INI...) have unquoted values, so they keep the rule.
+CODE_SUFFIXES = {
+    ".py", ".go", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".java", ".kt", ".cs", ".rb", ".php", ".rs", ".swift",
+    ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp",
+}  # fmt: skip
+# A quoted value made of plain words is a name, not a secret: `TokenType = "x-access"`,
+# `TOKEN_KEY = 'app_access_token'` (a storage key). Real secrets are random: digits, mixed case.
+_LABEL = re.compile(r"[a-z]+(?:[-_.:][a-z]+)+")
+
+
 def scan_text(text: str, path: str = "") -> list[Finding]:
+    code = Path(path).suffix.lower() in CODE_SUFFIXES
     findings: list[Finding] = []
     for lineno, line in enumerate(text.splitlines(), 1):
         for kind, pattern in PATTERNS.items():
-            if pattern.search(line):
+            m = pattern.search(line)
+            if m and code and kind == "secret assignment" and line[m.start(1) - 1 : m.start(1)] not in ("'", '"', "`"):
+                continue  # an expression (a variable, a config field, a call), not a hard-coded value
+            if m and code and kind == "secret assignment" and _LABEL.fullmatch(m.group(1).rstrip("'\"`)")):
+                continue
+            if m:
                 findings.append(Finding(kind, path, lineno))
                 break  # one finding per line is enough
     return findings

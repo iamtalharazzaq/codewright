@@ -304,6 +304,13 @@ class SandboxService:
                 return str(preview["id"])
         return None
 
+    async def wait(self, activity_id: str) -> Activity:
+        """Until the activity has finished (playbooks use this; the UI follows the events instead)."""
+        activity = self.activities[activity_id]
+        while activity.status == "running":
+            await asyncio.sleep(0.5)
+        return activity
+
     async def follow(self, activity_id: str, after: int = 0) -> Any:
         activity = self.activities.get(activity_id)
         if activity is None:
@@ -328,6 +335,30 @@ class SandboxService:
         if not sid:
             raise KeyError("no sandbox session for this project")
         return sid
+
+
+def step_outputs(activity: Activity, max_chars: int = 200_000) -> list[dict[str, Any]]:
+    """An activity's output per component and step: [{component, pack, step, ok, exit_code, output}]."""
+    steps: list[dict[str, Any]] = []
+    component, pack = ".", ""
+    current: dict[str, Any] | None = None
+    for event in activity.events:
+        kind = event.get("type")
+        if kind == "component":
+            component, pack = event.get("path", "."), event.get("pack", "")
+        elif kind == "step":
+            current = {"component": component, "pack": pack, "step": event.get("name"), "ok": None,
+                       "exit_code": None, "output": ""}  # fmt: skip
+            steps.append(current)
+        elif kind == "output" and current is not None and len(current["output"]) < max_chars:
+            current["output"] += event.get("text", "")
+        elif kind == "step_done" and current is not None:
+            result = event.get("result", {})
+            current.update(ok=result.get("ok"), exit_code=result.get("exit_code"))
+    if activity.error:
+        steps.append({"component": ".", "pack": "", "step": "error", "ok": False, "exit_code": None,
+                      "output": activity.error})  # fmt: skip
+    return steps
 
 
 def order_for_run(components: list[Component]) -> list[Component]:
