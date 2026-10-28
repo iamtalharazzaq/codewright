@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * The Report tab for a run started from this chat (CODEWRIGHT.md Section 2.2): its reports and diagrams (review
- * findings, the audit, the As-Is, generated docs), rendered as Markdown with their diagrams. Reloads as the run moves.
+ * findings, the audit, the As-Is, generated docs), rendered as Markdown with their diagrams, and the changes a run
+ * proposes (diffs, written code) to read before approving. Reloads as the run moves.
  */
 export function RunReport({ runId, tick }: { runId: string; tick: number }) {
   const [artifacts, setArtifacts] = useState<ArtifactRef[]>([]);
@@ -21,7 +22,7 @@ export function RunReport({ runId, tick }: { runId: string; tick: number }) {
     const ctrl = new AbortController();
     getRun(runId, ctrl.signal)
       .then((run) => {
-        const shown = run.artifacts.filter((a) => a.kind === "report" || a.kind === "diagram");
+        const shown = run.artifacts.filter((a) => ["report", "diagram", "diff", "file"].includes(a.kind));
         setArtifacts(shown);
         setChosen((c) => (c && shown.some((a) => a.path === c) ? c : (shown.at(-1)?.path ?? null)));
       })
@@ -44,6 +45,14 @@ export function RunReport({ runId, tick }: { runId: string; tick: number }) {
       });
     return () => ctrl.abort();
   }, [runId, chosen, tick]);
+
+  const kind = artifacts.find((a) => a.path === chosen)?.kind;
+  const shown =
+    kind === "diff"
+      ? "```diff\n" + text + "\n```"
+      : kind === "file"
+        ? "```" + (chosen?.split(".").at(-1) ?? "") + "\n" + text + "\n```"
+        : text;
 
   if (error) {
     return (
@@ -87,7 +96,7 @@ export function RunReport({ runId, tick }: { runId: string; tick: number }) {
         )}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
-        <Markdown>{text}</Markdown>
+        <Markdown>{shown}</Markdown>
       </div>
     </div>
   );

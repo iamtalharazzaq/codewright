@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.6. Tier 1: one approval on the result; the tests go into the project on a new branch.
+title: Tests
+description: >-
+  QA picks up to three files worth testing from what was asked and the project's code, writes characterization or
+  unit tests for each (the Reflection loop retries a test that doesn't even run, up to 5 times), and runs the
+  component's tests before and after to show coverage moving. One approval, then the tests go into the project on
+  a new branch.
+intent: write_tests
+lead_role: qa_engineer

@@ -40,6 +40,10 @@ class ProjectTools(Protocol):
     async def sandbox(self, action: str, paths: list[str] | None = None) -> list[dict[str, Any]]:
         """Run `build`, `test` or `lint` for the components in the sandbox; output per step as for `lint`."""
 
+    async def test(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
+        """Run the components' tests in the sandbox and return each one's full result, report included (coverage,
+        cases): `[{component, pack, ok, report: {tool, passed, failed, ..., coverage: {...} | None}}]`."""
+
     def files_changed(self, paths: list[str]) -> None:
         """Files were written in `work/`: update the graph and search (throttled)."""
 

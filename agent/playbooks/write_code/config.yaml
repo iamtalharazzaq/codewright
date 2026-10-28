@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.1b. Tier 1: the confirm card first, then one approval on the result.
+title: Write code
+description: >-
+  Writes a small, self-contained piece of code (a function, an algorithm, a data structure) in one of the five
+  languages, with tests for the agreed edge cases, runs them in the sandbox (the Reflection loop fixes failures, up
+  to 5 times) and explains the approach with its time and space complexity. In a project, the code is added on a
+  new branch after one approval.
+intent: write_code
+lead_role: backend_developer

@@ -1,0 +1,9 @@
+# CODEWRIGHT.md Section 5.7. Tier 1: one approval on the result; the fix goes into the project on a new branch.
+title: Bug fix
+description: >-
+  Locates a reported bug's likely cause from the project's code and search, writes a test that reproduces it,
+  fixes it with the smallest change that makes that test and every other one pass (the Reflection loop retries up
+  to 5 times with the failure fed back), and has the Tech Lead review the diff before one approval. The fix and
+  its regression test go into the project on a new branch.
+intent: fix_bug
+lead_role: backend_developer

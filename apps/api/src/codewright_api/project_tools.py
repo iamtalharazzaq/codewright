@@ -17,6 +17,7 @@ from codewright_api.graph import GraphService
 from codewright_api.sandbox import SandboxService, step_outputs
 
 ACTION_TIMEOUT_S = 900
+SCRATCH = "scratch-"
 
 
 class ApiProjectTools:
@@ -27,14 +28,16 @@ class ApiProjectTools:
         graphs: GraphService,
         sandbox: SandboxService | None,
     ) -> None:
-        self.id = uuid.UUID(project_id)
+        # A project's id, or `scratch-<run id>` for Write code's throwaway workspace (no graph, search or facts).
+        self.key = project_id  # what the workspace and the sandbox know it by
+        self.id = uuid.UUID(project_id.removeprefix(SCRATCH))
         self.sessions = sessions
         self.graphs = graphs
         self._sandbox = sandbox
 
     @property
     def work(self) -> Path:
-        return self.graphs.workspace(self.id).work
+        return self.graphs.workspace(self.key).work
 
     async def summary(self) -> dict[str, Any]:
         async with self.sessions() as session:
@@ -63,9 +66,18 @@ class ApiProjectTools:
     async def sandbox(self, action: str, paths: list[str] | None = None) -> list[dict[str, Any]]:
         if self._sandbox is None:
             return []
-        activity = self._sandbox.start(self.id, action, paths)  # type: ignore[arg-type]
+        activity = self._sandbox.start(self.key, action, paths)  # type: ignore[arg-type]
         await asyncio.wait_for(self._sandbox.wait(activity.id), ACTION_TIMEOUT_S)
         return step_outputs(activity)
+
+    async def test(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
+        if self._sandbox is None:
+            return []
+        activity = self._sandbox.start(self.key, "test", paths)
+        await asyncio.wait_for(self._sandbox.wait(activity.id), ACTION_TIMEOUT_S)
+        if activity.error and not activity.results:
+            return [{"component": ".", "pack": "", "ok": False, "error": activity.error, "report": None}]
+        return activity.results
 
     def files_changed(self, paths: list[str]) -> None:
         self.graphs.refresh(self.id, paths, reason="docs")

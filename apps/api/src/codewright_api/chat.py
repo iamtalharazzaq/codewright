@@ -26,7 +26,6 @@ from sqlalchemy import select, update
 from agent.chat import corrections, explain, intake, router, skill_draft
 from agent.chat.answer import stream_answer
 from agent.chat.intents import INTENT_LABELS, PLAYBOOK_PHASE, intent_config, named_language, split_slash
-from agent.chat.write_code import stream_code
 from agent.llm.client import LLMClient, LLMError, LLMUnavailable
 from agent.llm.client import Message as LLMMessage
 from agent.llm.structured import StructuredOutputError
@@ -54,7 +53,8 @@ CORRECTABLE = {"explain_code", "analyze_audit", "general_help"}
 SKILL_MODEL_MIN = 0.15
 SKILL_KEYWORDS_MIN = 0.6
 CARD_KINDS = ("correction", "skill_draft")  # cards answered with Save / Discard
-READ_MOSTLY = {"code_review", "audit", "docs"}  # their artifacts are reports, not changes to the project
+# Playbooks whose artifacts are reports or snippets; the files they changed are the ones published on a branch.
+READ_MOSTLY = {"code_review", "audit", "docs", "write_code", "bug_fix", "tests"}
 RUN_INTENTS = {"review_code": "code_review", "analyze_audit": "audit"}  # tier 0, but long: a run in project chats
 REVIEW_IN_CHAT = """This is a code review of code in the chat. Group findings by severity (critical / major / minor /
 nit); for each give the line, the problem, why it matters and a fix as code. End with a score out of 10 and the top 3
@@ -803,21 +803,19 @@ class ChatService:
     async def _start_work(self, conversation_id: uuid.UUID, card: Message) -> dict[str, Any]:
         intent = card.data["intent"]
         cfg = intent_config(intent)
-        if intent == "write_code":  # chat version until Phase 8 (agent/chat/write_code.py)
-            reply = await self._append(conversation_id, status="streaming", data={"intent": intent})
-            reply_id = uuid.UUID(reply["id"])
-            task = asyncio.create_task(self._write_code(conversation_id, reply_id, card.data))
-            self._tasks[conversation_id] = task
-            task.add_done_callback(
-                lambda t: self._tasks.pop(conversation_id, None) if self._tasks.get(conversation_id) is t else None
-            )
-            return reply
         inputs = _run_inputs(intent, card.data)
         async with self.sessions() as session:
             conv = await session.get(Conversation, conversation_id)
             if conv is None:
                 raise LookupError(conversation_id)
             project_id = conv.project_id
+        if intent in ("fix_bug", "write_tests") and project_id is None:
+            return await self._append(
+                conversation_id,
+                content="This works on a project's code. Open this chat from a project (Projects → New chat), or "
+                "connect one first.",
+                data={"intent": intent},
+            )
         if intent == "write_docs" and project_id is None:
             return await self._append(
                 conversation_id,
@@ -856,41 +854,6 @@ class ChatService:
         if inputs.get("skill"):
             data["skill"] = {k: inputs["skill"][k] for k in ("name", "title", "command")}
         return await self._append(conversation_id, kind="run", run_id=run.id, content="", data=data)
-
-    async def _write_code(self, conversation_id: uuid.UUID, reply_id: uuid.UUID, data: dict[str, Any]) -> None:
-        text: list[str] = []
-        try:
-            async for token in stream_code(
-                self._client("backend_developer"),
-                data.get("request", ""),
-                data.get("card", {}),
-                data.get("answers", []),
-                context=data.get("context", ""),
-            ):
-                text.append(token)
-                self._publish(conversation_id, {"type": "token", "message_id": str(reply_id), "text": token})
-            await self._finish(reply_id, content="".join(text))
-        except asyncio.CancelledError:
-            with contextlib.suppress(Exception):
-                await asyncio.shield(self._finish(reply_id, content="".join(text), status="stopped"))
-            raise
-        except Exception as exc:
-            log.warning("write_code failed: %s", exc)
-            await self._finish(reply_id, kind="error", status="error", content=f"Writing the code failed: {exc}")
-            return
-        summary = "Written: " + str(data.get("card", {}).get("what", "the code")).replace("`", "")
-        await self._append(
-            conversation_id,
-            kind="done",
-            content=summary,
-            data={
-                "summary": summary,
-                "changed": [],
-                "proof": ["Tests written but not run yet: the sandbox that runs them arrives in Phase 5."],
-                "guide": None,
-                "suggestions": ["Explain it step by step", "Add more edge-case tests", "Do it in another language"],
-            },
-        )
 
     async def _on_run_status(self, run_id: uuid.UUID, status: str) -> None:
         async with self.sessions() as session:
@@ -975,6 +938,10 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
         text = (data.get("request") or "").lower()
         return {"target": "microservices", "mode": "audit"} if "microservice" in text else None
     inputs: dict[str, Any] = {"request": data.get("request", "")}
+    if intent in ("write_code", "fix_bug", "write_tests"):
+        inputs.update(answers=data.get("answers", []), skill=data.get("skill"))
+    if intent == "write_code":
+        inputs.update(card=data.get("card", {}), language=data.get("language") or "")
     if intent in ("write_docs", "review_code", "analyze_audit"):
         inputs.update(path=_path_arg(data.get("targets") or []), skill=data.get("skill"))
     if intent == "write_docs":
@@ -982,16 +949,19 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
     return inputs
 
 
+SUGGESTIONS: dict[str, list[str]] = {
+    "architecture_change": ["Explain the To-Be design", "Run the full conversion", "Deliver the report"],
+    "code_review": ["Explain the top finding", "Fix all critical and major findings", "Review another module"],
+    "audit": ["Explain the biggest hotspot", "Review the riskiest module", "Write the architecture docs"],
+    "write_code": ["Explain it step by step", "Add more edge-case tests", "Do it in another language"],
+    "bug_fix": ["Explain the root cause", "Write more tests for this module", "Review the changed file"],
+    "tests": ["Test another module", "Review the code the tests cover", "Fix what the tests found"],
+    "docs": ["Explain a part of the docs", "Review the code the docs describe", "Deliver it"],
+}
+
+
 def _suggestions(playbook: str) -> list[str]:
-    if playbook == "architecture_change":
-        return ["Explain the To-Be design", "Run the full conversion", "Deliver the report"]
-    if playbook == "code_review":
-        return ["Explain the top finding", "Fix all critical and major findings", "Review another module"]
-    if playbook == "audit":
-        return ["Explain the biggest hotspot", "Review the riskiest module", "Write the architecture docs"]
-    if playbook == "docs":
-        return ["Explain a part of the docs", "Review the code the docs describe", "Deliver it"]
-    return ["Explain what was done", "Review the result", "Deliver it"]
+    return SUGGESTIONS.get(playbook, ["Explain what was done", "Review the result", "Deliver it"])
 
 
 def _path_arg(targets: list[str]) -> str:

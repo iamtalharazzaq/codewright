@@ -23,15 +23,20 @@ class FakeProject:
         summary: dict[str, Any] | None = None,
         lint_outputs: list[dict[str, Any]] | None = None,
         hits: list[dict[str, Any]] | None = None,
+        test_results: list[list[dict[str, Any]]] | None = None,
     ) -> None:
         self._work = work
         self.graph = graph
         self._summary = summary or {}
         self.lint_outputs = lint_outputs or []
         self.hits = hits or []
+        # `test()`'s answer, one call at a time (so a test can see "before" fails, "after" passes); the last one
+        # given repeats once the list runs out.
+        self._test_results = test_results or [[{"component": ".", "pack": "", "ok": True, "report": None}]]
         self.saved_facts: list[dict[str, Any]] = []
         self.linted: list[list[str] | None] = []
         self.actions: list[str] = []
+        self.tested: list[list[str] | None] = []
         self.changed: list[str] = []
 
     @property
@@ -60,6 +65,11 @@ class FakeProject:
     async def sandbox(self, action: str, paths: list[str] | None = None) -> list[dict[str, Any]]:
         self.actions.append(action)
         return self.lint_outputs if action == "lint" else [{"component": ".", "step": action, "ok": True, "output": ""}]
+
+    async def test(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
+        self.tested.append(paths)
+        i = min(len(self.tested) - 1, len(self._test_results) - 1)
+        return self._test_results[i]
 
     def files_changed(self, paths: list[str]) -> None:
         self.changed.extend(paths)

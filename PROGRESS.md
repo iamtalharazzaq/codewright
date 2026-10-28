@@ -3,7 +3,7 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 7 (Verification engine), done; waiting for "next" (Phase 8: write code, fix and test).
+**Current phase:** Phase 8 (Write code, fix and test), built and live-tested; the 20-example eval and the final `make check` are still to run. Phase 9 is next.
 Phase 6's audit review and M1 demo are still waiting with you, deferred to the end. Phase 1 VRAM table still pending.
 **Last updated:** 2026-10-28
 **Branch:** `codewright-phase-0`
@@ -21,6 +21,18 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 8: Write code, fix and test (ADR 0023)
+
+| Task | Result |
+|---|---|
+| `write_code` | A playbook now (no project needed): code + tests in a throwaway workspace, run in the real sandbox, Reflection loop (max 5; fixes the tests on attempts 3 and 5), explanation with complexity, one approval, optional commit into a project. Live: palindrome in Python ✅ (13 tests), reverse a linked list in Go ✅ (attempt 4), binary search in C++ ⚠️ failed after 5 attempts (code and tests disagreed on the API) and says so. |
+| `fix_bug` | locate → reproduce → fix (Reflection) → Tech Lead review → one approval → branch `codewright/fix-*`. Live on GoShop with a seeded off-by-one in `pkg/paging`: right file, failing regression test, fixed in 1 attempt (1-line diff), 342+ tests green. |
+| `write_tests` | targets → tests in Codewright's own file → before/after tests and coverage → one approval → branch `codewright/tests-*`. Live on GoShop `pkg/paging`: 342 → 352 passing, no regressions. Files that never pass are dropped and reported. |
+| Reflection loop | `agent/playbooks/reflection.py`, feedback = failing cases + the broken step's key output lines. |
+| UI | The Report tab shows diffs and written code; Done cards list the files on the branch. |
+
+Acceptance still open: all 20 `EXAMPLES.md` §2 requests (only 3 run live so far), more seeded bugs, an eval record.
 
 ## Phase 7: Verification engine, done (ADR 0022)
 
