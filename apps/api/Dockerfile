@@ -18,6 +18,7 @@ WORKDIR /app
 # Dependencies first (cached layer), then the source.
 COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
+COPY sandbox/runner/pyproject.toml sandbox/runner/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package codewright-api --no-install-workspace
 
@@ -25,6 +26,7 @@ COPY agent agent
 COPY connectors connectors
 COPY apps/api apps/api
 COPY config config
+COPY templates templates
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package codewright-api
 

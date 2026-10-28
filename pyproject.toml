@@ -43,13 +43,13 @@ dev = [
 exclude-newer = "14 days"
 
 [tool.uv.workspace]
-members = ["apps/api"]
+members = ["apps/api", "sandbox/runner"]
 
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-extend-exclude = ["apps/web", "*.md"]
+extend-exclude = ["apps/web", "*.md", "templates", "workspaces"]  # templates are linted inside each generated project
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL"]
@@ -60,21 +60,27 @@ ignore = ["PLR2004"]
 max-args = 8
 
 [tool.ruff.lint.isort]
-known-first-party = ["codewright_api", "agent"]
+known-first-party = ["codewright_api", "codewright_sandbox", "agent", "connectors"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "PLR2004"]
 "apps/api/migrations/**" = ["E501"]
+# Packs and the runner build commands for sandbox containers: servers there must listen on all interfaces.
+"agent/language_packs/**" = ["S104"]
+"sandbox/runner/src/**" = ["S104", "S108"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["agent", "apps/api/src", "apps/api/tests", "evals"]
-mypy_path = "apps/api/src"
+files = ["agent", "apps/api/src", "apps/api/tests", "sandbox/runner/src", "sandbox/runner/tests", "evals"]
+mypy_path = "apps/api/src:sandbox/runner/src"
+exclude = ["/fixtures/"]  # sample projects the Language Pack golden tests read
 
 [tool.pytest.ini_options]
-testpaths = ["agent/tests", "connectors/tests", "apps/api/tests"]
+testpaths = ["agent/tests", "connectors/tests", "apps/api/tests", "sandbox/runner/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra"
+norecursedirs = [".*", "fixtures", "node_modules"]
+markers = ["sandbox: runs code in the sandbox runner (make check-sandbox)"]

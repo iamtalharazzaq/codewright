@@ -215,8 +215,13 @@ def unsupported_language(text: str) -> LanguageDecline | None:
         return None
     raw = (match.group(1) or match.group(2)).lower()
     name = _LANG_ALIASES.get(raw, raw)
-    suggestions = _intake()["languages"]["suggest"].get(name, ["TypeScript", "Python"])
-    return LanguageDecline(name, list(suggestions))
+    return LanguageDecline(name, suggestions_for(name))
+
+
+def suggestions_for(language: str) -> list[str]:
+    """The closest supported languages to an unsupported one ("Java" → Go, TypeScript)."""
+    key = _LANG_ALIASES.get(language.lower(), language.lower())
+    return list(_intake()["languages"]["suggest"].get(key, ["TypeScript", "Python"]))
 
 
 _SUPPORTED_ALIASES = {

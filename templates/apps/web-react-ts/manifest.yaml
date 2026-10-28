@@ -1,0 +1,11 @@
+name: web-react-ts
+language: TypeScript
+pack: typescript
+description: A small browser app or game in React + TypeScript (Vite), with tests and light/dark styling.
+stack: [React 19, Vite, TypeScript, Vitest]
+features: [modern styling, light/dark theme, a sample feature (task list), tests, Graphify setup, CI]
+extension_points:
+  - src/App.tsx — the screen
+  - src/lib/ — logic as pure functions, each with a test next to it
+  - src/styles.css — colors and spacing (CSS variables, light and dark)
+run: { kind: web, port: 5173 }

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     secret_key: SecretStr | None = None  # encrypts stored tokens (Google Drive)
     google_oauth_client_file: Path | None = None
     public_url: str = "http://localhost:3000"  # where the browser reaches the app (OAuth redirect)
+    # Sandbox runner (Phase 5, ADR 0020): the only service with Docker access.
+    sandbox_url: str = "http://sandbox-runner:8200"
 
     def load_models(self) -> ModelsConfig:
         """models.yaml with the environment's URL overrides applied (Settings-page overrides come on top)."""

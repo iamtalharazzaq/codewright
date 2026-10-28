@@ -10,6 +10,7 @@ exclude-newer-span = "P14D"
 members = [
     "codewright",
     "codewright-api",
+    "codewright-sandbox",
 ]
 
 [[package]]
@@ -328,6 +329,27 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "httpx", specifier = ">=0.28" }]
+
+[[package]]
+name = "codewright-sandbox"
+version = "0.0.0"
+source = { editable = "sandbox/runner" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.120" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "pydantic", specifier = ">=2.11" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.35" },
+]
 
 [[package]]
 name = "colorama"

@@ -1,0 +1,5 @@
+find_package(GTest REQUIRED)
+add_executable(calc_tests calc_test.cpp)
+target_link_libraries(calc_tests PRIVATE calc_core GTest::gtest_main)
+include(GoogleTest)
+gtest_discover_tests(calc_tests)

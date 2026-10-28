@@ -38,6 +38,8 @@ export interface ProjectDetail extends Project {
   chats: { id: string; title: string; updated_at: string }[];
   runs: { id: string; playbook: string; status: string }[];
   memory: { id: number; key: string; value: string }[];
+  /** Set when the project is mostly in a language Codewright doesn't work in (C12). */
+  unsupported: { language: string; suggestions: string[]; message: string } | null;
 }
 
 export interface Connectors {
@@ -497,3 +499,105 @@ export const listCommands = (signal?: AbortSignal) => request<SlashCommand[]>("G
 /** Tells the sidebar's chat list to reload (a chat was created, renamed, pinned or deleted). */
 export const CONVERSATIONS_CHANGED = "codewright:conversations-changed";
 export const notifyConversationsChanged = () => window.dispatchEvent(new Event(CONVERSATIONS_CHANGED));
+
+// ── Sandbox (Phase 5, ADR 0020) ─────────────────────────────────────────────
+export type SandboxAction = "build" | "test" | "lint" | "run";
+
+export interface SandboxComponent {
+  pack: string;
+  path: string;
+  kind: string;
+  frameworks: string[];
+  entrypoints: string[];
+  manifest: string;
+  run: { kind: "web" | "terminal"; cmd: string[]; port: number | null; services: string[] } | null;
+}
+
+export interface Preview {
+  id: string;
+  session: string;
+  kind: "web" | "terminal";
+  name: string;
+  cmd: string[];
+  port: number | null;
+  url: string | null;
+  running: boolean;
+  exit_code: number | null;
+  started_at: number;
+  component?: string;
+}
+
+export interface TestCaseResult {
+  name: string;
+  status: "passed" | "failed" | "skipped" | "error";
+  message: string;
+  file: string;
+}
+
+export interface TestReport {
+  tool: string;
+  passed: number;
+  failed: number;
+  skipped: number;
+  errors: number;
+  total: number;
+  ok: boolean;
+  found: boolean;
+  cases: TestCaseResult[];
+}
+
+export interface StepResult {
+  step: string;
+  exit_code: number;
+  duration_s: number;
+  output_tail: string;
+  timed_out: boolean;
+  oom_killed: boolean;
+  ok: boolean;
+}
+
+export interface ActionResult {
+  action: SandboxAction;
+  component: string;
+  pack: string;
+  ok: boolean;
+  steps: StepResult[];
+  report: TestReport | null;
+  error: string | null;
+  duration_s: number;
+}
+
+export interface SandboxActivity {
+  id: string;
+  action: SandboxAction;
+  components: string[];
+  status: "running" | "passed" | "failed" | "error";
+  started_at: number;
+  finished_at: number | null;
+  results: ActionResult[];
+  previews: Preview[];
+  error: string | null;
+}
+
+export interface SandboxStatus {
+  runner: { docker?: boolean; gateway?: boolean; images?: Record<string, boolean>; error?: string } | null;
+  components: SandboxComponent[];
+  session: { id: string; services: string[]; previews: Preview[] } | null;
+  activities: SandboxActivity[];
+}
+
+export const getSandbox = (id: string, signal?: AbortSignal) =>
+  request<SandboxStatus>("GET", `/projects/${id}/sandbox`, undefined, signal);
+export const startSandboxAction = (id: string, action: SandboxAction, components: string[] = []) =>
+  request<SandboxActivity>("POST", `/projects/${id}/sandbox/actions`, { action, components });
+export const stopSandbox = (id: string) => request<void>("DELETE", `/projects/${id}/sandbox`);
+export const stopPreview = (id: string, previewId: string) =>
+  request<void>("DELETE", `/projects/${id}/sandbox/previews/${previewId}`);
+export const sendPreviewInput = (id: string, previewId: string, data: string) =>
+  request<void>("POST", `/projects/${id}/sandbox/previews/${previewId}/input`, { data });
+export const resizePreview = (id: string, previewId: string, rows: number, cols: number) =>
+  request<void>("POST", `/projects/${id}/sandbox/previews/${previewId}/resize`, { rows, cols });
+export const activityEventsUrl = (id: string, activityId: string) =>
+  `/api/projects/${id}/sandbox/actions/${activityId}/events`;
+export const previewOutputUrl = (id: string, previewId: string) =>
+  `/api/projects/${id}/sandbox/previews/${previewId}/output`;

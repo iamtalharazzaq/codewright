@@ -1,0 +1,171 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "javascript",
+        "path": ".",
+        "kind": "api",
+        "frameworks": [
+          "express",
+          "jest"
+        ],
+        "entrypoints": [
+          "src/index.js"
+        ],
+        "manifest": "package.json",
+        "details": {
+          "name": "todo-api",
+          "manager": "npm-ci",
+          "scripts": [
+            "start",
+            "test"
+          ],
+          "has_tsconfig": false,
+          "module": "commonjs"
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "route:GET /health",
+            "kind": "route",
+            "label": "GET /health",
+            "file": "src/index.js",
+            "line": 5
+          },
+          {
+            "id": "route:GET /todos",
+            "kind": "route",
+            "label": "GET /todos",
+            "file": "src/routes/todos.js",
+            "line": 3
+          },
+          {
+            "id": "route:POST /todos",
+            "kind": "route",
+            "label": "POST /todos",
+            "file": "src/routes/todos.js",
+            "line": 4
+          },
+          {
+            "id": "route:DELETE /todos/:id",
+            "kind": "route",
+            "label": "DELETE /todos/:id",
+            "file": "src/routes/todos.js",
+            "line": 5
+          }
+        ],
+        "edges": []
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "ci",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "ci",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "node",
+            "cmd": [
+              "npx",
+              "--no-install",
+              "jest",
+              "--ci",
+              "--json",
+              "--outputFile=.codewright/reports/jest.json"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": "jest-json",
+            "optional": false
+          }
+        ],
+        "lint": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "ci",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ]
+      },
+      "run": {
+        "kind": "web",
+        "toolchain": "node",
+        "cmd": [
+          "npm",
+          "run",
+          "start"
+        ],
+        "workdir": ".",
+        "port": 4000,
+        "env": {
+          "PORT": "4000",
+          "HOST": "0.0.0.0"
+        },
+        "services": [],
+        "prepare": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "ci",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "todo-api"
+      }
+    }
+  ]
+}

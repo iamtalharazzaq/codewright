@@ -14,6 +14,7 @@ import {
 import { useState } from "react";
 
 import { GraphView } from "@/components/graph/graph-view";
+import { PreviewTab } from "@/components/sandbox/preview-tab";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -34,7 +35,8 @@ export const PANEL_TABS: Array<{ id: string; label: string; icon: LucideIcon; em
 
 /**
  * The artifacts panel beside the chat (CODEWRIGHT.md Section 2.2). In a project chat the Graph tab shows the live
- * project graph, with the modules the last reply mentions highlighted; other tabs fill as playbooks produce artifacts.
+ * project graph, with the modules the last reply mentions highlighted, and Preview the project running in the sandbox;
+ * other tabs fill as playbooks produce artifacts.
  */
 export function SidePanel({
   onClose,
@@ -78,16 +80,23 @@ export function SidePanel({
           <GraphView projectId={projectId} compact highlight={highlight} />
         </TabsContent>
       )}
-      {PANEL_TABS.filter((t) => !(projectId && t.id === "graph")).map(({ id, icon: Icon, empty }) => (
-        <TabsContent key={id} value={id} className="min-h-0 flex-1 overflow-y-auto p-6">
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted">
-              <Icon className="size-4" aria-hidden="true" />
-            </span>
-            <p className="max-w-60 text-sm">{empty}</p>
-          </div>
+      {projectId && (
+        <TabsContent value="preview" className="min-h-0 flex-1">
+          <PreviewTab projectId={projectId} />
         </TabsContent>
-      ))}
+      )}
+      {PANEL_TABS.filter((t) => !(projectId && (t.id === "graph" || t.id === "preview"))).map(
+        ({ id, icon: Icon, empty }) => (
+          <TabsContent key={id} value={id} className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+              <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+                <Icon className="size-4" aria-hidden="true" />
+              </span>
+              <p className="max-w-60 text-sm">{empty}</p>
+            </div>
+          </TabsContent>
+        ),
+      )}
     </Tabs>
   );
 }

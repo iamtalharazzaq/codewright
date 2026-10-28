@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GraphView } from "@/components/graph/graph-view";
 import { DeliverPanel } from "@/components/projects/deliver-panel";
 import { StatusBadge } from "@/components/projects/project-status";
+import { SandboxPanel } from "@/components/sandbox/sandbox-panel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -105,6 +106,13 @@ export function ProjectHome({ projectId }: { projectId: string }) {
         </p>
       )}
 
+      {project.unsupported && (
+        <p role="note" className="flex items-start gap-2 rounded-lg border border-amber-500/40 p-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden="true" />
+          {project.unsupported.message}
+        </p>
+      )}
+
       {project.status === "ready" && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -164,6 +172,19 @@ export function ProjectHome({ projectId }: { projectId: string }) {
             </CardHeader>
             <CardContent className="h-96">
               <GraphView projectId={project.id} compact />
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Sandbox</CardTitle>
+              <CardDescription>
+                Build, test, lint and run each part in isolated containers: package registries only, no access to this
+                machine, previews on localhost.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SandboxPanel projectId={project.id} />
             </CardContent>
           </Card>
 

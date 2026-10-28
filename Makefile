@@ -3,10 +3,13 @@ PNPM ?= corepack pnpm
 WEB := apps/web
 CHECKS := docker compose --profile checks
 
-.PHONY: up down logs check check-api check-web check-host
+.PHONY: up down logs check check-api check-web check-host check-sandbox sandbox-images
 
-up:            ## Build and start Codewright (http://localhost:3000)
+up: sandbox-images  ## Build and start Codewright (http://localhost:3000)
 	docker compose up -d --build --wait
+
+sandbox-images: ## Build the four sandbox toolchain images (Python, Go, Node, C++)
+	for t in python go node cpp; do docker build -t codewright-sandbox-$$t:dev -f sandbox/images/$$t.Dockerfile sandbox/images || exit 1; done
 
 down:
 	docker compose down
@@ -19,6 +22,10 @@ check: check-api check-web   ## Every lint/type/test check, in containers
 check-api:     ## ruff, mypy and pytest (incl. the Postgres tests, on a throwaway codewright_test database)
 	$(CHECKS) build api-checks
 	$(CHECKS) run --rm api-checks
+
+check-sandbox: ## Every template and pack fixture built, tested, linted and run in the real sandbox (needs `make up`)
+	$(CHECKS) build api-checks
+	$(CHECKS) run --rm -e SANDBOX_TESTS=1 api-checks pytest -m sandbox -v
 
 check-web:     ## ESLint, tsc, Prettier and Vitest
 	$(CHECKS) build web-checks

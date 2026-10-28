@@ -16,6 +16,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.12.16 /uv /bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
+COPY sandbox/runner/pyproject.toml sandbox/runner/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --all-packages --no-install-workspace
 

@@ -1,0 +1,72 @@
+# Sandbox (CODEWRIGHT.md Section 11, ADR 0020). Read by the sandbox-runner and the egress gateway.
+# Everything a project runs (builds, tests, linters, the app itself, its databases) runs in containers started from
+# these images, with these limits, on a network that can only reach the package registries below.
+
+# Toolchain images, one per Language Pack family (sandbox/images/*.Dockerfile, `make sandbox-images`).
+images:
+  python: codewright-sandbox-python:dev
+  go: codewright-sandbox-go:dev
+  node: codewright-sandbox-node:dev
+  cpp: codewright-sandbox-cpp:dev
+
+# Per job or preview. Callers may ask for less than `max`, never more.
+limits:
+  default: { cpus: 2, memory_mb: 2048, pids: 512, timeout_s: 900 }
+  max: { cpus: 4, memory_mb: 4096, pids: 1024, timeout_s: 1800 }
+  output_bytes: 2000000      # what a job may print before it is cut (it keeps running)
+  home_mb: 1024              # tmpfs $HOME; the root filesystem is read-only
+  tmp_mb: 1024
+
+# Docker's no-new-privileges flag. Off: on this host it makes every exec fail (EPERM), even for alpine. The
+# toolchain images carry no setuid/setgid binaries and all capabilities are dropped instead (ADR 0020).
+no_new_privileges: false
+
+session_ttl_s: 7200          # sessions (and their sidecars and previews) are removed after this much idle time
+max_sessions: 4
+
+# Caches kept between jobs, as sub-folders of one volume: path in the container → sub-folder.
+caches:
+  python: { /home/sandbox/.cache: python }
+  go: { /go/pkg: go/pkg, /home/sandbox/.cache/go-build: go/build }
+  node: { /home/sandbox/.npm: node/npm, /home/sandbox/.cache: node/cache, /home/sandbox/.local/share/pnpm: node/pnpm }
+  cpp: {}
+
+# Sidecar services a project may start next to its app (taken from the project's own docker-compose file).
+# Only these image repositories, with any tag; they get no internet access.
+services:
+  postgres:
+    images: [postgres, pgvector/pgvector, postgis/postgis]
+    ready: [pg_isready, -h, 127.0.0.1, -U, postgres]   # TCP: the init-time server listens on the socket only
+    memory_mb: 512
+    sql: [psql, -v, ON_ERROR_STOP=1, -U, "{POSTGRES_USER:postgres}", -d, "{POSTGRES_DB:postgres}", -c, "{sql}"]
+  redis:
+    images: [redis, valkey/valkey]
+    ready: [redis-cli, ping]
+    memory_mb: 256
+  mysql:
+    images: [mysql, mariadb]
+    ready: [mysqladmin, ping, -h, 127.0.0.1, --silent]
+    memory_mb: 768
+    sql: [mysql, -uroot, "-p{MYSQL_ROOT_PASSWORD:}", "{MYSQL_DATABASE:mysql}", -e, "{sql}"]
+  mongo:
+    images: [mongo]
+    ready: [mongosh, --quiet, --eval, "db.runCommand({ping:1})"]
+    memory_mb: 768
+
+# Hosts sandboxed code may reach (through the egress proxy). A suffix match: `npmjs.org` also allows
+# `registry.npmjs.org`. Addresses that resolve to private, loopback or link-local IPs are always refused.
+egress:
+  allow:
+    - pypi.org
+    - files.pythonhosted.org
+    - registry.npmjs.org
+    - registry.yarnpkg.com
+    - proxy.golang.org
+    - sum.golang.org
+    - storage.googleapis.com     # proxy.golang.org serves some module zips from here
+    - nodejs.org                 # node-gyp headers
+
+# Web previews: the gateway publishes these ports on 127.0.0.1 only and forwards each to one preview container.
+previews:
+  first_port: 41000
+  count: 10

@@ -3,9 +3,9 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 2 (the chat app), done; waiting for your UI review ("next" starts Phase 3: projects, uploads,
-connectors, delivery). Phase 1 VRAM table still pending.
-**Last updated:** 2026-10-27
+**Current phase:** Phase 5 (Language Packs + sandbox), done; waiting for your UI review ("next" starts Phase 6:
+Explain, Audit, Docs, Review, Skills). Phase 1 VRAM table still pending.
+**Last updated:** 2026-10-28
 **Branch:** `codewright-phase-0`
 
 ## How to run
@@ -21,6 +21,30 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 5: Language Packs + sandbox, done (ADR 0020)
+
+| Task | Result |
+|---|---|
+| 1. `LanguagePack` + unsupported check | `agent/language_packs/`: one pack per language, several components per project (GoShop: Go API + TypeScript web). Projects mostly in another language get a notice on the project home with the closest supported languages; the chat declines them by rule. |
+| 2. The 5 packs | Python, Go, TypeScript, JavaScript, C++ (CMake): detect, frameworks, entrypoints, install/build/test/lint/run steps, test reports in one shape (go test JSON, JUnit). Sidecars and migrations read from the project's own compose file. |
+| 3. Sandbox runner | `sandbox-runner` (the only service with the Docker socket) + `sandbox-gateway` (registry-only egress proxy, preview ports on 127.0.0.1:41000-41009). Non-root, no capabilities, read-only root, CPU/memory/PID/time limits, internal networks, throwaway Postgres/Redis/MySQL/Mongo. Limits and allowlist in `config/sandbox.yaml`. |
+| 4. Previews | Web previews (forwarded ports) and an interactive terminal preview (xterm.js). Sandbox panel on the project home (status, Build/Test/Lint/Run, live output, results); Preview tab in project chats. |
+| 5. Templates | `cli-python`, `api-go`, `web-react-ts`, `web-react-js`, `cli-cpp`, each with a manifest, guide and Graphify setup. Creating a project from a template comes with Phase 13 (New app). |
+
+### Acceptance results (2026-10-28, live on the running stack)
+
+| Check | Result |
+|---|---|
+| Golden tests on fixtures for every pack | ✅ `agent/tests/language_packs/` (fixtures: `python_fastapi`, `go_gin`, `ts_next`, `js_express`, `cpp_cmake`). |
+| GoShop builds, tests and runs in the sandbox, visible in Preview | ✅ Build: Go 4.5 s, web 37 s. Tests: **342 Go + 7 Vitest passed**. Run: Postgres (migration applied) + Redis; API on :41000 (`/health`, `/api/v1/products` → 200), web app on :41001 with `/api` passed through to the API. |
+| C++ CMake fixture builds, tests pass, runs in the terminal preview | ✅ ctest **2 passed**; typed `5`, `37`, `abc`, `quit` → `total = 5`, `total = 42`, `not a number`, `bye, total 42`, exit 0. |
+| Java/PHP declined with a suggestion | ✅ "…in Java with Spring Boot" → "I can do it in Go, TypeScript, Python (closest first)". |
+| `make check` | ⚠️ lint, format, mypy clean; pytest **194 passed, 1 failed, 6 skipped**. The failure (`test_settings.py::test_switch_profile_and_replace_the_url`) only happens in the full run; it passes alone (3/3) and with the other API tests (42 passed). Not looked into yet. |
+| UI reviewed by you | ⏳ |
+
+Notes: the API preview shows GoShop's own 404 at `/` (it has no handler there; `/health` works). Docker's
+`no-new-privileges` is off because it breaks every exec on this host (ADR 0020).
 
 ## Phase 4: Graphify, knowledge graph, code search, done (ADR 0019)
 
@@ -166,12 +190,11 @@ Benchmark candidates are in ADR 0016 for you to choose (nothing cloned).
 - **Local CPU model server is not running** (nothing on host `127.0.0.1:8080` / `:8081`), so `local_cpu` shows
   *unreachable*. Start your host llama-server; the `host-llm-bridge` picks it up.
 - **ngrok URL changes** when ngrok restarts: update it in Settings.
-- **Disk:** ~6 GB free (98% used). Needs freeing before benchmarks are cloned and sandbox images built (Phase 5).
+- **Disk:** ~5 GB free (98% used). Enough for rebuilds; needs freeing before benchmarks are cloned.
 
 ## Decisions waiting on you
 
 1. Benchmarks: pick from the candidates in ADR 0016 (one per type), after disk space is freed.
 2. VRAM table from the GPU machine (sets `num_ctx`).
 3. Google Drive token mode (by Phase 3).
-4. Sandbox (Phase 5): Docker socket in the API container (simple, root-equivalent) vs rootless Docker / host runner.
-5. GitHub remote (you'll share it later).
+4. GitHub remote (you'll share it later).

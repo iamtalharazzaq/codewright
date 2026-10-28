@@ -1,0 +1,270 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "typescript",
+        "path": ".",
+        "kind": "web",
+        "frameworks": [
+          "eslint",
+          "next",
+          "react",
+          "vitest"
+        ],
+        "entrypoints": [],
+        "manifest": "package.json",
+        "details": {
+          "name": "site",
+          "manager": "npm",
+          "scripts": [
+            "build",
+            "dev",
+            "lint"
+          ],
+          "has_tsconfig": true,
+          "module": "commonjs"
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "component:Pricing",
+            "kind": "component",
+            "label": "Pricing",
+            "file": "app/(marketing)/pricing/page.tsx",
+            "line": 1
+          },
+          {
+            "id": "component:About",
+            "kind": "component",
+            "label": "About",
+            "file": "app/about/page.tsx",
+            "line": 1
+          },
+          {
+            "id": "component:Home",
+            "kind": "component",
+            "label": "Home",
+            "file": "app/page.tsx",
+            "line": 1
+          },
+          {
+            "id": "component:Button",
+            "kind": "component",
+            "label": "Button",
+            "file": "components/button.tsx",
+            "line": 1
+          },
+          {
+            "id": "page:/pricing",
+            "kind": "page",
+            "label": "/pricing",
+            "file": "app/(marketing)/pricing/page.tsx",
+            "line": 1,
+            "router": "next-app"
+          },
+          {
+            "id": "page:/about",
+            "kind": "page",
+            "label": "/about",
+            "file": "app/about/page.tsx",
+            "line": 1,
+            "router": "next-app"
+          },
+          {
+            "id": "page:/",
+            "kind": "page",
+            "label": "/",
+            "file": "app/page.tsx",
+            "line": 1,
+            "router": "next-app"
+          },
+          {
+            "id": "route:ANY /api/items",
+            "kind": "route",
+            "label": "ANY /api/items",
+            "file": "app/api/items/route.ts",
+            "line": 1,
+            "router": "next-app"
+          }
+        ],
+        "edges": []
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "build"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "build"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "node",
+            "cmd": [
+              "npx",
+              "--no-install",
+              "vitest",
+              "run",
+              "--reporter=default",
+              "--reporter=junit",
+              "--outputFile.junit=.codewright/reports/junit.xml"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": "junit",
+            "optional": false
+          }
+        ],
+        "lint": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "lint",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "lint"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "tsc",
+            "toolchain": "node",
+            "cmd": [
+              "npx",
+              "--no-install",
+              "tsc",
+              "--noEmit",
+              "-p",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ]
+      },
+      "run": {
+        "kind": "web",
+        "toolchain": "node",
+        "cmd": [
+          "npx",
+          "--no-install",
+          "next",
+          "dev",
+          "-H",
+          "0.0.0.0",
+          "-p",
+          "3000"
+        ],
+        "workdir": ".",
+        "port": 3000,
+        "env": {},
+        "services": [],
+        "prepare": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "site"
+      }
+    }
+  ]
+}

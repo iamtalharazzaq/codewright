@@ -1,0 +1,11 @@
+name: web-react-js
+language: JavaScript
+pack: javascript
+description: A small browser app or game in React + JavaScript (Vite), with tests and light/dark styling.
+stack: [React 19, Vite, Vitest]
+features: [modern styling, light/dark theme, a sample feature (task list), tests, Graphify setup, CI]
+extension_points:
+  - src/App.jsx — the screen
+  - src/lib/ — logic as pure functions, each with a test next to it
+  - src/styles.css — colors and spacing (CSS variables, light and dark)
+run: { kind: web, port: 5173 }

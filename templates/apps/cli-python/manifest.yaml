@@ -1,0 +1,10 @@
+name: cli-python
+language: Python
+pack: python
+description: A terminal app or CLI tool in Python, with subcommands, tests and an interactive mode.
+stack: [Python 3.12, argparse, pytest, ruff]
+features: [subcommands, interactive prompt, tests, Graphify setup, CI]
+extension_points:
+  - src/{{name_snake}}/core.py — the program's logic (pure functions, easy to test)
+  - src/{{name_snake}}/cli.py — commands and arguments
+run: { kind: terminal, cmd: ["{{name}}"] }

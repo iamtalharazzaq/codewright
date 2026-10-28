@@ -1,0 +1,10 @@
+name: cli-cpp
+language: C++
+pack: cpp
+description: A C++20 console app with CMake, a small library for the logic, and GoogleTest tests.
+stack: [C++20, CMake, Ninja, GoogleTest]
+features: [library + console app, interactive prompt, tests, Graphify setup, CI]
+extension_points:
+  - src/{{name_snake}}.cpp and include/{{name_snake}}/{{name_snake}}.hpp — the logic
+  - src/main.cpp — the console loop (keep it thin)
+run: { kind: terminal, cmd: ["build/{{name}}"] }

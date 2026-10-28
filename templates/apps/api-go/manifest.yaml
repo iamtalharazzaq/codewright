@@ -1,0 +1,11 @@
+name: api-go
+language: Go
+pack: go
+description: A REST API in Go (standard library net/http), with health, a CRUD resource, middleware and tests.
+stack: [Go 1.26, net/http, httptest]
+features: [REST CRUD, health endpoint, request logging, JSON errors, graceful shutdown, tests, Dockerfile, Graphify setup, CI]
+extension_points:
+  - internal/items — copy it for a new resource
+  - internal/server/server.go — routes and middleware
+  - internal/items/store.go — swap the in-memory store for a database
+run: { kind: web, port: "{{port}}" }

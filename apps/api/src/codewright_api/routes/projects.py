@@ -3,6 +3,7 @@ Google Drive, or start empty; instructions, memory, chats, runs; delivery."""
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 import uuid
 from datetime import datetime
@@ -14,6 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, select
 
+from agent.language_packs import unsupported_project
 from codewright_api.db import Conversation, MemoryItem, Project, Run, SessionDep
 from codewright_api.gdrive import status as drive_status
 from codewright_api.projects import TARGETS, ProjectService, workspace
@@ -52,6 +54,8 @@ class ProjectDetail(ProjectOut):
     chats: list[dict[str, Any]] = []
     runs: list[dict[str, Any]] = []
     memory: list[dict[str, Any]] = []
+    # Set when the project is mostly in a language Codewright doesn't work in (C12): {language, suggestions, message}
+    unsupported: dict[str, Any] | None = None
 
 
 class ProjectPatch(BaseModel):
@@ -125,6 +129,17 @@ async def get_project(project_id: uuid.UUID, request: Request, session: SessionD
         ws = workspace(_service(request).settings, project_id)
         if (ws.work / ".git").exists():
             detail.branch = ws.current_branch()
+    if found := unsupported_project(project.summary.get("languages", {})):
+        language, suggestions = found
+        detail.unsupported = {
+            "language": language,
+            "suggestions": suggestions,
+            "message": (
+                f"This project is mostly {language}, which Codewright doesn't work in (it supports Python, "
+                f"TypeScript, JavaScript, Go and C++). It can still explain it, or translate it into "
+                f"{' or '.join(suggestions)} if you ask."
+            ),
+        }
     return detail
 
 
@@ -150,6 +165,9 @@ async def delete_project(project_id: uuid.UUID, request: Request, session: Sessi
         raise HTTPException(404, "Project not found")
     await session.delete(project)
     await session.commit()
+    if sandbox := getattr(request.app.state, "sandbox", None):
+        with contextlib.suppress(Exception):  # the runner also removes idle sessions on its own
+            await sandbox.stop_session(project_id)
     await _service(request).delete(project_id)
 
 

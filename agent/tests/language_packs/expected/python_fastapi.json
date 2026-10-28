@@ -1,0 +1,290 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "python",
+        "path": ".",
+        "kind": "api",
+        "frameworks": [
+          "fastapi",
+          "sqlalchemy"
+        ],
+        "entrypoints": [
+          "app.main:app"
+        ],
+        "manifest": "pyproject.toml",
+        "details": {
+          "manager": "pip-project",
+          "scripts": {},
+          "apps": [
+            "app.main:app"
+          ]
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "model:Order",
+            "kind": "model",
+            "label": "Order",
+            "file": "app/models.py",
+            "line": 8,
+            "orm": "sqlalchemy"
+          },
+          {
+            "id": "route:GET /health",
+            "kind": "route",
+            "label": "GET /health",
+            "file": "app/main.py",
+            "line": 7
+          },
+          {
+            "id": "route:GET /api/orders/{order_id}",
+            "kind": "route",
+            "label": "GET /api/orders/{order_id}",
+            "file": "app/main.py",
+            "line": 12
+          },
+          {
+            "id": "route:POST /api/orders",
+            "kind": "route",
+            "label": "POST /api/orders",
+            "file": "app/main.py",
+            "line": 17
+          }
+        ],
+        "edges": [
+          {
+            "source": "route:GET /api/orders/{order_id}",
+            "target": "handler:get_order",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:GET /health",
+            "target": "handler:health",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:POST /api/orders",
+            "target": "handler:create_order",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "model:Order",
+            "target": "table:orders",
+            "kind": "maps_to",
+            "confidence": 0.9
+          }
+        ]
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -e '.[test,dev]' || uv pip install --python .venv -e ."
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "compileall",
+              "-q",
+              "-x",
+              "/\\.venv/",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -e '.[test,dev]' || uv pip install --python .venv -e ."
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "compileall",
+              "-q",
+              "-x",
+              "/\\.venv/",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "pytest",
+              "-q",
+              "-p",
+              "no:cacheprovider",
+              "--junitxml=.codewright/reports/junit.xml"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": "junit",
+            "optional": false
+          }
+        ],
+        "lint": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -e '.[test,dev]' || uv pip install --python .venv -e ."
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "ruff",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "ruff",
+              "check",
+              "--output-format",
+              "concise",
+              "--no-cache",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "mypy",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "mypy",
+              "--ignore-missing-imports",
+              "--no-incremental",
+              "--exclude",
+              "\\.venv",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": true
+          }
+        ]
+      },
+      "run": {
+        "kind": "web",
+        "toolchain": "python",
+        "cmd": [
+          ".venv/bin/python",
+          "-m",
+          "uvicorn",
+          "app.main:app",
+          "--host",
+          "0.0.0.0",
+          "--port",
+          "8000"
+        ],
+        "workdir": ".",
+        "port": 8000,
+        "env": {
+          "DATABASE_URL": "postgresql://app:secret@db:5432/shop",
+          "PYTHONPATH": "."
+        },
+        "services": [
+          {
+            "name": "db",
+            "image": "postgres:16-alpine",
+            "env": {
+              "POSTGRES_PASSWORD": "secret"
+            }
+          }
+        ],
+        "prepare": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -e '.[test,dev]' || uv pip install --python .venv -e ."
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "app.main"
+      }
+    }
+  ]
+}

@@ -37,6 +37,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      sandbox-runner:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-codewright}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-codewright}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -56,6 +58,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-}
       GOOGLE_OAUTH_CLIENT_FILE: ${GOOGLE_OAUTH_CLIENT_FILE:+/data/google-oauth-client.json}
       PUBLIC_URL: http://localhost:${WEB_PORT:-3000}
+      SANDBOX_URL: http://sandbox-runner:8200
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
@@ -92,6 +95,46 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  # Sandbox (ADR 0020). The runner is the only service with the Docker socket; it starts toolchain containers,
+  # sidecars and previews for the API, on internal networks whose only way out is the gateway.
+  sandbox-runner:
+    build:
+      context: ..
+      dockerfile: sandbox/runner/Dockerfile
+    image: codewright-sandbox-runner:dev
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKSPACES_VOLUME: codewright_workspaces
+      CACHE_VOLUME: codewright_sandbox-cache
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../config/sandbox.yaml:/app/config/sandbox.yaml:ro
+      - sandbox-cache:/cache
+      - sandbox-state:/state
+    depends_on:
+      sandbox-gateway:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  sandbox-gateway:
+    # Egress proxy (package registries only) and preview forwarder. No Docker socket.
+    image: codewright-sandbox-runner:dev
+    restart: unless-stopped
+    command: ["python", "-m", "codewright_sandbox.gateway"]
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ../config/sandbox.yaml:/app/config/sandbox.yaml:ro
+      - sandbox-state:/state:ro
+    ports:
+      # Web previews, on this machine only (CODEWRIGHT.md Section 11).
+      - "127.0.0.1:41000-41009:41000-41009"
 
   host-llm-bridge:
     # For a llama-server on this machine that listens on 127.0.0.1 only. Forwards the Docker bridge address
@@ -160,6 +203,11 @@ services:
     environment:
       # A throwaway database next to the app's own; it is created if missing, then migrated down/up and wiped.
       TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-codewright}:${POSTGRES_PASSWORD}@postgres:5432/codewright_test
+      # `make check-sandbox`: tests that run templates and fixtures in the real sandbox runner.
+      SANDBOX_URL: http://sandbox-runner:8200
+      SANDBOX_TEST_WORKSPACES: /app/workspaces
+    volumes:
+      - workspaces:/app/workspaces   # test workspaces are `sbxtest-*` folders, removed after each test
 
   web-checks:
     profiles: ["checks"]
@@ -172,4 +220,6 @@ services:
 volumes:
   pgdata:
   workspaces:
+  sandbox-cache:
+  sandbox-state:
   ollama:

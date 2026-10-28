@@ -21,11 +21,13 @@ from codewright_api.routes import (
     playbooks,
     projects,
     runs,
+    sandbox,
     settings,
     traces,
     uploads,
 )
 from codewright_api.runs import RunManager
+from codewright_api.sandbox import SandboxService
 from codewright_api.settings import get_settings
 
 log = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     manager = RunManager(cfg, get_sessionmaker(), cfg.database_url.get_secret_value())
     app.state.graphs = GraphService(cfg, get_sessionmaker(), manager.bus)
     app.state.projects = ProjectService(cfg, get_sessionmaker(), on_ready=app.state.graphs.refresh)
+    app.state.sandbox = SandboxService(cfg)
     try:
         await manager.start()  # also resumes runs interrupted by a crash or restart
         app.state.run_manager = manager
@@ -47,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.run_manager = None
         app.state.chat = None
     yield
+    await app.state.sandbox.stop()
     await app.state.graphs.stop()
     if app.state.chat is not None:
         await app.state.chat.stop_all()
@@ -75,6 +79,7 @@ def create_app() -> FastAPI:
     api.include_router(uploads.router)
     api.include_router(connectors.router)
     api.include_router(graph.router)
+    api.include_router(sandbox.router)
     app.include_router(api)
     return app
 
