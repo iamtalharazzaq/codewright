@@ -67,7 +67,7 @@ def test_outdated_listings_are_read_per_registry(tmp_path: Path) -> None:
     found = parse_outdated("go", ".", go, tmp_path)
     assert [(o.package, o.current, o.latest) for o in found] == [("github.com/gin-gonic/gin", "v1.9.0", "v1.10.0")]
     node = parse_outdated(
-        "node", "web", 'noise {"react":{"current":"18.0.0","wanted":"18.3.1","latest":"19.0.0"}}', tmp_path
+        "typescript", "web", 'noise {"react":{"current":"18.0.0","wanted":"18.3.1","latest":"19.0.0"}}', tmp_path
     )
     assert [(o.package, o.same_major) for o in node] == [("react", False)]
     assert named_in("please upgrade gin to 1.10", found) == found and version_in("to v1.10.1") == "1.10.1"

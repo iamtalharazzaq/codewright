@@ -20,6 +20,7 @@ from agent.language_packs import detect_project
 from agent.language_packs.base import Step
 from agent.language_packs.executor import run_action, run_step
 from agent.tools.sandbox import SandboxClient
+from agent.tools.workspace import git
 
 UID = 10001
 
@@ -40,6 +41,10 @@ async def _events(_: dict[str, Any]) -> None:
 async def start_session(client: SandboxClient, ws: str, work: Path) -> str:
     root = work.parent
     subprocess.run(["git", "init", "-q", str(work)], check=True)  # noqa: S603, S607
+    # A real project always arrives with its files already committed; match that so playbooks that diff against
+    # HEAD (e.g. upgrade's own change detection) see the fixture as a tracked baseline, not all-untracked.
+    git(work, "add", "-A")
+    git(work, "commit", "-q", "-m", "fixture baseline", check=False)
     _chown(root)
     return str((await client.create_session(ws, []))["id"])
 

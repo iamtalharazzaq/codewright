@@ -75,7 +75,7 @@ def parse_outdated(pack: str, component: str, output: str, work: Path) -> list[O
     rows: list[tuple[str, str, str]]
     if pack == "go":
         rows = _go(output)
-    elif pack == "node":
+    elif pack in ("typescript", "javascript"):
         rows = _node(output)
     elif pack == "python":
         rows = _python(output, manifest)
