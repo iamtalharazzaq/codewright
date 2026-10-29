@@ -144,6 +144,8 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   CI workflow, README file, Graphify, Test cases (backend), Test cases (frontend); only backend tests ticked. No
   explanatory text under any field, and the "You get" line of the confirm card lists only what was ticked. Untick everything extra and run: the new project has no `.github/`, no
   `GRAPHIFY.md`/`mcp.example.json`, no `README.md` and no browser-code tests. Tick them: they come back.
+- On the Done card of a new app click **Open web view**. **Expect:** the Preview tab opens with a **Run app** button and
+  nothing is running until you click it.
 - Watch the side panel's **Plan** tab while the questions are open: Product Manager is in progress; after the card
   shows it is done, then your confirmation, then the run's steps. A red build: the chat card says the log is in the
   **Report** tab ("Failures"), where the test and lint output is.

@@ -13,6 +13,7 @@ import { useConversation } from "@/components/chat/use-conversation";
 import { Button } from "@/components/ui/button";
 import {
   getGraph,
+  getRun,
   getProject,
   notifyConversationsChanged,
   type DiagramData,
@@ -60,7 +61,7 @@ export function ChatView({
   const messages = detail?.messages ?? [];
   const busy = detail?.busy ?? false;
   const lastText = messages.at(-1)?.content.length ?? 0;
-  const activeProject = detail?.conversation.project_id ?? projectId;
+  const chatProject = detail?.conversation.project_id ?? projectId;
   // Modules the last reply talks about ("internal/order", "order/service/..."), highlighted in the Graph tab.
   const lastReply = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
   const [modules, setModules] = useState<string[]>([]);
@@ -74,6 +75,9 @@ export function ChatView({
   const diagram = (diagramMessage?.data.diagram as DiagramData | undefined) ?? null;
   const runMessage = [...messages].reverse().find((m) => m.run_id);
   const runId = runMessage?.run_id ?? null;
+  // A new app is built in a project of its own, not the chat's: its Preview, Tests and Graph tabs follow the run.
+  const [runProject, setRunProject] = useState<{ run: string; project: string | null } | null>(null);
+  const activeProject = chatProject ?? (runProject?.run === runId ? runProject?.project : null) ?? null;
   const doneId = [...messages].reverse().find((m) => m.kind === "done" && m.run_id)?.id ?? null;
   const [tab, setTab] = useState(defaultTab(activeProject));
   const shown = useRef<{ diagram?: string; done?: string }>({});
@@ -90,6 +94,15 @@ export function ChatView({
     if (newDone) setTab("report");
     else if (newDiagram) setTab("diagram");
   }, [detail, diagramMessage, doneId]);
+
+  useEffect(() => {
+    if (!runId || chatProject) return;
+    const ctrl = new AbortController();
+    getRun(runId, ctrl.signal)
+      .then((r) => setRunProject({ run: runId, project: r.project_id }))
+      .catch(() => undefined);
+    return () => ctrl.abort();
+  }, [runId, chatProject, runTick]);
 
   useEffect(() => {
     if (!activeProject) return;
@@ -234,7 +247,7 @@ export function ChatView({
             onSend={send}
             busy={busy}
             onStop={conversationId ? () => void act(() => stopConversation(conversationId)) : undefined}
-            projectId={activeProject}
+            projectId={chatProject}
           />
         </div>
       </section>

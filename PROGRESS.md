@@ -296,7 +296,9 @@ again (flagged as a regression).
   goes to the Product Manager to gather the missing details (in progress while the questions are open, done once the
   card is shown), you confirm, then the run's own steps with their roles and live state (`PlanTab`). A failed build's
   test and lint log is no longer pasted into the chat card: it is a "Failures" report (`test-failures.md`) in the
-  Report tab and the card says so. The questions are two to a row, the odd one alone on the last row.
+  Report tab and the card says so. The questions are two to a row, the odd one alone on the last row. A finished
+  new app's Done card has an **Open web view** button that only opens the Preview tab (which follows the run's own
+  project, not the chat's); the app is started there by the user with **Run app**, never automatically.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the

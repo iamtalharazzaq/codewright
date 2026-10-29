@@ -170,7 +170,7 @@ function Body({
     case "run":
       return message.run_id ? <RunCard runId={message.run_id} tick={runTick} /> : null;
     case "done":
-      return <DoneCard message={message} onSend={actions.onSend} />;
+      return <DoneCard message={message} onSend={actions.onSend} onShowTab={actions.onShowTab} />;
     case "correction":
       return <CorrectionCard message={message} onResolve={actions.onResolve} />;
     case "skill_draft":

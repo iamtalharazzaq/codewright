@@ -44,6 +44,21 @@ describe("DoneCard", () => {
   });
 });
 
+describe("DoneCard preview", () => {
+  it("offers to open the web view for a new app, and only opens the tab (it starts nothing)", () => {
+    const onShowTab = vi.fn();
+    const done = { ...message({ summary: "Calc finished: 8 of 8 steps done.", playbook: "new_app" }), run_id: "r1" };
+    render(<DoneCard message={done} onSend={vi.fn()} onShowTab={onShowTab} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open web view" }));
+    expect(onShowTab).toHaveBeenCalledExactlyOnceWith("preview");
+  });
+
+  it("has no web-view button for a run that is not a new app", () => {
+    render(<DoneCard message={message({ summary: "Fixed." })} onSend={vi.fn()} onShowTab={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Open web view" })).not.toBeInTheDocument();
+  });
+});
+
 describe("QuestionsCard", () => {
   it("shows a pick-one question as a dropdown with the default chosen and marked, not as buttons", () => {
     const questions = [

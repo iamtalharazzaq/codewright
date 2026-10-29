@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, Monitor, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -250,7 +250,15 @@ export function RunCard({ runId, tick }: { runId: string; tick: number }) {
 }
 
 /** Done card (Section 3.5): what was done, what changed, the guide and next steps. */
-export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (text: string) => void }) {
+export function DoneCard({
+  message,
+  onSend,
+  onShowTab,
+}: {
+  message: ChatMessage;
+  onSend: (text: string) => void;
+  onShowTab?: (tab: string) => void;
+}) {
   const { summary, changed = [], proof = [], guide, suggestions = [], passed = true } = message.data;
   // The first line is the headline; a run's own summary (score, top findings, risks) follows as Markdown.
   const [headline, ...rest] = (summary ?? message.content).split("\n\n");
@@ -292,6 +300,15 @@ export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (t
           <summary className="cursor-pointer text-muted-foreground">Guide</summary>
           <Markdown>{guide}</Markdown>
         </details>
+      )}
+      {message.data.playbook === "new_app" && message.run_id && onShowTab && (
+        <div>
+          {/* Only opens the Preview tab: the app is started there, by the user, with "Run app". */}
+          <Button size="sm" variant="outline" onClick={() => onShowTab("preview")}>
+            <Monitor aria-hidden="true" />
+            Open web view
+          </Button>
+        </div>
       )}
       {message.data.playbook === "new_app" && message.run_id && (
         <div className="flex flex-col gap-2 text-sm">
