@@ -43,6 +43,7 @@ _MODULES = (
     "frontend",
     "devops",
     "new_app",
+    "translate",
 )
 
 

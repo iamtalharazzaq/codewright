@@ -1,0 +1,12 @@
+# CODEWRIGHT.md Section 5.16 and 8.5. Tier 3: approve the plan, then approve the result.
+title: Translate
+description: >-
+  Rewrites a CLI or HTTP-service component into another of the five languages, spec-first: the units of the source
+  (functions, classes, constants, the entry point) and black-box cases captured by running the original, shown for
+  approval; then the Backend Developer translates one unit at a time with the Language Pack's idioms, assembles the
+  target file, and builds it in the sandbox with compiler feedback (the Reflection loop) until it is green. A CLI's
+  translation is proven against the same black-box cases the original produced; an HTTP service falls back to the
+  Pack's own tests (request-by-request black-box comparison is not implemented yet). A Tech Lead review, one more
+  approval, and the result is added to the project on a new branch, alongside the original.
+intent: translate_language
+lead_role: backend_developer
