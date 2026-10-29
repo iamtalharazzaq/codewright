@@ -22,8 +22,9 @@ from agent.language_packs.base import Step
 from agent.language_packs.executor import run_action, run_step
 from agent.llm.client import LLMClient
 from agent.playbooks.translate import graph
-from agent.tests.language_packs.test_sandbox import _chown, _session, _workspaces
 from agent.tests.playbooks.helpers import initial_state, llm_returning
+from agent.tests.sandbox_harness import _chown, _workspaces
+from agent.tests.sandbox_harness import start_session as _session
 from agent.tools.sandbox import SandboxClient
 
 pytestmark = [

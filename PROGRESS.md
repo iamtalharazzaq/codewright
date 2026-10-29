@@ -132,7 +132,37 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
-## Phase 19: Deepen the Language Packs (in progress, started 2026-10-29)
+## Retrofit: real-sandbox playbook tests (started 2026-10-29)
+
+Policy change: every playbook's automated tests so far (`agent/tests/playbooks/*.py`) use a fully mocked sandbox
+(`FakeProject`/`FakeServices`) — they prove the graph/gate control-flow but execute **zero** real language
+toolchain. Per the user's plan, retrofitting this phase by phase, highest-risk first (Phases 8-11, 17, then 7 and
+18, then 12/14, then 4/6/13/15/16), with one shared harness instead of bespoke fixtures per phase.
+
+Built so far (infrastructure, not yet wired into a specific phase's tests):
+- `agent/tests/sandbox_harness.py`: `RealProject`, a `ProjectTools` implementation backed by the real sandbox
+  runner (no mocks) — `test`/`lint`/`sandbox`/`run_step` actually run `pytest`/`go test`/`ctest`/`vitest` in the
+  sandbox; `search` is a real (if simple) keyword grep over the checkout; `verify`/`db_trial` are honestly
+  "not available in this harness" rather than faked. The `workspace` fixture (a throwaway real sandbox session)
+  moved to `agent/tests/conftest.py` so every test module gets it from normal pytest fixture discovery.
+- `agent/tests/cassette.py`: `cassette_llm(name)` replays `agent/tests/cassettes/<name>.json` (recorded LLM calls,
+  in order) through the same `LLMClient` interface `llm_returning` uses, so a test can swap one for the other.
+  `CASSETTE_RECORD=1` (with `LLM_REMOTE_GPU_URL` set) records a fresh cassette against the real configured model
+  instead — `make check`/`make check-sandbox` only ever replay; a missing cassette fails loudly.
+- `agent/tests/fixtures/mini_apps/{python,typescript,javascript,go,cpp}/`: one shared tiny app per language
+  (`greet`, `word_count`, and a deliberately buggy untested `avg` — off-by-one, the same bug shape the existing
+  fake tests already use), reused across phases instead of new fixtures per phase. `agent/tests/test_mini_apps.py`
+  (`make check-sandbox`) proves all 5 actually build and pass their tests in the real sandbox — this is the
+  baseline every retrofit test builds on. Finding during this: TypeScript/JavaScript `npm install` without a
+  pinned exact version and without `optionalDependencies: {vite}` hits a real `npm`/arborist bug
+  (`Cannot read properties of null (reading 'edgesOut')`) with `vitest@5.0.3`'s peer dependency graph; matching
+  the `library-ts` template's caret-range + optional-vite shape avoids it. Also needed `rootDir: "src"` in
+  `tsconfig.json` (TypeScript 6's stricter common-source-directory check).
+
+Open: no phase has a real-sandbox + real-cassette playbook test wired up yet (Phase 8 was next); `make check`
+stays on the fast `FakeProject` tests, the new real-sandbox ones will live under `make check-sandbox`.
+
+## Phase 19: Deepen the Language Packs (complete for this pass, 2026-10-29 — more framework coverage can land later)
 
 **How to try it:** `docs/E2E-CHECKLIST.md` → Phase 19.
 

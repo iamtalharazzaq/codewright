@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -10,6 +12,8 @@ from langchain_core.language_models import BaseChatModel
 
 from agent.llm.client import LLMClient
 from agent.llm.config import LLMProfile, ProfileName
+from agent.tests.sandbox_harness import _workspaces
+from agent.tools.sandbox import SandboxClient
 
 
 class FakeProject:
@@ -172,3 +176,18 @@ async def pg_url() -> AsyncIterator[str]:
             pytest.skip("SKIP_DB_TESTS=1")
         pytest.fail("Postgres tests need TEST_DATABASE_URL (or set SKIP_DB_TESTS=1)")
     yield url
+
+
+@pytest.fixture
+async def workspace() -> AsyncIterator[tuple[SandboxClient, str, Path]]:
+    """A throwaway workspace in the real workspaces volume (the runner mounts `<id>/work` from there). Shared by
+    every real-sandbox test (`agent.tests.sandbox_harness.RealProject` and friends) via normal fixture discovery."""
+    ws = f"sbxtest-{uuid.uuid4().hex[:8]}"
+    work = _workspaces() / ws / "work"
+    work.mkdir(parents=True)
+    client = SandboxClient()
+    try:
+        yield client, ws, work
+    finally:
+        await client.close()
+        shutil.rmtree(work.parent, ignore_errors=True)

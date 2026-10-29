@@ -6,11 +6,7 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
-import subprocess
-import uuid
-from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -19,13 +15,13 @@ from agent.language_packs.base import ServiceSpec
 from agent.language_packs.executor import run_action, run_spec, run_step
 from agent.language_packs.templates import scaffold
 from agent.tests.language_packs.golden import FIXTURES
+from agent.tests.sandbox_harness import _events, start_session
 from agent.tools.sandbox import SandboxClient
 
 pytestmark = [
     pytest.mark.sandbox,
     pytest.mark.skipif(os.environ.get("SANDBOX_TESTS") != "1", reason="needs the sandbox runner: make check-sandbox"),
 ]
-UID = 10001
 MIN_TESTS = {
     "cli-python": 3,
     "api-go": 3,
@@ -42,40 +38,7 @@ MIN_TESTS = {
     "site-nextjs-ts": 3,
     "site-nextjs-js": 3,
 }
-
-
-def _workspaces() -> Path:
-    return Path(os.environ.get("SANDBOX_TEST_WORKSPACES", "/app/workspaces"))
-
-
-def _chown(path: Path) -> None:
-    for p in [path, *path.rglob("*")]:
-        os.chown(p, UID, UID, follow_symlinks=False)
-
-
-async def _events(_: dict[str, Any]) -> None:
-    return None
-
-
-@pytest.fixture
-async def workspace() -> AsyncIterator[tuple[SandboxClient, str, Path]]:
-    """A throwaway workspace in the real workspaces volume (the runner mounts `<id>/work` from there)."""
-    ws = f"sbxtest-{uuid.uuid4().hex[:8]}"
-    work = _workspaces() / ws / "work"
-    work.mkdir(parents=True)
-    client = SandboxClient()
-    try:
-        yield client, ws, work
-    finally:
-        await client.close()
-        shutil.rmtree(work.parent, ignore_errors=True)
-
-
-async def _session(client: SandboxClient, ws: str, work: Path) -> str:
-    root = work.parent
-    subprocess.run(["git", "init", "-q", str(work)], check=True)  # noqa: S603, S607
-    _chown(root)
-    return str((await client.create_session(ws, []))["id"])
+_session = start_session
 
 
 @pytest.mark.parametrize("template", sorted(MIN_TESTS))

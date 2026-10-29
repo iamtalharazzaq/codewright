@@ -149,7 +149,7 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   translated build → review → approval gate → a new commit under `translated/<package>-<pack>/`, original
   untouched.
 
-## Phase 19: Deepen the Language Packs (in progress)
+## Phase 19: Deepen the Language Packs (complete for this pass)
 - Create or open a C++ project with a `conanfile.txt` (e.g. requiring `nlohmann_json`). Run Build. **Expect:** an
   `install` step runs `conan install` before `configure`, dependencies resolve, and the build actually succeeds
   in the real sandbox (this is real-sandbox-verified this session — `test_cpp_conan_fixture_builds`).
