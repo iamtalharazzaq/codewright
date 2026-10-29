@@ -201,7 +201,37 @@ Acceptance still open: a repeat with the sandbox's `RATE_LIMIT_REQUESTS` raised,
 | Reflection loop | `agent/playbooks/reflection.py`, feedback = failing cases + the broken step's key output lines. |
 | UI | The Report tab shows diffs and written code; Done cards list the files on the branch. |
 
-Acceptance still open: all 20 `EXAMPLES.md` §2 requests (only 3 run live so far), more seeded bugs, an eval record.
+Acceptance still open: more seeded bugs.
+
+### Eval record (2026-10-29): `python3 -m evals.write_code`, all 20 `EXAMPLES.md` §2 requests
+
+**10/20 passed** (`evals/results/write_code-20261029-*.json`). By language: Go 2/2, Python 7/12, C++ 1/4, TypeScript
+0/1, JavaScript 0/1.
+
+Real failures (9B model, not playbook bugs): #1 reverse-linked-list (tail case wrong), #4 binary search with
+duplicates (returns "not found" instead of an index), #8 balanced parentheses (wrong bracket-type matching), #11
+Fibonacci memoization (still recurses past Python's limit on large n — memoized but not iterative/raised-limit),
+#12 group anagrams (case-sensitivity test), #16 Dijkstra (C++ compile error, modifying a `const`-qualified pair
+element), #18 debounce (cancel-after-leading-call fires twice), #20 matrix multiply (runtime abort). #10 (merge/quick
+sort, C++) failed on a bug in the model's *own test*, not the solution: it called `assert()` (the one-argument C
+macro) with 5 arguments, as if it took a message — a real distinct failure mode from #16, worth a note for whoever
+builds C++ prompting further in Phase 19. #15 (Trie, TypeScript) failed on `node_modules/@vitest/utils/.../index.d.ts:
+Cannot find name 'setImmediate'` — a Node types/lib mismatch in `write_code`'s TypeScript scratch scaffold, possibly
+systemic rather than the model's fault; not chased further this session.
+
+Two real bugs found and fixed getting to this honest number (both affected every multi-example eval run, not just
+this one):
+- **The eval script's own docstring example is wrong**: `python3 evals/write_code.py` fails immediately
+  (`ModuleNotFoundError: No module named 'evals'` — it's a package, must run as `python3 -m evals.write_code`). Not
+  fixed (1-line doc fix, left for the Phase 19/20 pass).
+- **Sandbox session leak** (commit `d3b6f77`, `apps/api/src/codewright_api/runs.py`): `write_code`'s throwaway
+  workspace gets a sandbox session keyed `scratch-<run_id>`, unique per run; nothing ever closed it, so every
+  project-less run leaked one more session, permanently, until the 4th exhausted `max_sessions: 4` and every
+  following example failed with "at most 4 sandbox sessions at a time" — not a code problem, a resource leak. The
+  first full eval attempt returned 2/20 passed, entirely from this (18 false failures); fixed by closing the scratch
+  session once `_drive()` reaches any terminal state (completed/failed/cancelled) for a run with no `project_id`.
+  This had been silently inflating every multi-run eval all session; worth checking whether it affected earlier
+  phases' own "N/N passed" eval numbers in this file too (not re-audited).
 
 ## Phase 7: Verification engine, done (ADR 0022)
 

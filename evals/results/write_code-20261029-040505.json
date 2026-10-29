@@ -1,0 +1,222 @@
+[
+  {
+    "run": "c4f90a6e-19b7-4c7a-b019-513576133c02",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution.TestReverseList::test_original_head_becomes_tail: assert None is <solution.ListNode object at 0x7e16bdebc350>\n +  where None = <solution",
+    "error": null,
+    "n": 1,
+    "request": "Write code to reverse a linked list (iterative)",
+    "language": "Python",
+    "seconds": 51
+  },
+  {
+    "run": "fe527b83-5c62-415c-a7c8-1e5093b8c530",
+    "status": "completed",
+    "passed": true,
+    "verify": "13 test(s) passed",
+    "error": null,
+    "n": 2,
+    "request": "Check if a string is a palindrome (ignore case, spaces and punctuation; empty string is true)",
+    "language": "Python",
+    "seconds": 21
+  },
+  {
+    "run": "3970556b-0200-4a8d-9e5a-6755045aecb8",
+    "status": "completed",
+    "passed": true,
+    "verify": "11 test(s) passed",
+    "error": null,
+    "n": 3,
+    "request": "FizzBuzz from 1 to 100",
+    "language": "Python",
+    "seconds": 56
+  },
+  {
+    "run": "1d8ab9d3-1446-4210-8434-fc7fb1a2d82c",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution.TestBinarySearch::test_find_first_duplicates: AssertionError: assert 'not found' == 1\n +  where 'not found' = binary_search([1, 2, 2, 2,",
+    "error": null,
+    "n": 4,
+    "request": "Binary search in a sorted array (not found, first and last element, duplicates)",
+    "language": "Python",
+    "seconds": 72
+  },
+  {
+    "run": "cd3bc10b-f856-4a51-9841-38222cb5559a",
+    "status": "completed",
+    "passed": true,
+    "verify": "10 test(s) passed",
+    "error": null,
+    "n": 5,
+    "request": "Two Sum: indices of two numbers adding to a target, O(n) with a hash map (no solution, negatives)",
+    "language": "Python",
+    "seconds": 31
+  },
+  {
+    "run": "7bc8e2c1-54a1-46ff-8aaf-c9b653b73e9a",
+    "status": "completed",
+    "passed": true,
+    "verify": "11 test(s) passed",
+    "error": null,
+    "n": 6,
+    "request": "Merge two sorted linked lists (one or both empty)",
+    "language": "Python",
+    "seconds": 26
+  },
+  {
+    "run": "26b90a22-179f-4aab-9691-f76938b5138a",
+    "status": "completed",
+    "passed": true,
+    "verify": "8 test(s) passed",
+    "error": null,
+    "n": 7,
+    "request": "Detect a cycle in a linked list with Floyd's algorithm (no cycle, cycle at head)",
+    "language": "Python",
+    "seconds": 36
+  },
+  {
+    "run": "70e3db02-8541-4d30-a39a-35773097a35b",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_mismatched_brackets: AssertionError: assert [')', '('] == [')', ']']\n  \n  At index 1 diff: '(' != ']'\n  \n  Full diff:\n    [\n      ",
+    "error": null,
+    "n": 8,
+    "request": "Check balanced parentheses (mixed brackets, empty, unmatched)",
+    "language": "Python",
+    "seconds": 61
+  },
+  {
+    "run": "7e0e969f-0b94-4a35-8adb-b51083aa102f",
+    "status": "completed",
+    "passed": true,
+    "verify": "9 test(s) passed",
+    "error": null,
+    "n": 9,
+    "request": "Implement an LRU cache with O(1) get and put (capacity 1, eviction order)",
+    "language": "Python",
+    "seconds": 26
+  },
+  {
+    "run": "53512245-035f-4e56-9dff-9944a9267e14",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: /work/test.cpp:20:49: error: macro \"assert\" passed 5 arguments, but takes just 1\n20 |     assert(v3 == std::vector<int>{1, 2, 3, 3, 3});\nIn file inclu",
+    "error": null,
+    "n": 10,
+    "request": "Merge sort and quick sort (empty, duplicates, already sorted)",
+    "language": "C++",
+    "seconds": 97
+  },
+  {
+    "run": "9b1ecc7a-e98a-4698-a0d5-17fe6c9dfbb9",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution.TestFibonacciCalculator::test_fib_large_n: RecursionError: maximum recursion depth exceeded\ntest_solution.TestFibonacciCalculator::test_",
+    "error": null,
+    "n": 11,
+    "request": "Fibonacci with memoization (n = 0, 1, large n)",
+    "language": "Python",
+    "seconds": 56
+  },
+  {
+    "run": "c2479409-b6da-4580-afe9-4cad1697adbb",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_mixed_case_sensitivity: AssertionError: assert {('C', 'a', '...'t'): ['cat']} == {('C', 'a', '...'t'): ['cat']}\n  \n  Omitting 1 id",
+    "error": null,
+    "n": 12,
+    "request": "Group anagrams (empty strings, single word)",
+    "language": "Python",
+    "seconds": 51
+  },
+  {
+    "run": "4f8b3ceb-2fc8-4026-bd8f-ddb2a0c0e58a",
+    "status": "completed",
+    "passed": true,
+    "verify": "10 test(s) passed",
+    "error": null,
+    "n": 13,
+    "request": "BFS and DFS on a graph (disconnected graph, cycles)",
+    "language": "Python",
+    "seconds": 32
+  },
+  {
+    "run": "17230926-a8cb-4dcb-85d1-2bc976fd5611",
+    "status": "completed",
+    "passed": true,
+    "verify": "1 test(s) passed",
+    "error": null,
+    "n": 14,
+    "request": "Implement a stack and a queue (empty pop, peek)",
+    "language": "C++",
+    "seconds": 31
+  },
+  {
+    "run": "c45a52c9-681e-44ea-8e8f-cfc9c40d1364",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: node_modules/@vitest/utils/dist/index.d.ts(49,26): error TS2304: Cannot find name 'setImmediate'.\nnode_modules/@vitest/utils/dist/index.d.ts(50,28): e",
+    "error": null,
+    "n": 15,
+    "request": "Implement a Trie with insert, search and startsWith (prefix vs full word)",
+    "language": "TypeScript",
+    "seconds": 141
+  },
+  {
+    "run": "36f27967-dfc7-46fb-a26d-bb1adc5bf898",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: FAILED: CMakeFiles/snippet_tests.dir/test.cpp.o\n/usr/include/c++/12/bits/stl_heap.h:142:36: error: use of deleted function 'std::pair<int, const int>&",
+    "error": null,
+    "n": 16,
+    "request": "Dijkstra's shortest path (unreachable nodes, ties)",
+    "language": "C++",
+    "seconds": 116
+  },
+  {
+    "run": "e0ab265d-0efc-4243-aadc-f7581a434e59",
+    "status": "completed",
+    "passed": true,
+    "verify": "1 test(s) passed",
+    "error": null,
+    "n": 17,
+    "request": "Rotate a matrix 90 degrees (1x1, n x n)",
+    "language": "Go",
+    "seconds": 22
+  },
+  {
+    "run": "661bd3d1-0470-4acd-9751-eb3df8f7f7c3",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: solution.test.js::debounce > prevents execution if canceled after leading call: expected \"spy\" to be called 1 times, but got 2 times\nsolution.test.js:",
+    "error": null,
+    "n": 18,
+    "request": "Debounce function (rapid calls, trailing call, cancel)",
+    "language": "JavaScript",
+    "seconds": 91
+  },
+  {
+    "run": "152de9f5-7267-4797-920f-44c3a0db533e",
+    "status": "completed",
+    "passed": true,
+    "verify": "1 test(s) passed",
+    "error": null,
+    "n": 19,
+    "request": "Reverse a linked list in Go",
+    "language": "Go",
+    "seconds": 26
+  },
+  {
+    "run": "44bb2f96-718c-48d1-8033-9627781235c4",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: snippet_tests::snippet_tests: \n---\n1/1 Test #1: snippet_tests ....................Subprocess aborted***Exception:   0.13 sec\nsnippet_tests: /work/test",
+    "error": null,
+    "n": 20,
+    "request": "Matrix multiplication, as fast as possible (non-square, mismatched sizes)",
+    "language": "C++",
+    "seconds": 101
+  }
+]

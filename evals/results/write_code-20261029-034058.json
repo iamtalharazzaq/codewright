@@ -1,0 +1,200 @@
+[
+  {
+    "run": "6d00736c-baab-48a2-ba71-e704331e279b",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution: collection failure\n---\n==================================== ERRORS ====================================\n______________________ ERROR co",
+    "error": null,
+    "n": 3,
+    "request": "FizzBuzz from 1 to 100",
+    "language": "Python",
+    "seconds": 51
+  },
+  {
+    "run": "396ca564-3ce0-4118-a4f9-b5487f884280",
+    "status": "completed",
+    "passed": true,
+    "verify": "11 test(s) passed",
+    "error": null,
+    "n": 4,
+    "request": "Binary search in a sorted array (not found, first and last element, duplicates)",
+    "language": "Python",
+    "seconds": 26
+  },
+  {
+    "run": "85c48b38-e6a2-4f89-949a-895a56b05ea6",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution.TestTwoSum::test_basic_mixed: assert None == (1, 5)\n +  where None = two_sum([-1, 10, 4, 3, -3, 1], 6)\n---\n=============================",
+    "error": null,
+    "n": 5,
+    "request": "Two Sum: indices of two numbers adding to a target, O(n) with a hash map (no solution, negatives)",
+    "language": "Python",
+    "seconds": 51
+  },
+  {
+    "run": "98225cb3-3c92-4def-a3f8-01dee42db3af",
+    "status": "completed",
+    "passed": true,
+    "verify": "10 test(s) passed",
+    "error": null,
+    "n": 6,
+    "request": "Merge two sorted linked lists (one or both empty)",
+    "language": "Python",
+    "seconds": 26
+  },
+  {
+    "run": "5621a44a-66f8-4f9e-b436-68f294116c93",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 7,
+    "request": "Detect a cycle in a linked list with Floyd's algorithm (no cycle, cycle at head)",
+    "language": "Python",
+    "seconds": 46
+  },
+  {
+    "run": "71c76a4e-0d62-4839-b837-e24dc092ef70",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 8,
+    "request": "Check balanced parentheses (mixed brackets, empty, unmatched)",
+    "language": "Python",
+    "seconds": 51
+  },
+  {
+    "run": "ab019528-5315-4e4a-9ef7-ed8b12c0ae52",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 9,
+    "request": "Implement an LRU cache with O(1) get and put (capacity 1, eviction order)",
+    "language": "Python",
+    "seconds": 46
+  },
+  {
+    "run": "a8e0fd49-d62e-4c1d-9a41-d334fd709061",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 10,
+    "request": "Merge sort and quick sort (empty, duplicates, already sorted)",
+    "language": "C++",
+    "seconds": 66
+  },
+  {
+    "run": "ce638d20-4537-49b4-9d87-3f42a1b0402c",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 11,
+    "request": "Fibonacci with memoization (n = 0, 1, large n)",
+    "language": "Python",
+    "seconds": 36
+  },
+  {
+    "run": "23320207-9905-45b6-8410-00b6ab40bad1",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 12,
+    "request": "Group anagrams (empty strings, single word)",
+    "language": "Python",
+    "seconds": 36
+  },
+  {
+    "run": "24132851-13b8-44b9-8cdf-de2e7cf42cfc",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 13,
+    "request": "BFS and DFS on a graph (disconnected graph, cycles)",
+    "language": "Python",
+    "seconds": 66
+  },
+  {
+    "run": "a962cfad-2ee5-4ea1-a4ad-34ae30418232",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 14,
+    "request": "Implement a stack and a queue (empty pop, peek)",
+    "language": "C++",
+    "seconds": 61
+  },
+  {
+    "run": "834ebc6a-13d5-4e70-a1ec-edf2c20558bc",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 15,
+    "request": "Implement a Trie with insert, search and startsWith (prefix vs full word)",
+    "language": "TypeScript",
+    "seconds": 52
+  },
+  {
+    "run": "3125ddb0-e273-4940-91d2-37bade1d56be",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 16,
+    "request": "Dijkstra's shortest path (unreachable nodes, ties)",
+    "language": "C++",
+    "seconds": 116
+  },
+  {
+    "run": "a8d2dc72-d545-4118-8d4a-169a75bdd815",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 17,
+    "request": "Rotate a matrix 90 degrees (1x1, n x n)",
+    "language": "Go",
+    "seconds": 42
+  },
+  {
+    "run": "b90f164a-2c2f-42d9-a729-6e7e5beb7b16",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 18,
+    "request": "Debounce function (rapid calls, trailing call, cancel)",
+    "language": "JavaScript",
+    "seconds": 46
+  },
+  {
+    "run": "c065ece2-f1f8-482f-be54-1fcf20cdbee5",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 19,
+    "request": "Reverse a linked list in Go",
+    "language": "Go",
+    "seconds": 41
+  },
+  {
+    "run": "36aacfe9-e79e-4237-987a-03d04a201585",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: at most 4 sandbox sessions at a time",
+    "error": null,
+    "n": 20,
+    "request": "Matrix multiplication, as fast as possible (non-square, mismatched sizes)",
+    "language": "C++",
+    "seconds": 101
+  }
+]
