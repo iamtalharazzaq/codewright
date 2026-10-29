@@ -153,10 +153,41 @@ Frontend: `run-view.test.tsx` (new) and `pending-card.test.tsx` cover the Timeli
 Commits: `cc45b0d` (core fix + the 4 most directly implicated playbooks), one follow-up (mechanical `ok=` threading
 through the rest).
 
-**Bug 2 — sidebar accumulates near-duplicate projects/chats (not yet investigated).**
+**UX problem — the run page led with the full agent timeline instead of pass/fail + code + a run action (fixed).**
+Redesigned so a settled run leads with a new `ResultCard` (honest Passed/Failed/Cancelled, the failing steps' own
+summaries, a tabbed code/diff viewer over the run's artifacts, and the `DeliverPanel` as the run/deploy action);
+the full agent-by-agent Timeline moves into a collapsible "Agent activity" section (open while a run is still
+active, collapsed once settled). The chat's inline Done card had the same "shown as done when it isn't" pattern
+as Bug 1 — it always drew a green checkmark regardless of outcome; `_done_card()` now computes `passed` from the
+run's own plan items and sends it as `data.passed`, and `DoneCard` draws a destructive X instead when it's false.
+Tests: `run-view.test.tsx` (extended) and `cards.test.tsx` (new). Commit: `f2f569f`.
 
-**UX problem — the Done card leads with the full agent timeline instead of pass/fail + code + a run action (not
-yet investigated).**
+**Bug 2 — sidebar accumulates near-duplicate projects/chats (root-caused, partially fixed).** Research (a
+background agent) found two distinct causes, not one:
+1. `new_app` minted a brand-new `Project` row on **every** run, including a plain retry in the same chat — there
+   was no concept of "the project this chat is already building." `apps/api/src/codewright_api/chat.py::_start_work`
+   hardcoded `project_id=None` for every `new_app` request regardless of what the conversation had already built.
+   **Fixed:** `RunManager.create_project` (`apps/api/src/codewright_api/runs.py`) now settles the run's
+   conversation onto the project it just created, the first time only (`conv.project_id` stays whatever it was if
+   already set); `_start_work` passes the conversation's own `project_id` through unconditionally instead of
+   forcing `None`, so a second new_app request in the same chat reuses the project the first one created (the
+   `new_app` graph's `scaffold_node` already skips re-scaffolding when a project exists — this is the same "a
+   rework keeps the project the first pass created" path a gate rework already uses, now also reached across runs,
+   not only within one run). A genuinely different app still gets a clean project by starting a new chat, the same
+   way every other intent (`add_feature`, etc.) already works. Test: `test_runs.py::
+   test_create_project_settles_the_conversation_once_so_a_later_run_reuses_it`.
+2. "Internal test/eval runs leaking into the visible Projects list" — checked every eval script
+   (`evals/write_code.py`, `verify.py`, `run_tasks.py`, `review.py`): none of them create a project (`write_code`
+   is project-less; `explain`/`review` take an existing `--project`, never `project_name`). There is currently no
+   automated code path that creates "internal" projects, so there is nothing to flag — the actual clutter (the
+   "phase13-tictactoe"/"phase13-calc-check" entries, the many "Codewright Tic-Tac-Toe" / "Add price alerts..."
+   entries) reads as a developer's own manual live-testing via the real chat/API during Phase 13 work, which is
+   indistinguishable at the code level from genuine user activity — both do the exact same thing through the same
+   endpoints. Building a speculative "internal" flag/migration for a problem no current code path causes isn't
+   worth the schema churn. **Not fixed, by design**; `DELETE /projects/{id}` and `DELETE /conversations/{id}`
+   already exist for manual cleanup of the stale entries already in the live DB — left for you to pick which ones
+   to keep rather than guessed and deleted.
+Branch: `fix/run-status-and-project-dedup`.
 
 ## Phase 8 eval (ADR 0023), run 2026-10-29
 

@@ -38,7 +38,7 @@ from agent.playbooks.registry import Playbook, get_playbook, playbooks
 from agent.playbooks.services import ProjectTools
 from agent.playbooks.state import RunState, empty_budget
 from agent.tools.workspace import Workspace, put_back
-from codewright_api.db import Approval, Project, Run, RunEvent
+from codewright_api.db import Approval, Conversation, Project, Run, RunEvent
 from codewright_api.llm_settings import EffectiveLLM, effective_llm
 from codewright_api.settings import Settings
 from codewright_api.tracing import FanOutTraceSink, LangfuseTraceSink, PostgresTraceSink, langfuse_client
@@ -133,6 +133,13 @@ class _Services:
             run = await session.get(Run, uuid.UUID(run_id))
             if run is not None:
                 run.project_id = project.id
+                # The first new_app run in a chat settles what project that chat is about, exactly like a chat
+                # opened from an existing project: a later new_app request in the same chat (a retry, "try again",
+                # or a follow-up) then reuses it instead of minting another "Codewright <title>" project every time.
+                if run.conversation_id is not None:
+                    conv = await session.get(Conversation, run.conversation_id)
+                    if conv is not None and conv.project_id is None:
+                        conv.project_id = project.id
             await session.commit()
             project_id = project.id
         await asyncio.to_thread(Workspace(manager.settings.workspaces_dir, str(project_id)).create)

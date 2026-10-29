@@ -867,14 +867,11 @@ class ChatService:
                 ),
                 data={"intent": intent, "pending_phase": PLAYBOOK_PHASE[intent]},
             )
-        # A new app gets its own project, whichever project this chat was opened from.
-        return await self._start_run(
-            conversation_id,
-            intent,
-            inputs,
-            int(card.data.get("tier") or 0),
-            None if intent == "new_app" else project_id,
-        )
+        # A new app gets its own project: whichever project this chat was opened from, or (new_app only) whichever
+        # project an earlier new_app run in this same chat already created (RunManager.create_project sets
+        # conv.project_id the first time) — a retry or follow-up in the same chat reuses it instead of creating
+        # another "Codewright <title>" project every time. A chat with no project yet still gets a fresh one.
+        return await self._start_run(conversation_id, intent, inputs, int(card.data.get("tier") or 0), project_id)
 
     async def _start_run(
         self,

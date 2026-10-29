@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from typing import Any
+import uuid
+from typing import Any, cast
 
 from langgraph.types import Command
+
+from codewright_api.db import Conversation, Run
+from codewright_api.runs import _Services
 
 from .conftest import AppFactory, wait_for, waiting
 
@@ -236,3 +241,37 @@ def test_architecture_change_needs_a_built_target_and_microservices_is_tier_3(ap
         run = client.post("/api/runs", json=ms()).json()
         client.post(f"/api/runs/{run['id']}/cancel")
     assert run["tier"] == 3 and run["inputs"]["target"] == "microservices"
+
+
+def test_create_project_settles_the_conversation_once_so_a_later_run_reuses_it(app_factory: AppFactory) -> None:
+    """Bug 2: new_app minted a brand-new project on every run in a chat, even a plain retry, because the
+    conversation's own project_id was never settled by the first one. RunManager.create_project now does that."""
+    with app_factory() as client:
+        manager = cast(Any, client.app).state.run_manager
+
+        async def go() -> tuple[str, str, str | None]:
+            async with manager.sessions() as session:
+                conv = Conversation(title="Tic Tac Toe")
+                session.add(conv)
+                await session.flush()
+                runs = [
+                    Run(playbook="new_app", tier=1, llm_profile="remote_gpu", inputs={}, conversation_id=conv.id)
+                    for _ in range(2)
+                ]
+                session.add_all(runs)
+                await session.commit()
+                conv_id, run_ids = conv.id, [r.id for r in runs]
+            services = _Services(manager)
+            first = await services.create_project(str(run_ids[0]), "Tic Tac Toe")
+            second = await services.create_project(str(run_ids[1]), "Tic Tac Toe")
+            async with manager.sessions() as session:
+                settled = await session.get(Conversation, conv_id)
+                settled_project_id = str(settled.project_id) if settled and settled.project_id else None
+            return first, second, settled_project_id
+
+        first_project, second_project, settled_project_id = asyncio.run(go())
+
+    assert uuid.UUID(first_project) != uuid.UUID(second_project)  # each call still makes its own Project row...
+    # ...but the conversation settles on the first one, which is what chat.py's _start_work now reuses for a
+    # later new_app request in the same chat, instead of forcing a brand-new project every time.
+    assert settled_project_id == first_project
