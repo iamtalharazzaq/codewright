@@ -175,5 +175,21 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
 - If you ever see a real Conan build fail with a CMake "Imported target ... includes non-existent path" error:
   that was an infra bug (fixed this session) where the `cpp` sandbox toolchain had no persistent cache mount for
   `~/.conan2`, so packages installed in one step vanished before the next step ran. Should not recur.
+- Open a Go project and run Lint. **Expect:** `vet`, `staticcheck`, then `gofmt` all run; `staticcheck` is optional
+  (a failure is reported but doesn't fail the lint action, same as C++'s `clang-tidy`). Sanity-checked for real this
+  session with `docker run` against the rebuilt `codewright-sandbox-go:dev` image on the `go_gin`/`go_echo`
+  fixtures: clean (no findings) on both.
+- On a C++ project with a `conanfile.txt`, ask Codewright to upgrade one of its pinned dependencies (e.g. bump
+  `nlohmann_json` to a newer release). **Expect:** the pin in `conanfile.txt` is rewritten in place (same pattern as
+  Python's `requirements.txt` bump), then a rebuild with the new pin succeeds. Not yet wired into the `/upgrade`
+  chat flow itself (that playbook is out of scope for this worktree) — this is the Language Pack capability
+  (`CppPack.outdated_steps`/`upgrade_steps`) the playbook would call, proven directly: `test_cpp_conan_upgrade_path`
+  (fast) and `test_cpp_conan_upgrade_bumps_and_rebuilds` (`pytest.mark.sandbox`, bumps the existing
+  `cpp_cmake_conan` fixture's `nlohmann_json` pin from 3.11.3 to the real 3.12.0 release and rebuilds it for real).
+- vcpkg is still not installed in the sandbox image: disk was checked at the start of this session (17GB free
+  after a `docker system/image/builder prune`, on a box with a 15GB floor) and wasn't comfortably clear of the
+  floor, so the vcpkg bootstrap (git clone + build, a few hundred MB plus headroom for churn) was skipped again,
+  per this session's own instructions. The `cpp_cmake_vcpkg` fixture's plan is still correct but still won't
+  actually build until vcpkg lands in `sandbox/images/cpp.Dockerfile`.
 - Entries added here as each further piece of framework/template/linter coverage lands — see PROGRESS.md's Phase
   19 section for what's done so far.
