@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ChatMessage } from "@/lib/api";
 
-import { DoneCard } from "./cards";
+import { DoneCard, QuestionsCard } from "./cards";
 
 function message(data: ChatMessage["data"]): ChatMessage {
   return {
@@ -41,5 +41,21 @@ describe("DoneCard", () => {
     const headline = screen.getByText(/finished/);
     // The headline (and its icon container) must be styled destructive, not the default success green.
     expect(headline.closest("p")).toHaveClass("text-destructive");
+  });
+});
+
+describe("QuestionsCard", () => {
+  it("shows a pick-one question as a dropdown with the default chosen and marked, not as buttons", () => {
+    const questions = [
+      { question: "Which language?", default: "Python", options: ["Python", "Go"], hint: "" },
+      { question: "Which platform?", default: "Web", options: ["Web", "Terminal"], hint: "" },
+      { question: "Who is it for?", default: "me", options: [], hint: "" },
+    ];
+    render(<QuestionsCard message={message({ questions })} canAnswer onSend={vi.fn()} />);
+    expect(screen.getAllByRole("combobox")).toHaveLength(2);
+    expect(screen.getByText("Python (Recommended)")).toBeInTheDocument();
+    expect(screen.getByText("Web (Recommended)")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Who is it for?" })).toBeInTheDocument();
   });
 });

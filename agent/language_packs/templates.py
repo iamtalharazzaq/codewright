@@ -2,11 +2,13 @@
 
 A template is copied as is, with `__name__`-style placeholders filled in file contents and paths. Every template
 ships with tests, a `GUIDE.md` skeleton and the Graphify setup (`GRAPHIFY.md`, an MCP config example, a CI step
-that rebuilds the graph).
+that rebuilds the graph). A new app can leave out the CI workflow, the Graphify setup and the frontend's sample
+tests (`scaffold`'s `ci`, `graphify` and `frontend_tests`); everything is included unless it says otherwise.
 """
 
 from __future__ import annotations
 
+import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +21,8 @@ from agent.language_packs.base import ServiceSpec, fill, template_values
 ROOT = Path(__file__).resolve().parents[2] / "templates"
 KINDS = ("apps", "services")
 SKIP = {"node_modules", ".venv", "__pycache__", ".codewright", "graphify-out", "build", "dist"}
+GRAPHIFY_FILES = {"GRAPHIFY.md", "mcp.example.json"}
+FRONTEND_TEST = re.compile(r"\.(test|spec)\.[jt]sx?$")
 BINARY = {".png", ".ico", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2"}
 
 
@@ -68,8 +72,20 @@ def get(name: str, root: Path = ROOT) -> Template:
     raise KeyError(f"no template named {name!r}")
 
 
-def scaffold(spec: ServiceSpec, out: Path, root: Path = ROOT) -> Template:
-    """Copy template `spec.template` into `out` (which must be empty or missing), filling the placeholders."""
+def frontend_root(template: str) -> str | None:
+    """Where a template's browser code lives: its own root (React apps, sites), `frontend/` (full-stack), or none."""
+    if template.startswith(("web-react", "site-nextjs")):
+        return ""
+    return "frontend" if template.startswith("fullstack") else None
+
+
+def scaffold(
+    spec: ServiceSpec, out: Path, root: Path = ROOT, *, ci: bool = True, graphify: bool = True,
+    frontend_tests: bool = True,
+) -> Template:  # fmt: skip
+    """Copy template `spec.template` into `out` (which must be empty or missing), filling the placeholders.
+    `ci=False` leaves out `.github/`, `graphify=False` the Graphify setup files, `frontend_tests=False` the sample
+    tests of the template's browser code (the backend's tests stay)."""
     template = get(spec.template, root)
     if out.exists() and any(out.iterdir()):
         raise FileExistsError(f"{out} isn't empty")
@@ -77,6 +93,8 @@ def scaffold(spec: ServiceSpec, out: Path, root: Path = ROOT) -> Template:
     for src in sorted(template.path.rglob("*")):
         relative = src.relative_to(template.path)
         if any(part in SKIP for part in relative.parts) or src.name == "manifest.yaml":
+            continue
+        if _left_out(template.name, relative, ci=ci, graphify=graphify, frontend_tests=frontend_tests):
             continue
         target = out / fill(relative.as_posix(), values).replace(".tmpl", "")
         if src.is_dir():
@@ -89,3 +107,14 @@ def scaffold(spec: ServiceSpec, out: Path, root: Path = ROOT) -> Template:
             target.write_text(fill(src.read_text(encoding="utf-8"), values), encoding="utf-8")
         target.chmod(src.stat().st_mode & 0o777)
     return template
+
+
+def _left_out(name: str, relative: Path, *, ci: bool, graphify: bool, frontend_tests: bool) -> bool:
+    if not ci and relative.parts[0] == ".github":
+        return True
+    if not graphify and len(relative.parts) == 1 and relative.name in GRAPHIFY_FILES:
+        return True
+    top = frontend_root(name)
+    if not frontend_tests and top is not None and FRONTEND_TEST.search(relative.name):
+        return relative.parts[0] == top if top else True
+    return False

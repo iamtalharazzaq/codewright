@@ -96,8 +96,34 @@ async def test_intake_always_asks_the_language_for_new_work() -> None:
     }
     client, _ = client_returning(json.dumps(reply))
     result = await intake.check(client, "new_app", "Make a calculator")
-    assert [q.question for q in result.questions] == ["Which language?"]
-    assert result.questions[0].options[0] == "TypeScript"
+    assert [q.question for q in result.questions] == [
+        "Which language?",
+        "Which platform?",
+        "Add a CI workflow (GitHub Actions)?",
+    ]
+    assert result.questions[0].options[0] == "TypeScript" and result.questions[2].default == "No"
+    assert result.questions[1].options == ["Browser app", "Terminal (command line)", "API (REST)"]
+
+
+async def test_intake_asks_about_ci_once_and_not_when_the_request_already_says() -> None:
+    reply = {"recommended_language": "Python", "language_reason": "x", "questions": [], "card": CARD}
+    client, _ = client_returning(json.dumps(reply))
+    asked = await intake.check(client, "new_app", "Make a terminal calculator in Python")
+    assert [q.question for q in asked.questions] == ["Add a CI workflow (GitHub Actions)?"]
+    client, _ = client_returning(json.dumps(reply))
+    said = await intake.check(client, "new_app", "Make a terminal calculator in Python with CI")
+    assert said.questions == []
+    client, _ = client_returning(json.dumps(reply))
+    answered = await intake.check(
+        client,
+        "new_app",
+        "Make a calculator in Python",
+        answers=[("Add a CI workflow (GitHub Actions)?", "No"), ("Which platform?", "Terminal (command line)")],
+    )
+    assert answered.questions == []
+    client, _ = client_returning(json.dumps(reply))
+    other = await intake.check(client, "add_feature", "Add a button in Python")
+    assert all("CI" not in q.question for q in other.questions)
 
 
 async def test_intake_last_round_shows_the_card_with_the_named_language() -> None:
@@ -109,3 +135,14 @@ async def test_intake_last_round_shows_the_card_with_the_named_language() -> Non
     )
     assert result.questions == [] and result.language == "Python"
     assert result.card.stack.startswith("Python")
+
+
+async def test_intake_asks_the_platform_with_the_rules_default_and_not_when_it_is_stated() -> None:
+    reply = {"recommended_language": "Python", "language_reason": "x", "questions": [], "card": CARD}
+    client, _ = client_returning(json.dumps(reply))
+    asked = await intake.check(client, "new_app", "A script that renames files in Python")
+    platform = next(q for q in asked.questions if q.question == "Which platform?")
+    assert platform.default == "Terminal (command line)"
+    client, _ = client_returning(json.dumps(reply))
+    stated = await intake.check(client, "new_app", "A website for my bakery in TypeScript")
+    assert all(q.question != "Which platform?" for q in stated.questions)

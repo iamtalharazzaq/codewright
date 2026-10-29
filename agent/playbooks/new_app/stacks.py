@@ -189,4 +189,76 @@ def choose(inputs: dict[str, Any], root: Any = templates.ROOT) -> Choice:
             f"The {option.label} template isn't in the library yet, so {fallback.label} is used."
         )
         option = fallback
+    if kind_name == "browser" and option.template.startswith("cli-") and language:
+        note = (note + " " if note else "") + (
+            f"There is no browser template for {language}, so this is a terminal app. "
+            "Choose TypeScript or JavaScript for one that runs in the browser."
+        )
     return Choice(kind_name, size, option.template, option.label, have[option.template].language, note)
+
+
+# ── extras the user has to ask for ───────────────────────────────────────────
+CI_QUESTION = "Add a CI workflow (GitHub Actions)?"
+_CI_WORDS = ("ci", "github actions", "continuous integration", "pipeline")
+_TEST_WORDS = ("test", "testing", "unit test", "vitest", "jest", "tdd")
+
+
+@dataclass(frozen=True)
+class Extras:
+    """What a new app only gets when the user asked: a CI workflow, the Graphify setup, tests for the browser code."""
+
+    ci: bool = False
+    graphify: bool = False
+    frontend_tests: bool = False
+
+
+def _asked(inputs: dict[str, Any]) -> str:
+    """What the user said (the request and the answers to questions), not what the model drafted."""
+    answers = [str(a[1]) for a in inputs.get("answers", []) if isinstance(a, list | tuple) and len(a) == 2]
+    return " " + " ".join([str(inputs.get("request", "")), *answers]).lower() + " "
+
+
+def answer_to(inputs: dict[str, Any], question: str) -> str | None:
+    """The user's answer to `question`: the chat sends all answers as one reply, a line per question
+    ("Which platform? Terminal"); a (question, reply) pair for just that question works too. None if unanswered."""
+    for pair in inputs.get("answers", []):
+        if not (isinstance(pair, list | tuple) and len(pair) == 2):
+            continue
+        if pair[0] == question:
+            return str(pair[1]).strip()
+        for line in str(pair[1]).splitlines():
+            if line.strip().startswith(question):
+                return line.strip()[len(question) :].strip()
+    return None
+
+
+def extras(inputs: dict[str, Any]) -> Extras:
+    text = _asked(inputs)
+    ci_answer = answer_to(inputs, CI_QUESTION)
+    ci = ci_answer.lower().startswith("y") if ci_answer else _has(text.replace(CI_QUESTION.lower(), " "), _CI_WORDS)
+    return Extras(ci=ci, graphify=_has(text, ("graphify",)), frontend_tests=_has(text, _TEST_WORDS))
+
+
+def expects_tests(template: str, wanted: Extras) -> bool:
+    """A browser-only app has no tests unless they were asked for; everything else ships with some."""
+    return not (templates.frontend_root(template) == "" and not wanted.frontend_tests)
+
+
+PLATFORM_QUESTION = "Which platform?"
+PLATFORMS = ("Browser app", "Terminal (command line)", "API (REST)")
+_PLATFORM_WORDS = ("browser", "web", "website", "terminal", "cli", "command line", "console", "api", "rest api")
+
+
+def platform_stated(inputs: dict[str, Any]) -> bool:
+    """Whether the user already said where the app runs: in the request, or as an answer to the platform question."""
+    if answer_to(inputs, PLATFORM_QUESTION) is not None:
+        return True
+    return _has(_asked(inputs), _PLATFORM_WORDS)
+
+
+def default_platform(inputs: dict[str, Any]) -> str:
+    """The platform the rules would pick for this request: the question's default."""
+    kind = app_kind({"request": inputs.get("request", "")})
+    return {"cli": PLATFORMS[1], "script": PLATFORMS[1], "systems": PLATFORMS[1], "api": PLATFORMS[2]}.get(
+        kind, PLATFORMS[0]
+    )

@@ -16,6 +16,15 @@ from pydantic import BaseModel, Field
 from agent.chat.intents import INTENT_LABELS, Intent, intent_config, named_language, router_settings
 from agent.llm.client import LLMClient, Usage
 from agent.llm.structured import structured
+from agent.playbooks.new_app.stacks import (
+    CI_QUESTION,
+    PLATFORM_QUESTION,
+    PLATFORMS,
+    answer_to,
+    default_platform,
+    extras,
+    platform_stated,
+)
 
 Language = Literal["Python", "TypeScript", "JavaScript", "Go", "C++"]
 
@@ -78,7 +87,9 @@ Rules:
 - Ask only about required info that is missing AND would change the result a lot. At most 3 questions; zero is
   fine. Small things (who uses a simple app, the platform when it's obvious, style) get a default in the card, not a
   question.
-- Every question has a sensible default. Use options for pick-one questions.
+- Every question has a sensible default. Give `options` (2-6 short choices, the default among them) for every
+  pick-one question, such as the platform, the framework or the style: the user answers them from a dropdown. Leave
+  `options` empty only for a free-text answer.
 - Don't ask about the language: that is handled separately. Don't re-ask anything already answered.
 - The card describes exactly what will be made, using the answers, and the defaults for anything unanswered.
 - Codewright works only in Python, TypeScript, JavaScript, Go and C++."""
@@ -124,11 +135,21 @@ async def check(
     out.card = _tidy(out.card)
     last_round = round_no >= router_settings()["max_rounds"]
     questions = [] if last_round else list(out.questions)
+    asked_language = cfg.new and not language and not last_round
     if cfg.new and not language:
         if last_round:
             language = out.recommended_language
         else:
             questions.insert(0, _language_question(out.recommended_language, out.language_reason))
+    if intent == "new_app" and not last_round:
+        at = 1 if asked_language else 0
+        inputs = {"request": request, "answers": [list(a) for a in answers]}
+        questions = [q for q in questions if "platform" not in q.question.lower() and q.question != CI_QUESTION]
+        if not platform_stated(inputs):
+            questions.insert(at, _platform_question(default_platform(inputs)))
+            at += 1
+        if not _ci_decided(request, answers):
+            questions.insert(at, _ci_question())
     if language and cfg.new and language.lower() not in out.card.stack.lower():
         out.card.stack = f"{language} · {out.card.stack}"
     limit = router_settings()["max_questions_per_round"]
@@ -142,4 +163,28 @@ def _language_question(recommended: str, reason: str) -> Question:
         default=recommended,
         options=[recommended, *others],
         hint=_clip(reason, 80).rstrip("."),
+    )
+
+
+def _ci_decided(request: str, answers: Sequence[tuple[str, str]]) -> bool:
+    """CI is asked once: not again after an answer, nor when the request itself says whether it wants it."""
+    inputs = {"request": request, "answers": [list(a) for a in answers]}
+    return answer_to(inputs, CI_QUESTION) is not None or extras(inputs).ci
+
+
+def _ci_question() -> Question:
+    return Question(
+        question=CI_QUESTION,
+        default="No",
+        options=["No", "Yes"],
+        hint="a workflow that runs the tests on every push",
+    )
+
+
+def _platform_question(default: str) -> Question:
+    return Question(
+        question=PLATFORM_QUESTION,
+        default=default,
+        options=list(PLATFORMS),
+        hint="where the app runs",
     )

@@ -18,23 +18,29 @@ export function FormSelect({
   value,
   options,
   onChange,
+  disabled,
+  placeholder,
 }: {
   id: string;
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
+  disabled?: boolean;
+  /** Shown while no option is chosen. */
+  placeholder?: string;
 }) {
   const items = Object.fromEntries(options.map((o) => [o.value, o.label]));
   return (
     <Select
       value={value}
       items={items}
+      disabled={disabled}
       onValueChange={(v) => {
         if (typeof v === "string") onChange(v);
       }}
     >
       <SelectTrigger id={id} className="h-9 w-full">
-        <SelectValue />
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false} align="start">
         {options.map((o) => (

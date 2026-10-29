@@ -8,6 +8,7 @@ import { Markdown } from "@/components/chat/markdown";
 import { DeliverPanel } from "@/components/projects/deliver-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { FormSelect } from "@/components/form-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { answerConfirm, answerRun, getRun, type ChatMessage, type Question, type RunDetail } from "@/lib/api";
@@ -22,7 +23,7 @@ function defaultOption(q: Question): string | undefined {
 }
 
 /**
- * Questions from the missing-info check: pick-one questions as option buttons (the default pre-selected and marked
+ * Questions from the missing-info check: pick-one questions as a dropdown (the default pre-selected and marked
  * "Recommended"), the others as a short text box. One click sends all answers; "Use the defaults" skips them.
  */
 export function QuestionsCard({
@@ -53,33 +54,14 @@ export function QuestionsCard({
                 <span className="text-muted-foreground">{i + 1}.</span> {q.question}
               </p>
               {q.options.length > 0 ? (
-                <div role="radiogroup" aria-label={q.question} className="flex flex-wrap gap-2">
-                  {q.options.map((o) => {
-                    const selected = answers[i] === o;
-                    return (
-                      <button
-                        key={o}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        disabled={!canAnswer}
-                        onClick={() => set(i, o)}
-                        className={cn(
-                          "flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
-                          "hover:bg-muted disabled:cursor-default disabled:hover:bg-transparent",
-                          selected && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
-                        )}
-                      >
-                        {o}
-                        {o === recommended && (
-                          <span className={cn("text-xs", selected ? "opacity-80" : "text-muted-foreground")}>
-                            · Recommended
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                <FormSelect
+                  id={`question-${i}`}
+                  value={answers[i]}
+                  disabled={!canAnswer}
+                  placeholder="Choose one"
+                  options={q.options.map((o) => ({ value: o, label: o === recommended ? `${o} (Recommended)` : o }))}
+                  onChange={(v) => set(i, v)}
+                />
               ) : (
                 <Input
                   aria-label={q.question}

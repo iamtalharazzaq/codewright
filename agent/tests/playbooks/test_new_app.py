@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from agent.language_packs import templates
+from agent.language_packs.base import ServiceSpec
 from agent.playbooks.new_app import graph as na
 from agent.playbooks.new_app import stacks
 from agent.playbooks.registry import get_playbook
@@ -219,3 +220,65 @@ def test_the_size_sets_the_tier() -> None:
     spec = get_playbook("new_app").spec
     assert [spec.min_tier({"size": s}) for s in ("small", "medium", "large")] == [1, 2, 3]
     assert spec.min_tier({"request": "Create a clinic appointment booking app"}) == 3
+
+
+# ── what a new app only gets when asked for ──────────────────────────────────
+CI = "Add a CI workflow (GitHub Actions)?"
+
+
+def _extras(request: str, *answers: tuple[str, str]) -> stacks.Extras:
+    return stacks.extras({"request": request, "answers": [list(a) for a in answers]})
+
+
+def test_ci_graphify_and_frontend_tests_are_off_unless_the_user_asks() -> None:
+    assert _extras("Make a calculator") == stacks.Extras(False, False, False)
+    assert _extras("Make a calculator", (CI, "No")).ci is False
+    assert _extras("Make a calculator", (CI, "Yes")).ci is True
+    combined = ("Which language? / " + CI, "Which language? Python\n" + CI + " Yes")  # how the chat sends answers
+    assert _extras("Make a calculator", combined).ci is True
+    assert _extras("Make a calculator", ("x", "Which platform? Terminal\n" + CI + " No")).ci is False
+    assert _extras("Make a calculator with GitHub Actions").ci is True
+    assert _extras("Make it, and set up Graphify").graphify is True
+    assert _extras("Make a todo app with unit tests").frontend_tests is True
+    assert _extras("Make a todo app", (CI, "No")).frontend_tests is False
+
+
+def _scaffolded(
+    tmp_path: Path, template: str, *, ci: bool = True, graphify: bool = True, frontend_tests: bool = True
+) -> set[str]:
+    spec = ServiceSpec(name="demo", template=template, description="d")
+    templates.scaffold(spec, tmp_path / "out", ci=ci, graphify=graphify, frontend_tests=frontend_tests)
+    return {p.relative_to(tmp_path / "out").as_posix() for p in (tmp_path / "out").rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("template", ["web-react-ts", "cli-python", "fullstack-fastapi-nextjs"])
+def test_a_new_app_has_no_ci_or_graphify_files_unless_asked(tmp_path: Path, template: str) -> None:
+    files = _scaffolded(tmp_path, template, ci=False, graphify=False, frontend_tests=False)
+    assert not any(f.startswith(".github/") or f in ("GRAPHIFY.md", "mcp.example.json") for f in files)
+    everything = _scaffolded(tmp_path / "all", template)
+    assert any(f.startswith(".github/") for f in everything) and "GRAPHIFY.md" in everything
+
+
+def test_frontend_tests_are_left_out_but_the_backends_tests_stay(tmp_path: Path) -> None:
+    react = _scaffolded(tmp_path / "a", "web-react-ts", frontend_tests=False)
+    assert not [f for f in react if ".test." in f]
+    assert [f for f in _scaffolded(tmp_path / "b", "web-react-ts") if ".test." in f]
+    full = _scaffolded(tmp_path / "c", "fullstack-fastapi-nextjs", frontend_tests=False)
+    assert not [f for f in full if f.startswith("frontend/") and ".test." in f]
+    assert [f for f in full if f.startswith("backend/") and "test" in f]
+    assert [f for f in _scaffolded(tmp_path / "d", "cli-python", frontend_tests=False) if f.startswith("tests/")]
+
+
+def test_zero_tests_pass_only_for_a_browser_app_nobody_asked_tests_for() -> None:
+    empty = [{"component": ".", "report": {"ok": True, "passed": 0, "failed": 0}}]
+    assert na.tests_green(empty, need_tests=False) == (True, "")
+    assert stacks.expects_tests("web-react-ts", stacks.Extras()) is False
+    assert stacks.expects_tests("web-react-ts", stacks.Extras(frontend_tests=True)) is True
+    assert stacks.expects_tests("cli-python", stacks.Extras()) is True
+    assert stacks.expects_tests("fullstack-fastapi-nextjs", stacks.Extras()) is True
+
+
+def test_a_browser_request_in_a_language_without_a_browser_template_says_it_is_a_terminal_app() -> None:
+    python = stacks.choose({"request": "Make a calculator", "language": "Python"})
+    assert python.template == "cli-python" and "no browser template for Python" in python.note
+    assert stacks.choose({"request": "Make a calculator", "language": "TypeScript"}).note == ""

@@ -270,6 +270,19 @@ again (flagged as a regression).
   (`compileall`) could not write `__pycache__` into `libs/auth` and `libs/events`, created after `start_session`'s
   one-time chown. Fixed in the harness: `RealProject.files_changed` re-chowns the workspace. Not covered: the red
   paths (`undone`), finalize, non-Python services (scaffold-only), the DB split.
+- **Phase 13 follow-up (2026-10-30), opt-in extras for a new app.** A new app no longer gets a CI workflow
+  (`.github/`), the Graphify setup (`GRAPHIFY.md`, `mcp.example.json`) or sample tests for its browser code unless the
+  user asked: the intake **asks "Add a CI workflow (GitHub Actions)?"** (default No, asked once, skipped when the
+  request already says), and Graphify or frontend tests are only added when the request names them
+  (`stacks.extras`). `templates.scaffold` takes `ci`/`graphify`/`frontend_tests` (default: everything, so services and
+  the microservices build are unchanged); the backend's tests always stay. The frontend `test` scripts are
+  `vitest run --passWithNoTests`, and `verify` accepts 0 tests only for a browser-only app nobody asked tests for
+  (a run that found 0 tests is otherwise a failure: the model had put CLI code into the test file).
+  The intake now always asks a **Which platform?** question too (Browser app / Terminal / API, default from the
+  rules, skipped when the request names one) and the chat renders every pick-one question as a **dropdown**
+  (default marked "Recommended") instead of chips. A browser request in a language with no browser template
+  (e.g. Python) says so in the card's note instead of silently becoming a terminal app. Answers arrive as one
+  reply, a line per question, so `stacks.answer_to` reads them by question text.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the
