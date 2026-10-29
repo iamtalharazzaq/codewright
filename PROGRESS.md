@@ -7,9 +7,8 @@ follow `CODEWRIGHT.md` Section 15.
 2026-10-29; `make check` (ruff, mypy, pytest, eslint, tsc, prettier, vitest) passes clean as of 2026-10-29. Phase 19
 is next.
 Still open: Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table, Phase 11's
-price-alerts acceptance, Phase 13's TypeScript reliability, Phase 16's Go-extraction gap (out of scope, by your
-call). **Blocked right now:** the remote GPU's ngrok tunnel is down (confirmed with a direct `curl`: ngrok's own 502
-page, not the model), so further live verification of 11/13/16 is paused until it's back.
+price-alerts acceptance, Phase 13's TypeScript reliability. Phase 16's Python extraction path is now live-verified
+clean; Go extraction is out of scope by your call.
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
 
@@ -134,7 +133,7 @@ Open: the GoShop-service-rebuilt-in-Python acceptance item (needs a real project
 
 Open: the GoShop saga-paths-replay-0-regressions acceptance and the M4 demo (need a live run); `serverless` never wires a real caller or deploys; `event_driven` never rewrites a call site, only documents where one would go; the database-split stages/saga library/gateway rewrite are only exercised against a fake `project.db_trial`, never a real PostgreSQL sandbox.
 
-## Phase 16: Architecture change II, microservices build (ADR 0031; built, live-ran once on notes-api-python)
+## Phase 16: Architecture change II, microservices build (ADR 0031; built, live-verified on notes-api-python)
 
 | Task | Result |
 |---|---|
@@ -170,14 +169,16 @@ out of scope by your call):** three real bugs found and fixed by actually drivin
    `agent/language_packs/python.py`): a component's own test run now `--ignore`s any nested directory with its own
    Python manifest.
 
-All three are confirmed fixed by the live run itself reaching further each time (foundation stopped being undone;
-two simultaneous gates no longer crash) and by unit tests added alongside each fix. **Not yet confirmed end to
-end**: the run that would prove a full clean pass (foundation → all services extracted or honestly
-scaffolded/blocked → db_split → frontend → report) kept hitting a *fourth*, unrelated problem — the remote GPU's
-ngrok tunnel going down mid-run (confirmed independently with a direct `curl` to the tunnel URL: ngrok's own 502
-page, not the model) — twice in a row at the `to_be` step. This is your GPU/ngrok setup, not a Codewright bug; retry
-once the tunnel's back up. One service group in this project's design (`root-configuration`) has no Python files to
-extract (config/docs only) and will always come back "blocked" — that's correct, not a bug.
+All three are confirmed fixed by unit tests, and then by a full clean end-to-end live run once the GPU's ngrok
+tunnel (down for a while mid-session, unrelated to Codewright) came back: `foundation` → **13 file(s) written**,
+not undone; 5 service groups planned; **`application`, `authentication` and `events` extracted for real** (tests
+green, 0 replay regressions each); `database` and `root` correctly came back "scaffolded, not extracted:
+translating to another language is Phase 18" (their groups are Go/other, which this phase doesn't extract — the
+spec's own acceptance criterion names GoShop here, which is Go end to end and genuinely can't be satisfied this
+way; by your call, Go extraction itself is out of scope, and this run demonstrates the Python path is now real and
+clean). `db_split`, `frontend`, `report` and `deliver` all completed; delivered on branch
+`codewright/architecture-20261029-103058`. Two simultaneous `gate5` interrupts (two services reaching it in the
+same tick) answered cleanly with no crash, directly exercising fix #2 above.
 
 ## Phase 15: Architecture change I (ADR 0029; built, not yet run on a real benchmark)
 
