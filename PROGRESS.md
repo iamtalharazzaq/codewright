@@ -212,7 +212,12 @@ so it outranked the real "terminal" signal since `webapp` is checked before `cli
 `multi-user`, which is a real signal); confirmed fixed by re-running the same request live: now correctly
 scaffolds `cli-python` with the right file layout (`src/termicalc/{core,cli}.py`, `tests/test_core.py`).
 
-Open: more live runs (tic-tac-toe, calculator in 5 languages, 10 small + 5 medium apps, inventory, clinic); the M3
+Tic-tac-toe live run, 2026-10-29: web-react-ts, 4 files, correctly reached the approve_result gate **red** (3
+failing tests in `isDraw`/`getGameState`/move validation) and showed the failures verbatim instead of hiding them —
+the harness working as designed; the game-logic bugs themselves are the 9B model, same class as the Phase 8 eval.
+Rejected (not kept).
+
+Open: more live runs (calculator in the other 4 languages, 10 small + 5 medium apps, inventory, clinic); the M3
 demo; Preview of a browser app / terminal app is started from the project's Preview tab, not by the playbook.
 
 ## Phases 12 and 14: Frontend and DevOps (ADR 0027, 0028; built, not yet run live)
