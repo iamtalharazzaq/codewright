@@ -99,10 +99,11 @@ def lint_node(services: RunServices) -> Any:
             notes += [f"Linters: {o['output'][:200]}" for o in failed]
         found += secret_findings(project.work, sorted(files))
         summary = f"{len(found)} findings from linters and the secret scan"
-        update = {"lint_findings": found}
+        update: dict[str, Any] = {"lint_findings": found}
         if notes:
             update["errors"] = [{"step": "lint", "message": n} for n in notes]
-        return await steps.finish(services, state, plan, "lint", "qa_engineer", summary, **update)
+        # Findings alone aren't a failure (surfacing them is this step's job); only a linter that couldn't run is.
+        return await steps.finish(services, state, plan, "lint", "qa_engineer", summary, ok=not notes, **update)
 
     return node
 

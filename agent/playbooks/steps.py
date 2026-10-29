@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from agent.playbooks.plan import mark
 from agent.playbooks.services import RunServices
@@ -18,13 +18,24 @@ async def start(services: RunServices, state: RunState, step: str, role: str) ->
 
 
 async def finish(
-    services: RunServices, state: RunState, plan: list[PlanItem], step: str, role: str, summary: str, **update: Any
+    services: RunServices,
+    state: RunState,
+    plan: list[PlanItem],
+    step: str,
+    role: str,
+    summary: str,
+    *,
+    ok: bool = True,
+    **update: Any,
 ) -> dict[str, Any]:
-    """Mark the step done and return the node's state update (plan, step result and `update`)."""
-    plan = mark(plan, step, "done")
+    """Mark the step done (or, with `ok=False`, failed) and return the node's state update (plan, step result and
+    `update`). `ok=False` is for a step whose own job was to verify something and that something did not pass
+    (failing tests/lint, a build that stayed broken, etc.) — not for a step that merely reports findings."""
+    status: Literal["done", "failed"] = "done" if ok else "failed"
+    plan = mark(plan, step, status)
     await services.emit(state["run_id"], "plan_updated", step=step, data={"plan": plan})
-    await services.emit(state["run_id"], "step_completed", step=step, data={"role": role, "summary": summary})
-    return {**update, "plan": plan, "steps": {step: {"status": "done", "summary": summary}}}
+    await services.emit(state["run_id"], "step_completed", step=step, data={"role": role, "summary": summary, "ok": ok})
+    return {**update, "plan": plan, "steps": {step: {"status": status, "summary": summary}}}
 
 
 def run_dir(state: RunState) -> Path:

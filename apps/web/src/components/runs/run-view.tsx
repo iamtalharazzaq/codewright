@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Wifi,
   WifiOff,
+  XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -47,7 +48,7 @@ const ROLE_LABEL: Record<string, string> = {
   release_manager: "Release Manager",
 };
 
-type ItemState = "done" | "running" | "waiting" | "todo";
+type ItemState = "done" | "failed" | "running" | "waiting" | "todo";
 
 function unknownPlaybook(name: string): Playbook {
   return {
@@ -106,6 +107,9 @@ export function RunView({ runId }: { runId: string }) {
   }
 
   const active = run.status === "running" || run.status === "waiting" || run.status === "created";
+  // A step's own "failed" status always outranks the run-level status badge: a run that reached "completed" or
+  // "waiting" (at the approval gate) must still read as broken if a verify/test/lint step did not pass.
+  const hasFailedStep = Object.values(run.steps).some((s) => s.status === "failed");
 
   return (
     <div className="flex flex-col gap-6">
@@ -114,7 +118,10 @@ export function RunView({ runId }: { runId: string }) {
           <h1 className="font-heading text-2xl font-semibold tracking-tight">{runTitle(run)}</h1>
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span className="font-mono">{run.id.slice(0, 8)}</span>
-            <StatusBadge status={run.status} />
+            <StatusBadge
+              status={hasFailedStep ? "failed" : run.status}
+              label={hasFailedStep ? `${run.status.replaceAll("_", " ")} · a step failed` : undefined}
+            />
             <span>
               {playbook.title} · tier {run.tier}
             </span>
@@ -152,7 +159,13 @@ export function RunView({ runId }: { runId: string }) {
       )}
 
       {run.status === "waiting" && run.pending?.kind === "gate" && (
-        <GateCard key={JSON.stringify(run.pending)} runId={run.id} prompt={run.pending} onAnswered={refresh} />
+        <GateCard
+          key={JSON.stringify(run.pending)}
+          runId={run.id}
+          prompt={run.pending}
+          onAnswered={refresh}
+          hasFailedStep={hasFailedStep}
+        />
       )}
       {run.status === "waiting" && run.pending?.kind === "llm_unavailable" && (
         <LLMUnavailableCard runId={run.id} prompt={run.pending} onAnswered={refresh} />
@@ -259,6 +272,8 @@ function Timeline({ run, playbook, events }: { run: RunDetail; playbook: Playboo
     const done = subjects(id);
     if (done.length > 0 && plannedSubjects.length > 0)
       return plannedSubjects.every((s) => done.includes(s)) ? "done" : "running";
+    // A step's own recorded outcome always wins: a run reaching "completed" never repaints a failed step green.
+    if (run.steps[id]?.status === "failed") return "failed";
     return completed.has(id) || run.steps[id]?.status === "done" || run.status === "completed" ? "done" : "todo";
   }
 
@@ -284,7 +299,13 @@ function Timeline({ run, playbook, events }: { run: RunDetail; playbook: Playboo
               <li key={`${id}-${i}`} className={cn("flex items-start gap-3 py-1.5", gate && "pl-6")}>
                 <StateIcon state={state} gate={Boolean(gate)} />
                 <span className="flex flex-col">
-                  <span className={cn("text-sm", state === "todo" ? "text-muted-foreground" : "font-medium")}>
+                  <span
+                    className={cn(
+                      "text-sm",
+                      state === "todo" ? "text-muted-foreground" : "font-medium",
+                      state === "failed" && "text-destructive",
+                    )}
+                  >
                     {label}
                   </span>
                   {step && state !== "todo" && (
@@ -329,13 +350,22 @@ function PlanCard({ run }: { run: RunDetail }) {
             <li key={item.id} className="flex items-start gap-2 text-sm">
               {item.status === "done" ? (
                 <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success" aria-hidden="true" />
+              ) : item.status === "failed" ? (
+                <XCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
               ) : item.status === "in_progress" ? (
                 <CircleDot className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden="true" />
               ) : (
                 <Circle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               )}
               <span className="sr-only">{item.status.replace("_", " ")}:</span>
-              <span className={cn(item.status === "done" && "text-muted-foreground line-through")}>{item.title}</span>
+              <span
+                className={cn(
+                  item.status === "done" && "text-muted-foreground line-through",
+                  item.status === "failed" && "font-medium text-destructive",
+                )}
+              >
+                {item.title}
+              </span>
               <span className="ml-auto text-xs text-muted-foreground">{ROLE_LABEL[item.role] ?? item.role}</span>
             </li>
           ))}
@@ -394,11 +424,19 @@ function LiveOutput({ live }: { live: { agent: string; text: string } | null }) 
 }
 
 function StateIcon({ state, gate }: { state: ItemState; gate: boolean }) {
-  const label = { done: "Done", running: "In progress", waiting: "Waiting for you", todo: "Not started" }[state];
+  const label = {
+    done: "Done",
+    failed: "Failed",
+    running: "In progress",
+    waiting: "Waiting for you",
+    todo: "Not started",
+  }[state];
   const cls = "mt-0.5 size-4 shrink-0";
   const icon =
     state === "done" ? (
       <CheckCircle2 className={cn(cls, "text-success")} aria-hidden="true" />
+    ) : state === "failed" ? (
+      <XCircle className={cn(cls, "text-destructive")} aria-hidden="true" />
     ) : state === "running" ? (
       <Loader2 className={cn(cls, "animate-spin text-brand")} aria-hidden="true" />
     ) : state === "waiting" ? (

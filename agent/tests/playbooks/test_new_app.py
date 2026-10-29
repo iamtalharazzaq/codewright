@@ -163,6 +163,26 @@ async def test_a_failing_app_is_shown_red_not_hidden(tmp_path: Path) -> None:
         approve_all,
     )
     assert state["passed"] is False and "Tests still fail" in state["result_brief"]
+    # Bug: a failing verify step was recorded as "done" (green) like any other step, so the Timeline and the
+    # run's own status badge showed it as a clean pass even though its own summary said otherwise.
+    assert state["steps"]["verify"]["status"] == "failed"
+    assert next(p for p in state["plan"] if p["id"] == "verify")["status"] == "failed"
+
+
+async def test_passing_tests_with_failing_lint_still_fails_the_step(tmp_path: Path) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    project = FakeProject(work, test_results=[[GREEN]], lint_outputs=[{"ok": False, "output": "E501 line too long"}])
+    client, _ = llm_returning(REQS, PLAN, fenced(GAME), fenced(GAME_TEST), "text")
+    services = FakeServices(clients={"remote_gpu": client}, project=project)
+    state, _ = await drive(
+        compiled("new_app", services),
+        cfg(),
+        _state(tmp_path, **run_inputs()),
+        approve_all,
+    )
+    assert state["passed"] is True  # the tests themselves are green
+    assert state["steps"]["verify"]["status"] == "failed"  # but a failing lint step still fails the step overall
 
 
 @pytest.mark.parametrize(

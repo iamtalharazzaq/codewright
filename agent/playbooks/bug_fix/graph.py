@@ -289,6 +289,7 @@ def fix_verify_node(services: RunServices) -> Any:
             "fix_verify",
             "backend_developer",
             summary,
+            ok=best.ok,
             fixed=best.ok,
             attempts=tries,
             budget={"run": totals, "steps": {"fix_verify": totals}, "extensions": 0},

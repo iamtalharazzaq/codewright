@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal, NotRequired, Protocol, TypedDict
 from agent.llm.config import ProfileName
 
 Decision = Literal["approve", "edit", "reject"]
-PlanStatus = Literal["pending", "in_progress", "done", "skipped"]
+PlanStatus = Literal["pending", "in_progress", "done", "failed", "skipped"]
 ArtifactKind = Literal["plan", "diff", "graph", "diagram", "tests", "preview", "report", "file"]
 
 

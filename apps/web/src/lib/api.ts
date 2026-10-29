@@ -108,7 +108,7 @@ export interface PlanItem {
   id: string;
   title: string;
   role: string;
-  status: "pending" | "in_progress" | "done";
+  status: "pending" | "in_progress" | "done" | "failed";
 }
 
 export interface ArtifactRef {
@@ -162,7 +162,7 @@ export interface RunDetail extends Run {
   approvals: Array<{ gate: string; subject: string | null; decision: Decision; comment: string; at: string }>;
   flow: string[];
   plan: PlanItem[];
-  steps: Record<string, { status?: string; summary?: string; subject?: string }>;
+  steps: Record<string, { status?: "done" | "failed" | "skipped"; summary?: string; subject?: string }>;
   artifacts: ArtifactRef[];
   budget: BudgetState | null;
 }

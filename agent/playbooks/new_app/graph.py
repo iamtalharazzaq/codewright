@@ -489,7 +489,7 @@ def verify_node(services: RunServices) -> Any:
         preview = {"project_id": state["project_id"], **template.run}
         artifacts = [steps.write_artifact(state, "preview.json", _dump(preview), "preview", "Preview", "verify")]
         return await steps.finish(
-            services, state, plan, "verify", "qa_engineer", summary,
+            services, state, plan, "verify", "qa_engineer", summary, ok=ok and not lint_bad,
             passed=ok, report=report, failure="" if ok else why, lint=lint_bad, artifacts=artifacts,
         )  # fmt: skip
 

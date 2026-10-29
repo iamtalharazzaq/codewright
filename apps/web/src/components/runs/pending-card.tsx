@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   answerRun,
   PROFILE_LABEL,
@@ -31,7 +32,19 @@ import {
 } from "@/lib/api";
 
 /** A gate card: what was decided, the data behind it, and Approve / Edit / Reject (README 9.1). */
-export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt: GatePrompt; onAnswered: () => void }) {
+export function GateCard({
+  runId,
+  prompt,
+  onAnswered,
+  hasFailedStep = false,
+}: {
+  runId: string;
+  prompt: GatePrompt;
+  onAnswered: () => void;
+  /** A step this run went through did not pass (failing tests/lint, etc). Approving anyway is still allowed, but
+   * the card must say so plainly instead of looking like a routine, honest "all good" approval. */
+  hasFailedStep?: boolean;
+}) {
   const [comment, setComment] = useState("");
   // A playbook can summarise a decision as Markdown (the audit's As-Is, the docs' result); shown as is.
   const texts = Object.values(prompt.summary ?? {}).filter((v): v is string => typeof v === "string" && v.length > 0);
@@ -59,16 +72,32 @@ export function GateCard({ runId, prompt, onAnswered }: { runId: string; prompt:
   }
 
   return (
-    <Card className="ring-2 ring-warning/40" aria-labelledby="gate-title">
+    <Card
+      className={cn("ring-2", hasFailedStep ? "ring-destructive/50" : "ring-warning/40")}
+      aria-labelledby="gate-title"
+    >
       <CardHeader>
         <CardTitle id="gate-title" className="flex items-center gap-2">
-          <ShieldCheck className="size-4 text-warning" aria-hidden="true" />
+          <ShieldCheck
+            className={cn("size-4", hasFailedStep ? "text-destructive" : "text-warning")}
+            aria-hidden="true"
+          />
           {prompt.number != null ? `Gate ${prompt.number}: ${prompt.title}` : prompt.title}
           {prompt.subject && <span className="font-mono text-sm text-muted-foreground">({prompt.subject})</span>}
         </CardTitle>
         <CardDescription>{prompt.question}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {hasFailedStep && (
+          <p
+            role="alert"
+            className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm font-medium text-destructive"
+          >
+            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+            This run has a step that did not pass (failing tests or lint). Approving keeps it as is anyway — check the
+            detail below, or Edit/Reject to send it back.
+          </p>
+        )}
         {markdown ? (
           <div className="max-h-[28rem] overflow-y-auto rounded-md border bg-muted/40 p-3 text-sm">
             <Markdown>{markdown}</Markdown>

@@ -233,6 +233,7 @@ def verify_node(services: RunServices) -> Any:
             "verify",
             "qa_engineer",
             summary,
+            ok=best.ok,
             code=best.result["code"],
             tests=best.result["tests"],
             passed=best.ok,

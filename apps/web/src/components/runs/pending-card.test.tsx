@@ -52,6 +52,18 @@ describe("GateCard", () => {
       comment: "Payment also calls Notification",
     });
   });
+
+  it("warns plainly when a step did not pass, instead of looking like a routine approval", () => {
+    okFetch();
+    render(<GateCard runId="r1" prompt={gate} onAnswered={vi.fn()} hasFailedStep />);
+    expect(screen.getByRole("alert")).toHaveTextContent("did not pass");
+  });
+
+  it("shows no such warning when every step passed", () => {
+    okFetch();
+    render(<GateCard runId="r1" prompt={gate} onAnswered={vi.fn()} />);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
 
 describe("LLMUnavailableCard", () => {
