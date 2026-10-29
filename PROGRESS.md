@@ -122,6 +122,8 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
+**Paused here 2026-10-29 at your request** (pace/token use) — Phase 8 and 9 done; 10, 11, 17 and the rest of the
+order above not started. Resume when you ask.
 
 - **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
   - `write_code` (`agent/tests/playbooks/test_write_code_sandbox.py`). Found and fixed a real bug in the
@@ -138,6 +140,12 @@ Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatabil
     reproduces, fixes and commits the shared `avg()` off-by-one bug (every mini-app fixture has the exact same
     one, uncovered by its existing tests — handy, consistent real material); `tests` writes and verifies a new
     characterization test for `word_count`'s untested empty-string case.
+- **Phase 9: real-verified on all 5 languages, both playbooks** (commits `3d78afc`, `5a58ff3`).
+  `refactor` (`test_refactor_sandbox.py`): a behavior-preserving rename, verified with real tests; the
+  behavior replay is honestly "not checked" (these fixtures are libraries, no runnable app to record traffic
+  against). `performance` (`test_performance_sandbox.py`, reuses refactor's fixtures): finds its target via
+  real code search (no DB/sleep code in the fixtures to trip the static smell-scan), fixes it with a real
+  test-verified rewrite, and honestly reports the benchmark as "not measured" for the same reason.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 

@@ -93,6 +93,8 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   is undone, not left half-done.
 - `/improve-performance`. **Expect:** a baseline (k6), a found issue with a plan gate, an optimization, and either
   a real before/after number or an honest "not measured" (e.g. if a rate limiter blocks the benchmark).
+- **Real-sandbox retrofit:** both playbooks are real-verified on all 5 languages (`make check-sandbox`,
+  `test_refactor_sandbox.py`, `test_performance_sandbox.py`). Only the model is scripted.
 
 ## Phase 10: Security, upgrade, database change
 - `/security-review`. **Expect:** secrets/lint/dependency findings grounded in real code; asking it to fix is a
