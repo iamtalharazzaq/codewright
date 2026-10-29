@@ -179,6 +179,23 @@
             "optional": false
           },
           {
+            "name": "staticcheck",
+            "toolchain": "go",
+            "cmd": [
+              "staticcheck",
+              "./..."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {
+              "GOFLAGS": "-buildvcs=false",
+              "GOPROXY": "off"
+            },
+            "report": null,
+            "optional": true
+          },
+          {
             "name": "gofmt",
             "toolchain": "go",
             "cmd": [

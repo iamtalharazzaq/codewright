@@ -51,6 +51,25 @@ _STANDARD = re.compile(r"CMAKE_CXX_STANDARD\s+(\d+)|cxx_std_(\d+)")
 _SUBDIR = re.compile(r"\badd_subdirectory\s*\(\s*([\w./-]+)", re.IGNORECASE)
 _CLASS = re.compile(r"^\s*(?:class|struct)\s+(?:\w+\s+)?([A-Z]\w*)\s*(?::[^{;]*)?\{", re.MULTILINE)
 
+# Rewrites one pinned "<package>/<version>" reference in conanfile.txt/conanfile.py (Conan's own pin syntax, in
+# both the [requires] INI-style section and a conanfile.py `requires = "pkg/ver"` string); exits 1 if not found.
+CONAN_BUMP_SCRIPT = r"""import pathlib, re, sys
+pkg, ver = sys.argv[1:3]
+pat = re.compile(re.escape(pkg) + r"/[\w.+-]+")
+hit = False
+for name in ("conanfile.txt", "conanfile.py"):
+    f = pathlib.Path(name)
+    if not f.is_file():
+        continue
+    text = f.read_text()
+    new = pat.sub(pkg + "/" + ver, text)
+    if new != text:
+        f.write_text(new)
+        print("updated", f)
+        hit = True
+sys.exit(0 if hit else 1)
+"""
+
 
 def _package_manager(root: Path) -> str:
     """Which manifest names this component's third-party dependencies, if any (picks the configure command)."""
@@ -59,6 +78,30 @@ def _package_manager(root: Path) -> str:
     if (root / "conanfile.txt").exists() or (root / "conanfile.py").exists():
         return "conan"
     return "none"
+
+
+def _requirements(root: Path) -> list[tuple[str, str]]:
+    """(package, pinned version) pairs from conanfile.txt's [requires] section. conanfile.py's own `requires =`
+    is free-form Python (a string, a list, a method...) and isn't parsed here."""
+    f = root / "conanfile.txt"
+    if not f.is_file():
+        return []
+    lines = read(f).splitlines()
+    try:
+        start = next(i for i, raw in enumerate(lines) if raw.strip() == "[requires]") + 1
+    except StopIteration:
+        return []
+    out = []
+    for raw in lines[start:]:
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("["):
+            break
+        if "/" in line:
+            pkg, _, ver = line.partition("/")
+            out.append((pkg.strip(), ver.strip()))
+    return out
 
 
 def _cmake_files(root: Path) -> list[Path]:
@@ -221,12 +264,30 @@ class CppPack:
         ]
 
     def outdated_steps(self, repo: Path, component: Component) -> list[Step]:
-        # A vendored/FetchContent project pins sources by hand: nothing to ask a registry. vcpkg and Conan do have
-        # version registries, but neither has a simple, scriptable "what's outdated" query worth wiring up yet.
-        return []
+        # A vendored/FetchContent project pins sources by hand: nothing to ask a registry. vcpkg isn't installed in
+        # the sandbox yet (see VCPKG_ROOT), so its registry isn't queried either. Conan Center is a real registry
+        # with a scriptable query (`conan search`): one line "<pkg> <pinned> -> <latest>" per outdated requirement.
+        root = repo / component.path
+        reqs = _requirements(root)
+        if component.details.get("package_manager") != "conan" or not reqs:
+            return []
+        pattern = r"[0-9][0-9A-Za-z.+-]*"
+        checks = " ; ".join(
+            f"latest=$(conan search {pkg} -r=conancenter 2>/dev/null "
+            f'| grep -oE "{re.escape(pkg)}/{pattern}" | tail -1 | cut -d/ -f2); '
+            f'[ -n "$latest" ] && [ "$latest" != "{ver}" ] && echo "{pkg} {ver} -> $latest"'
+            for pkg, ver in reqs
+        )
+        return [Step("outdated", "cpp", ["sh", "-c", checks], component.path, "registry")]
 
     def upgrade_steps(self, repo: Path, component: Component, package: str, version: str) -> list[Step]:
-        return []
+        # Conan has no "bump this pin" CLI (unlike `npm install pkg@ver`, which rewrites package.json itself), so
+        # the pin is rewritten directly, the same way python.py's BUMP_SCRIPT edits requirements*.txt/pyproject.toml.
+        # The caller is expected to follow with build_steps()/test_steps() to verify the new pin actually resolves
+        # and builds, same as every other pack's upgrade_steps (it never re-verifies on its own).
+        if component.details.get("package_manager") != "conan":
+            return []  # vcpkg manifest bumps aren't wired yet (vcpkg itself isn't installed in the sandbox)
+        return [Step("upgrade", "cpp", ["python3", "-c", CONAN_BUMP_SCRIPT, package, version], component.path, "none")]
 
     def audit_steps(self, repo: Path, component: Component) -> list[Step]:
         return []  # no generic vulnerability DB for a CMake/vcpkg/Conan project's third-party sources

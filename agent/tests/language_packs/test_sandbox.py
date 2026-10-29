@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from agent.language_packs import detect_project
+from agent.language_packs import detect_project, pack
 from agent.language_packs.base import ServiceSpec
 from agent.language_packs.executor import run_action, run_spec, run_step
 from agent.language_packs.templates import scaffold
@@ -68,6 +68,28 @@ async def test_cpp_conan_fixture_builds(workspace: tuple[SandboxClient, str, Pat
         result = await run_action(client, sid, work, component, "build", _events)
         assert result.ok, [(s.step, s.output_tail) for s in result.steps if not s.ok]
         assert [s.step for s in result.steps] == ["install", "configure", "build"]
+    finally:
+        await client.delete_session(sid)
+
+
+async def test_cpp_conan_upgrade_bumps_and_rebuilds(workspace: tuple[SandboxClient, str, Path]) -> None:
+    """Phase 19 Open item: a CMake package-manager upgrade path. Bumps the Conan fixture's pinned nlohmann_json
+    (3.11.3, the version the build fixture above already proves builds) to the real newer release Conan Center
+    actually serves (3.12.0, confirmed present via `conan search` while building this), then rebuilds for real to
+    prove the new pin resolves and compiles — not just that the text rewrite happened."""
+    client, ws, work = workspace
+    shutil.copytree(FIXTURES / "cpp_cmake_conan", work, dirs_exist_ok=True)
+    sid = await _session(client, ws, work)
+    try:
+        [component] = detect_project(work)
+        assert component.details["package_manager"] == "conan"
+        [upgrade] = pack("cpp").upgrade_steps(work, component, "nlohmann_json", "3.12.0")
+        result, _ = await run_step(client, sid, upgrade, _events)
+        assert result.ok, result.output_tail
+        assert "nlohmann_json/3.12.0" in (work / "conanfile.txt").read_text(encoding="utf-8")
+
+        build = await run_action(client, sid, work, component, "build", _events)
+        assert build.ok, [(s.step, s.output_tail) for s in build.steps if not s.ok]
     finally:
         await client.delete_session(sid)
 
