@@ -499,6 +499,8 @@ def verify_node(services: RunServices) -> Any:
 def tests_green(results: list[dict[str, Any]]) -> tuple[bool, str]:
     ok = bool(results) and all(is_green(r.get("report")) for r in results)
     bad = next((r for r in results if not is_green(r.get("report"))), None)
+    if ok and not _merge_reports(results)["passed"]:  # a runner that found no tests is not a pass for a new app
+        return False, "No tests ran: the app's test file has no tests in it."
     return ok, "" if ok else result_failure(bad)
 
 

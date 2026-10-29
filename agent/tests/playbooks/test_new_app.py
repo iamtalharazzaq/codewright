@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from agent.language_packs import templates
+from agent.playbooks.new_app import graph as na
 from agent.playbooks.new_app import stacks
 from agent.playbooks.registry import get_playbook
 from agent.tests.conftest import FakeProject, FakeServices
@@ -150,6 +151,13 @@ async def test_a_small_app_is_planned_built_tested_and_committed(tmp_path: Path)
     assert "Play against a friend" in guide and "npm run dev" in guide  # the run section comes from the manifest
     assert git(project.work, "log", "-1", "--format=%s") == "Build Tic Tac Toe"
     assert "All 3 tests pass" in state["done_summary"] and "is in Projects" in state["done_summary"]
+
+
+def test_a_runner_that_found_no_tests_is_not_a_pass() -> None:
+    empty = {"component": ".", "report": {"ok": True, "passed": 0, "failed": 0}}
+    ok, why = na.tests_green([empty])
+    assert ok is False and "No tests ran" in why
+    assert na.tests_green([{"component": ".", "report": {"ok": True, "passed": 3, "failed": 0}}]) == (True, "")
 
 
 async def test_a_failing_app_is_shown_red_not_hidden(tmp_path: Path) -> None:
