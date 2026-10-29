@@ -64,6 +64,24 @@ def test_the_stack_follows_the_app_type_and_the_users_language(
     assert (choice.template, choice.size) == (template, size)
 
 
+def test_a_users_qa_answer_does_not_turn_a_terminal_app_into_a_webapp(tmp_path: Path) -> None:
+    """Live finding: requirements Q&A almost always mentions "users" ('who is the main user?' -> 'General
+    users'), which used to outrank the real "terminal" signal and scaffold a calculator as a full-stack
+    Next.js+FastAPI app instead of a CLI."""
+    inputs = {
+        "request": "make a calculator",
+        "card": {"what": "A terminal-based calculator application"},
+        "answers": [
+            ("Which language? / Who is the main user of this calculator? / Which platform should it run on?",
+             "Which language? Python\nWho is the main user of this calculator? General users\n"
+             "Which platform should it run on? Terminal"),
+        ],
+    }  # fmt: skip
+    choice = stacks.choose(inputs, root=_library(tmp_path))
+    assert choice.kind == "cli"
+    assert choice.template == "cli-python"
+
+
 def _library(tmp_path: Path) -> Path:
     """The library as the spec lists it (manifests only), so the rules are tested whatever templates exist yet."""
     languages = {"ts": "TypeScript", "js": "JavaScript", "python": "Python", "fastapi": "Python", "go": "Go",

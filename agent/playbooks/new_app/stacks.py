@@ -61,12 +61,14 @@ KINDS: dict[str, AppKind] = {k.name: k for k in (
 )}  # fmt: skip
 
 # (kind, words in the request); the first match wins, so the more specific kinds come first.
+# Not "users": the requirements Q&A text almost always contains it (e.g. the model's own answer to "who is the
+# main user?"), so it drowned out a real signal like "terminal" below. "multi-user" still counts.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("library", ("library", "package", "sdk", "module for")),
     ("systems", ("algorithm", "performance-critical", "systems-level", "high-performance", "low-level")),
     ("script", ("script", "automation", "automate", "scrape", "csv", "data processing", "rename files")),
     ("api", ("rest api", " api", "backend service", "microservice", "endpoint", "webhook")),
-    ("webapp", ("login", "sign in", "users", "database", "inventory", "booking", "appointment", "shop", "store",
+    ("webapp", ("login", "sign in", "database", "inventory", "booking", "appointment", "shop", "store",
                 "marketplace", "dashboard", "admin", "crm", "payments", "orders", "clinic", "multi-user")),
     ("site", ("landing page", "website", "portfolio", "marketing page", "blog")),
     ("cli", ("terminal", "cli", "command line", "console", "text adventure")),

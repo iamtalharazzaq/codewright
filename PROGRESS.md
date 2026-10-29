@@ -204,8 +204,16 @@ Open (acceptance not demonstrated): a Python benchmark restructured with 0 repla
 
 | Where to keep it | The Done card of a new app asks: ZIP download, local folder, GitHub PR, **Google Drive as a folder** or **Drive as one ZIP** (the user picks; the folder is the usual choice). An opt-in box deletes the code from this machine after a successful Drive/GitHub upload (kept if any upload fails; the project stays listed as delivered with the link). |
 
-Open: live runs (tic-tac-toe, calculator in 5 languages, 10 small + 5 medium apps, inventory, clinic); the M3 demo; Preview of
-a browser app / terminal app is started from the project's Preview tab, not by the playbook.
+Live run, 2026-10-29: a real in-use run (the user's own, not a benchmark) asked for "a terminal-based calculator"
+and got scaffolded as a full-stack Next.js+FastAPI web app instead of a Python CLI. Root cause (fixed,
+`agent/playbooks/new_app/stacks.py`): the `webapp` kind's rule words included the bare word "users", which the
+requirements Q&A almost always contains (the model's own answer to "who is the main user?" is "General users"),
+so it outranked the real "terminal" signal since `webapp` is checked before `cli`. Dropped that trigger word (kept
+`multi-user`, which is a real signal); confirmed fixed by re-running the same request live: now correctly
+scaffolds `cli-python` with the right file layout (`src/termicalc/{core,cli}.py`, `tests/test_core.py`).
+
+Open: more live runs (tic-tac-toe, calculator in 5 languages, 10 small + 5 medium apps, inventory, clinic); the M3
+demo; Preview of a browser app / terminal app is started from the project's Preview tab, not by the playbook.
 
 ## Phases 12 and 14: Frontend and DevOps (ADR 0027, 0028; built, not yet run live)
 
