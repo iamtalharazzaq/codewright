@@ -417,13 +417,16 @@ class RunManager:
             ):
                 await stream.handle(dict(part))
         except asyncio.CancelledError:
+            await self._cleanup_scratch(run_id)
             raise
         except RunStopped as exc:
             await self._set_status(run_id, "cancelled", error=str(exc), pending=None)
+            await self._cleanup_scratch(run_id)
             return
         except Exception as exc:
             log.exception("run %s failed", run_id)
             await self._set_status(run_id, "failed", error=f"{type(exc).__name__}: {exc}")
+            await self._cleanup_scratch(run_id)
             return
 
         if stream.interrupts:
@@ -432,6 +435,19 @@ class RunManager:
             await self.record_event(run_id, "waiting", step=pending.get("step") or pending.get("gate"), data=pending)
         else:
             await self._set_status(run_id, "completed", current_step=None)
+            await self._cleanup_scratch(run_id)
+
+    async def _cleanup_scratch(self, run_id: uuid.UUID) -> None:
+        """Close the throwaway sandbox session a project-less run (`write_code`) was given, now that the run is
+        truly done. Nothing else ever closes it — `SandboxService.sessions` is keyed by `scratch-<run_id>`, unique
+        per run, so every project-less run leaked one more session until a restart, eventually hitting
+        `max_sessions`. A no-op for a run that has a real project, or never touched the sandbox."""
+        if self.sandbox is None:
+            return
+        async with self.sessions() as session:
+            run = await session.get(Run, run_id)
+        if run is not None and run.project_id is None:
+            await self.sandbox.stop_session(f"scratch-{run_id}")
 
     async def _resume_interrupted_runs(self) -> None:
         async with self.sessions() as session:
