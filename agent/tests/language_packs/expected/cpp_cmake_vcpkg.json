@@ -1,0 +1,285 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "cpp",
+        "path": ".",
+        "kind": "cli",
+        "frameworks": [],
+        "entrypoints": [
+          "greet"
+        ],
+        "manifest": "CMakeLists.txt",
+        "details": {
+          "project": "greet",
+          "executables": {
+            "greet": "."
+          },
+          "libraries": [],
+          "tests": [],
+          "standard": "20",
+          "package_manager": "vcpkg"
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "target:greet",
+            "kind": "target",
+            "label": "greet",
+            "file": "CMakeLists.txt",
+            "line": 7,
+            "type": "executable"
+          }
+        ],
+        "edges": [
+          {
+            "source": "target:greet",
+            "target": "target:fmt::fmt",
+            "kind": "links",
+            "confidence": 1.0
+          }
+        ]
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "configure",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "-S",
+              ".",
+              "-B",
+              ".codewright/build",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=Debug",
+              "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+              "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS",
+              "-DBUILD_TESTING=ON",
+              "-DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "--build",
+              ".codewright/build",
+              "--parallel",
+              "2"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "configure",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "-S",
+              ".",
+              "-B",
+              ".codewright/build",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=Debug",
+              "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+              "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS",
+              "-DBUILD_TESTING=ON",
+              "-DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "--build",
+              ".codewright/build",
+              "--parallel",
+              "2"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "cpp",
+            "cmd": [
+              "ctest",
+              "--test-dir",
+              ".codewright/build",
+              "--output-on-failure",
+              "--no-tests=error",
+              "--output-junit",
+              "../reports/ctest.xml"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": "junit",
+            "optional": false
+          },
+          {
+            "name": "coverage",
+            "toolchain": "cpp",
+            "cmd": [
+              "sh",
+              "-c",
+              "cmake -S . -B .codewright/build-cov -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=--coverage -DCMAKE_C_FLAGS=--coverage -DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake >/dev/null && cmake --build .codewright/build-cov >/dev/null && ctest --test-dir .codewright/build-cov >/dev/null; gcovr -r . --object-directory .codewright/build-cov --exclude '.codewright/' --xml -o .codewright/reports/coverage.xml"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": true
+          }
+        ],
+        "lint": [
+          {
+            "name": "configure",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "-S",
+              ".",
+              "-B",
+              ".codewright/build",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=Debug",
+              "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+              "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS",
+              "-DBUILD_TESTING=ON",
+              "-DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "cppcheck",
+            "toolchain": "cpp",
+            "cmd": [
+              "cppcheck",
+              "--enable=warning,performance,portability",
+              "--error-exitcode=1",
+              "--quiet",
+              "--inline-suppr",
+              "--suppress=missingIncludeSystem",
+              "-i",
+              ".codewright",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "clang-tidy",
+            "toolchain": "cpp",
+            "cmd": [
+              "sh",
+              "-c",
+              "[ -f .codewright/build/compile_commands.json ] && find . -path ./.codewright -prune -o -name '*.cpp' -print | head -50 | xargs -r clang-tidy -p .codewright/build --quiet"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": true
+          }
+        ]
+      },
+      "run": {
+        "kind": "terminal",
+        "toolchain": "cpp",
+        "cmd": [
+          "./.codewright/build/greet"
+        ],
+        "workdir": ".",
+        "port": null,
+        "env": {},
+        "services": [],
+        "prepare": [
+          {
+            "name": "configure",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "-S",
+              ".",
+              "-B",
+              ".codewright/build",
+              "-G",
+              "Ninja",
+              "-DCMAKE_BUILD_TYPE=Debug",
+              "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+              "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS",
+              "-DBUILD_TESTING=ON",
+              "-DCMAKE_TOOLCHAIN_FILE=/opt/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "cpp",
+            "cmd": [
+              "cmake",
+              "--build",
+              ".codewright/build",
+              "--parallel",
+              "2"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "greet"
+      }
+    }
+  ]
+}

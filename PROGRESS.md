@@ -4,13 +4,35 @@ Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.
 follow `CODEWRIGHT.md` Section 15.
 
 **Current phase:** Phases 11-18 built and live-verified to varying degrees (see below); Phase 8's 20-example eval ran
-2026-10-29; `make check` (ruff, mypy, pytest, eslint, tsc, prettier, vitest) passes clean as of 2026-10-29. Phase 19
-is next.
-Still open: Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table, Phase 11's
-price-alerts acceptance, Phase 13's TypeScript reliability. Phase 16's Python extraction path is now live-verified
-clean; Go extraction is out of scope by your call.
+2026-10-29; Phase 19 (deepen the Language Packs) started 2026-10-29, see its section below.
+Still open: Phase 1 VRAM table, Phase 11's price-alerts acceptance, Phase 13's TypeScript reliability. Phase 16's
+Python extraction path is now live-verified clean; Go extraction is out of scope by your call.
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
+
+**Infra outage found and fixed 2026-10-29** (ADR 0034): the `codewright_default` Docker bridge network stopped
+carrying inter-container traffic for over an hour — `api` couldn't reach `postgres`/`sandbox-runner`/`web`, so its
+startup migration timed out every attempt and `restart: unless-stopped` crash-looped it the whole time; the
+entire live app (chat, runs, graph, every playbook) was down. No subnet clash or VPN found; likely Docker's
+bridge iptables rules going stale under heavy container churn, not fully pinned down (no host root to inspect
+`iptables` directly). Fixed with your go-ahead: `pg_dumpall` backup taken first (`backups/`, gitignored), then
+`docker compose down` (no `-v`, so `codewright_pgdata`/`codewright_workspaces`/etc. were untouched) and
+`docker compose up -d --build --wait`. Confirmed working afterward: inter-container TCP all succeed,
+`/api/health/ready` all green, a real chat round-trip through the remote GPU, and a live `write_code` run that
+wrote code, passed 12 tests in the real sandbox, and reached its approval gate (then cancelled as a throwaway
+check). Also hardened `apps/api/entrypoint.sh` so a future outage like this degrades visibly instead of
+crash-looping: retries the startup migration up to 10 times with backoff, then sleeps with one clear fatal log
+line instead of exiting. **`make check` re-run clean after the fix**: `check-api` (ruff, mypy, pytest) 508
+passed/16 skipped (sandbox tests, need `make check-sandbox`); `check-web` (eslint, tsc, prettier, vitest) 24
+passed — caught and fixed one unrelated Prettier formatting miss in `drive-card.tsx` along the way.
+
+**Verification policy (changed 2026-10-29):** Codewright isn't bound to GoShop or any other single benchmark repo.
+Every feature is verified with small, generic fixtures (tiny Python/TypeScript/JavaScript/Go/C++ projects) plus
+automated tests — never tuned to one repo or domain. GoShop-specific acceptance steps, UI review passes, the Phase
+6 audit review and the M1 demo are all **deferred to your own final end-to-end pass** rather than chased mid-phase.
+`docs/E2E-CHECKLIST.md` collects manual test steps (what to do, what to expect) per feature, updated as each one
+finishes; every phase section below links to its entry there. Benchmark-repo selection (ADR 0016) is deferred the
+same way, until you're ready for that final pass.
 
 ## Resume here (written 2026-10-29)
 
@@ -110,7 +132,25 @@ make check               # every lint/type/test check, inside Docker
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
 
+## Phase 19: Deepen the Language Packs (in progress, started 2026-10-29)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 19.
+
+| Task | Result |
+|---|---|
+| C++ package managers (vcpkg/Conan) | `agent/language_packs/cpp.py`: `detect()` records `package_manager` (`vcpkg`/`conan`/`none`) from `vcpkg.json`/`conanfile.txt`/`conanfile.py`. Conan: a real `install` step (`conan profile detect --force \|\| true; conan install . --build=missing`) runs before `configure`, which points `CMAKE_TOOLCHAIN_FILE` at the generated toolchain; wired into build/test/lint/coverage. vcpkg: manifest mode — `configure` alone gets the toolchain flag (assumes `/opt/vcpkg`, manifest mode auto-installs during configure); both get `network: registry` only on the steps that actually need it, the test/ctest step itself stays offline either way. Conan is installed in `sandbox/images/cpp.Dockerfile` (pip, lightweight); vcpkg is **not** (needs a git clone + bootstrap, still deferred for disk headroom — the box is at 96% disk use; the pack code already assumes `/opt/vcpkg`, so adding it later is a Dockerfile-only change). Egress allowlist (`config/sandbox.yaml`) updated for both, plus `release-assets.githubusercontent.com` (Conan's build-from-source path hits this CDN host). Fixtures `cpp_cmake_vcpkg` (vcpkg + `fmt`) and `cpp_cmake_conan` (Conan + `nlohmann_json`, switched off `fmt` — Conan Center's `fmt` recipe hits a known self-named-component bug under legacy CMakeDeps, unrelated to our pack code) plus `test_cpp_package_managers` lock in the planning logic. **Real-sandbox-verified**: `test_cpp_conan_fixture_builds` actually runs `conan install` + `cmake configure` + `cmake --build` in the sandbox and passes. |
+| **Infra bug found and fixed while verifying Conan**: the sandbox runner starts a fresh container per job step, keeping only `/work` and configured per-toolchain cache mounts across steps (`sandbox/runner/src/codewright_sandbox/runner.py`'s `_mounts`/`caches`). The `cpp` toolchain had no cache mapping (`cpp: {}` in `config/sandbox.yaml`), so Conan's package cache (`$HOME/.conan2`, written during the `install` step) vanished before the `configure` step could read it — CMake failed with "Imported target ... includes non-existent path". Fixed by mapping `/home/sandbox/.conan2` into the same persistent cache volume Go/Node/Python already use (`cpp: { /home/sandbox/.conan2: cpp/conan2 }`). This would have broken every real Conan build, not just this fixture. |
+| Django REST Framework | `agent/language_packs/python.py`: `ModelViewSet`/`ReadOnlyModelViewSet` registered on a DRF router now produce real routes (the 6 standard CRUD routes, trimmed to list/retrieve for read-only) plus any `@action`-decorated custom endpoint, each linked `handled_by` to `ViewSet.method`; `Serializer`/`ModelSerializer` subclasses become `serializer` graph nodes. New fixture `python_django_drf` (a `Product` model, `ProductSerializer`, a `ProductViewSet` with one custom `@action`) — the first fixture/golden-test coverage Django has had at all; `test_django_rest_framework` checks the generated routes and nodes. Plain Django (`path()`, `models.Model`) already had basic support from an earlier phase; this only adds DRF's router-based routing on top. |
+| NestJS, Echo | Already had basic detection/routing from earlier phases (controllers+decorators for NestJS, `e.GET(...)`/`e.Group(...)` for Echo via the shared Go/Node route regexes) — confirmed with new fixtures this session: `go_echo` (Echo routes/groups) and `ts_nestjs` (`@Controller`/`@Get`/`@Post`), both asserted in `test_framework_meaning`. No pack code changes needed — the existing regexes already matched Echo's/Nest's syntax. |
+| Verification | Full `make check` (ruff/mypy/pytest, 524 passed, 17 skipped) and `make check-sandbox` (`SANDBOX_TESTS=1`, 17 passed incl. every template, the C++ terminal fixture, the new Conan build, and the Python→C++ translate sandbox test) both green against the recreated stack (see the infra incident above). `make check-web` green too. |
+
+Open: vcpkg still not installed/buildable (deferred for disk headroom, see the disk-cleanup list below); more
+framework coverage from the spec's examples (e.g. a CMake package-manager *upgrade* path, more templates, deeper
+linters per language) is still ahead — this is a 3-week phase and this session covered one concrete slice of it.
+
 ## Phase 18: Translate (ADR 0033; built, verified against the real sandbox, not yet run on a real project)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 18.
 
 | Task | Result |
 |---|---|
@@ -121,6 +161,8 @@ Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the 
 Open: the GoShop-service-rebuilt-in-Python acceptance item (needs a real project and a live run); HTTP-service translation has no real-sandbox test, only the fake-sandbox path.
 
 ## Phase 17: Architecture change III, data/other targets, finish (ADR 0032; built, unit/fake-sandbox tested, not yet run live)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 17.
 
 | Task | Result |
 |---|---|
@@ -134,6 +176,8 @@ Open: the GoShop-service-rebuilt-in-Python acceptance item (needs a real project
 Open: the GoShop saga-paths-replay-0-regressions acceptance and the M4 demo (need a live run); `serverless` never wires a real caller or deploys; `event_driven` never rewrites a call site, only documents where one would go; the database-split stages/saga library/gateway rewrite are only exercised against a fake `project.db_trial`, never a real PostgreSQL sandbox.
 
 ## Phase 16: Architecture change II, microservices build (ADR 0031; built, live-verified on notes-api-python)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 16.
 
 | Task | Result |
 |---|---|
@@ -182,6 +226,8 @@ same tick) answered cleanly with no crash, directly exercising fix #2 above.
 
 ## Phase 15: Architecture change I (ADR 0029; built, not yet run on a real benchmark)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 15.
+
 | Task | Result |
 |---|---|
 | Recommend + To-Be | `target=recommend` picks the simplest target that fits and says why microservices are or aren't justified; a To-Be design for any target with "why this shape", alternatives, events and sagas; typed edits ("move payment to order") re-validate against the rules. |
@@ -192,6 +238,8 @@ same tick) answered cleanly with no crash, directly exercising fix #2 above.
 Open (acceptance not demonstrated): a Python benchmark restructured with 0 replay regressions (tested on a small temp repo with a fake replay); GoShop → ~5-service design (fixture gave 4 backend groups + frontend because a shared `db` module joined `product`; real import not run). `test_runs.py`/`test_db.py` edits need Postgres and have not run.
 
 ## Phase 13: New app (ADR 0030; `new_app` built, not yet run live)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 13.
 
 | Task | Result |
 |---|---|
@@ -222,6 +270,8 @@ demo; Preview of a browser app / terminal app is started from the project's Prev
 
 ## Phases 12 and 14: Frontend and DevOps (ADR 0027, 0028; built, not yet run live)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 12 (Phase 14 shares the same playbook).
+
 | Task | Result |
 |---|---|
 | `frontend_modernize` | survey (build, tests, baseline screenshots) → plan → **approve plan** → migrate → modernize → verify → **approve result** → publish. Each stage is its own commit and is undone exactly when the build or tests go red. |
@@ -234,6 +284,8 @@ demo; Preview of a browser app / terminal app is started from the project's Prev
 Open: live runs on a real React + Vite app and on GoShop; the "page by page" split of the catch-all route and the model-written redesign are not built.
 
 ## Phase 11: Add a feature (ADR 0026)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 11.
 
 | Task | Result |
 |---|---|
@@ -248,6 +300,8 @@ Acceptance still open: a price-alerts run that passes the migration gate and is 
 
 ## Phase 10: Security, upgrade and database change (ADR 0025, Milestone M2)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 10.
+
 | Task | Result |
 |---|---|
 | `security_review` | scan (secrets, security lint, dependency audit) → model review → grounded findings; "fix" requests are tier 2 (plan, fix, tests, replay, rescan). Live on GoShop: seeded AWS key found and removed, 349 tests green, replay 0 regressions/25. |
@@ -259,6 +313,8 @@ Known limits: model false positives in the security review (seen once, shown at 
 
 ## Phase 9: Refactor and performance (ADR 0024)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 9.
+
 | Task | Result |
 |---|---|
 | `refactor` | map → plan → **approve plan** → refactor (Reflection loop, undo on failure) → verify (tests + replay) → review → **approve result** → publish. Live on GoShop `pkg/utils`: 4 files refactored, 349 tests green, replay 0 regressions/25 requests, a real Tech Lead finding, committed on `codewright/refactor-*`. |
@@ -269,6 +325,8 @@ Known limits: model false positives in the security review (seen once, shown at 
 Acceptance still open: a repeat with the sandbox's `RATE_LIMIT_REQUESTS` raised, to get a real before/after number (not just "not measured" proven honest).
 
 ## Phase 8: Write code, fix and test (ADR 0023)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 8.
 
 | Task | Result |
 |---|---|
@@ -312,6 +370,8 @@ this one):
 
 ## Phase 7: Verification engine, done (ADR 0022)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 7.
+
 | Task | Result |
 |---|---|
 | 1. Test runner + coverage | Every Language Pack reports coverage: `coverage` (Cobertura XML) for Python, `go test -coverprofile` for Go, Vitest/Jest cobertura for Node, `gcovr` for C++/CMake; `TestReport.coverage` (tool, covered/total lines, per-file) in the Tests tab. |
@@ -341,6 +401,8 @@ it is in and passes its unit tests and `make check`; what's unverified is only t
 
 ## Phase 6: Explain, Audit, Docs, Review, Skills, done (ADR 0021)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 6.
+
 | Task | Result |
 |---|---|
 | 1. `explain_code` | `/explain` (or a question) in a project chat. The Code Analyst gathers the code first: the definitions of the names asked about in all 5 languages (implementation before handlers, with its doc comment, cut where it ends), where they're used, a module's outline and the code behind its dependencies, graph facts; search hits only if nothing else fits. Answer streamed, then a diagram drawn from the steps (Diagram tab); modules highlighted in the Graph tab. "Not found" instead of a story when the project has no such code. |
@@ -369,6 +431,8 @@ architecture-change stub still defaults its services to GoShop's names; it is re
 
 ## Phase 5: Language Packs + sandbox, done (ADR 0020)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 5.
+
 | Task | Result |
 |---|---|
 | 1. `LanguagePack` + unsupported check | `agent/language_packs/`: one pack per language, several components per project (GoShop: Go API + TypeScript web). Projects mostly in another language get a notice on the project home with the closest supported languages; the chat declines them by rule. |
@@ -392,6 +456,8 @@ Notes: the API preview shows GoShop's own 404 at `/` (it has no handler there; `
 `no-new-privileges` is off because it breaks every exec on this host (ADR 0020).
 
 ## Phase 4: Graphify, knowledge graph, code search, done (ADR 0019)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 4.
 
 | Task | Result |
 |---|---|
@@ -417,6 +483,8 @@ live chat check couldn't run; the graph and search context it would get was chec
 
 ## Phase 3: Projects, uploads, connectors, delivery, done (ADR 0018)
 
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 3.
+
 | Task | Result |
 |---|---|
 | 1. Projects | New project form: GitHub URL, ZIP upload, local folder (from `LOCAL_SOURCE_DIR`), Google Drive ZIP link, or empty. Imports run in the background. Project home: files, languages, top level, branch, secrets found, instructions, memory, chats, Deliver, "New chat" (chat inside the project), delete (the original is never touched). |
@@ -438,6 +506,8 @@ live chat check couldn't run; the graph and search context it would get was chec
 | UI reviewed by you | ⏳ |
 
 ## Phase 2: The chat app, done (ADR 0017)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 2.
 
 | Task | Result |
 |---|---|
@@ -463,6 +533,8 @@ Fixed on the way: Next.js gzipped the proxied event streams, so the browser saw 
 the run page's live output). Compression is off (`next.config.ts`).
 
 ## Phase 1: LLM layer and harness core, done (VRAM table pending)
+
+**How to try it:** `docs/E2E-CHECKLIST.md` → Phase 1.
 
 | Task | Result |
 |---|---|
@@ -539,7 +611,10 @@ Benchmark candidates are in ADR 0016 for you to choose (nothing cloned).
 
 ## Decisions waiting on you
 
-1. Benchmarks: pick from the candidates in ADR 0016 (one per type), after disk space is freed.
-2. VRAM table from the GPU machine (sets `num_ctx`).
-3. Google Drive token mode (by Phase 3).
-4. GitHub remote (you'll share it later).
+1. Benchmarks: deferred until your own final end-to-end pass (2026-10-29 steer) — pick from ADR 0016's candidates
+   then, not now.
+2. VRAM table from the GPU machine (sets `num_ctx`) — command is in `docs/setup/remote-gpu.md` Section 6.
+3. ~~Google Drive token mode~~ — settled 2026-10-29: keep both `drive.file` + `drive.readonly` scopes (code already
+   does this, ADR 0005/0018).
+4. GitHub remote — you'll create a private repo and send the URL; add it as a remote and push only after you
+   confirm.

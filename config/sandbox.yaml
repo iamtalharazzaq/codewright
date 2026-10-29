@@ -32,7 +32,7 @@ caches:
   python: { /home/sandbox/.cache: python }
   go: { /go/pkg: go/pkg, /home/sandbox/.cache/go-build: go/build }
   node: { /home/sandbox/.npm: node/npm, /home/sandbox/.cache: node/cache, /home/sandbox/.local/share/pnpm: node/pnpm }
-  cpp: {}
+  cpp: { /home/sandbox/.conan2: cpp/conan2 }
 
 # Sidecar services a project may start next to its app (taken from the project's own docker-compose file).
 # Only these image repositories, with any tag; they get no internet access.
@@ -69,6 +69,12 @@ egress:
     - storage.googleapis.com     # proxy.golang.org serves some module zips from here
     - nodejs.org                 # node-gyp headers
     - vuln.go.dev                # govulncheck's vulnerability database (security_review, Phase 10)
+    - center2.conan.io           # Conan Center: conanfile.txt/.py dependencies (Phase 19, cpp pack)
+    - center.conan.io            # redirects to center2.conan.io; kept for older clients/caches
+    - github.com                 # vcpkg port sources and self-update; cpp's vcpkg.json manifest mode (Phase 19)
+    - raw.githubusercontent.com  # vcpkg port metadata
+    - objects.githubusercontent.com  # GitHub release assets (vcpkg downloads some port sources from here)
+    - release-assets.githubusercontent.com  # GitHub release assets, newer CDN host (Conan builds-from-source hit this)
 
 # Web previews: the gateway publishes these ports on 127.0.0.1 only and forwards each to one preview container.
 previews:

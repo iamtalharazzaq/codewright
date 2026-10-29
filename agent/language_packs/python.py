@@ -36,6 +36,7 @@ FRAMEWORKS = {
     "fastapi": "fastapi",
     "flask": "flask",
     "django": "django",
+    "djangorestframework": "djangorestframework",
     "sqlalchemy": "sqlalchemy",
     "typer": "typer",
     "click": "click",
@@ -77,6 +78,20 @@ _SA_MODEL = re.compile(
 )
 _TABLENAME = re.compile(r"__tablename__\s*=\s*[\"'](\w+)[\"']")
 _DJANGO_MODEL = re.compile(r"^class\s+(\w+)\(\s*models\.Model\s*\):", re.MULTILINE)
+_DRF_CLASS = re.compile(r"^class\s+(\w+)\s*\(([^)]*)\)\s*:", re.MULTILINE)
+_DRF_SERIALIZER_BASE = re.compile(r"\bserializers\.(?:Model)?Serializer\b")
+_DRF_VIEWSET_BASE = re.compile(r"\bviewsets\.(ReadOnlyModelViewSet|ModelViewSet|ViewSet|GenericViewSet)\b")
+_DRF_REGISTER = re.compile(r"\.register\(\s*r?[\"']([^\"']*)[\"']\s*,\s*(\w+)")
+_DRF_ACTION = re.compile(r"@action\(([^)]*)\)\s*\n\s*def\s+(\w+)")
+_DRF_ACTIONS = {  # DRF's standard router-generated routes per ViewSet action method
+    "list": ("GET", ""),
+    "create": ("POST", ""),
+    "retrieve": ("GET", "/{id}"),
+    "update": ("PUT", "/{id}"),
+    "partial_update": ("PATCH", "/{id}"),
+    "destroy": ("DELETE", "/{id}"),
+}
+_DRF_READONLY_ACTIONS = {"list", "retrieve"}
 _TYPER_CMD = re.compile(r"@(\w+)\.command\((?:[\"']([\w-]+)[\"'])?[^)]*\)\s*\ndef\s+(\w+)")
 _ARGPARSE_SUB = re.compile(r"add_parser\(\s*[\"']([\w-]+)[\"']")
 _APP = re.compile(r"^(\w+)\s*=\s*(FastAPI|Flask)\(", re.MULTILINE)
@@ -98,6 +113,11 @@ def _module_name(path: Path, root: Path) -> str:
     if parts and parts[0] == "src":
         parts = parts[1:]
     return ".".join(parts)
+
+
+def _class_body(src: str, end: int) -> str:
+    nxt = re.search(r"^class\s", src[end:], re.MULTILINE)
+    return src[end : end + (nxt.start() if nxt else 4000)]
 
 
 def _nested_manifest_dirs(repo: Path, component: Component) -> list[str]:
@@ -176,17 +196,32 @@ class PythonPack:
             )
         return components
 
-    def parse(self, repo: Path, component: Component) -> GraphFragment:  # noqa: PLR0912  (one branch per framework)
+    def parse(self, repo: Path, component: Component) -> GraphFragment:  # noqa: PLR0912, PLR0915
         root = repo / component.path
         g = GraphFragment()
         mounts: dict[str, str] = {}
         sources: list[tuple[str, str]] = []
+        viewsets: dict[str, str] = {}  # class name -> "readonly" or "full" (DRF ModelViewSet/ReadOnlyModelViewSet)
+        viewset_actions: dict[str, list[tuple[str, int, str, bool]]] = {}  # class -> [(file, line, name, detail)]
         for f in walk(root, (".py",)):
             src = read(f, 400_000)
-            sources.append((rel(f, repo), src))
+            name = rel(f, repo)
+            sources.append((name, src))
             for m in _INCLUDE.finditer(src):
                 if m.group(2):
                     mounts[m.group(1)] = m.group(2)
+            for m in _DRF_CLASS.finditer(src):
+                base = m.group(2)
+                if vb := _DRF_VIEWSET_BASE.search(base):
+                    cls = m.group(1)
+                    viewsets[cls] = "readonly" if vb.group(1) == "ReadOnlyModelViewSet" else "full"
+                    body = _class_body(src, m.end())
+                    viewset_actions[cls] = [
+                        (name, line_of(src, m.end() + am.start()), am.group(2), "detail=true" in am.group(1).lower())
+                        for am in _DRF_ACTION.finditer(body)
+                    ]
+                elif _DRF_SERIALIZER_BASE.search(base):
+                    g.node("serializer", m.group(1), name, line_of(src, m.start()))
         for name, src in sources:
             prefixes = {m.group(1): m.group(2) for m in _ROUTER_PREFIX.finditer(src)}
             for m in _ROUTE.finditer(src):
@@ -201,6 +236,25 @@ class PythonPack:
                 for m in _DJANGO_PATH.finditer(src):
                     rid = g.node("route", f"ANY /{m.group(1)}", name, line_of(src, m.start()))
                     g.edge(rid, f"handler:{m.group(2)}", "handled_by", 0.8)
+                for m in _DRF_REGISTER.finditer(src):
+                    prefix, cls = m.groups()
+                    if cls not in viewsets:
+                        continue  # a registered class this component doesn't define (e.g. imported from elsewhere)
+                    line = line_of(src, m.start())
+                    base = prefix.strip("/")
+                    actions = (
+                        _DRF_ACTIONS.items()
+                        if viewsets[cls] == "full"
+                        else ((k, v) for k, v in _DRF_ACTIONS.items() if k in _DRF_READONLY_ACTIONS)
+                    )
+                    for action, (method, suffix) in actions:
+                        rid = g.node("route", f"{method} /{base}{suffix}/", name, line, router="drf")
+                        g.edge(rid, f"handler:{cls}.{action}", "handled_by", 0.9)
+                    for _, _, action_name, detail in viewset_actions.get(cls, []):
+                        slug = action_name.replace("_", "-")
+                        suffix = f"/{{id}}/{slug}/" if detail else f"/{slug}/"
+                        rid = g.node("route", f"ANY /{base}{suffix}", name, line, router="drf")
+                        g.edge(rid, f"handler:{cls}.{action_name}", "handled_by", 0.9)
             for m in _SA_MODEL.finditer(src):
                 if m.group(2).strip() == "DeclarativeBase":
                     continue  # the declarative base itself, not a table

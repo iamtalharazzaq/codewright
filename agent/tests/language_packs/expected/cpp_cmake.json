@@ -25,7 +25,8 @@
           "tests": [
             "calc_tests"
           ],
-          "standard": "20"
+          "standard": "20",
+          "package_manager": "none"
         }
       },
       "graph": {

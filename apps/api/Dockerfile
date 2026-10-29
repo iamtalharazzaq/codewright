@@ -30,6 +30,7 @@ COPY templates templates
 COPY skills/builtin skills/builtin
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --package codewright-api
+RUN chmod +x apps/api/entrypoint.sh
 
 RUN useradd --system --uid 10001 --home-dir /app codewright \
     && mkdir -p /app/workspaces /app/skills/user && chown codewright /app/workspaces /app/skills/user
@@ -41,5 +42,6 @@ ENV PATH=/app/.venv/bin:$PATH \
     SKILLS_DIR=/app/skills/user
 WORKDIR /app/apps/api
 EXPOSE 8000
-# Migrations run on start so `docker compose up` is enough on a fresh machine.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn codewright_api.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
+# Migrations run on start so `docker compose up` is enough on a fresh machine. entrypoint.sh retries a handful of
+# times with backoff if the database isn't reachable yet, instead of crash-looping forever (ADR 0034).
+CMD ["./entrypoint.sh"]

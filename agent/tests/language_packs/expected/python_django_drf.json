@@ -1,0 +1,381 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "python",
+        "path": ".",
+        "kind": "api",
+        "frameworks": [
+          "django",
+          "djangorestframework"
+        ],
+        "entrypoints": [
+          "manage.py"
+        ],
+        "manifest": "requirements.txt",
+        "details": {
+          "manager": "pip",
+          "scripts": {},
+          "apps": []
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "model:Product",
+            "kind": "model",
+            "label": "Product",
+            "file": "store/models.py",
+            "line": 4,
+            "orm": "sqlalchemy"
+          },
+          {
+            "id": "route:ANY /admin/",
+            "kind": "route",
+            "label": "ANY /admin/",
+            "file": "mysite/urls.py",
+            "line": 5
+          },
+          {
+            "id": "route:ANY /api/",
+            "kind": "route",
+            "label": "ANY /api/",
+            "file": "mysite/urls.py",
+            "line": 6
+          },
+          {
+            "id": "route:ANY /products/{id}/restock/",
+            "kind": "route",
+            "label": "ANY /products/{id}/restock/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:DELETE /products/{id}/",
+            "kind": "route",
+            "label": "DELETE /products/{id}/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:GET /products/",
+            "kind": "route",
+            "label": "GET /products/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:GET /products/{id}/",
+            "kind": "route",
+            "label": "GET /products/{id}/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:PATCH /products/{id}/",
+            "kind": "route",
+            "label": "PATCH /products/{id}/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:POST /products/",
+            "kind": "route",
+            "label": "POST /products/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:PUT /products/{id}/",
+            "kind": "route",
+            "label": "PUT /products/{id}/",
+            "file": "store/urls.py",
+            "line": 8,
+            "router": "drf"
+          },
+          {
+            "id": "route:ANY /",
+            "kind": "route",
+            "label": "ANY /",
+            "file": "store/urls.py",
+            "line": 11
+          },
+          {
+            "id": "route:ANY /health/",
+            "kind": "route",
+            "label": "ANY /health/",
+            "file": "store/urls.py",
+            "line": 12
+          },
+          {
+            "id": "serializer:ProductSerializer",
+            "kind": "serializer",
+            "label": "ProductSerializer",
+            "file": "store/serializers.py",
+            "line": 6
+          }
+        ],
+        "edges": [
+          {
+            "source": "route:ANY /",
+            "target": "handler:include",
+            "kind": "handled_by",
+            "confidence": 0.8
+          },
+          {
+            "source": "route:ANY /admin/",
+            "target": "handler:admin.site.urls",
+            "kind": "handled_by",
+            "confidence": 0.8
+          },
+          {
+            "source": "route:ANY /api/",
+            "target": "handler:include",
+            "kind": "handled_by",
+            "confidence": 0.8
+          },
+          {
+            "source": "route:ANY /health/",
+            "target": "handler:views.health_check",
+            "kind": "handled_by",
+            "confidence": 0.8
+          },
+          {
+            "source": "route:ANY /products/{id}/restock/",
+            "target": "handler:ProductViewSet.restock",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:DELETE /products/{id}/",
+            "target": "handler:ProductViewSet.destroy",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:GET /products/",
+            "target": "handler:ProductViewSet.list",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:GET /products/{id}/",
+            "target": "handler:ProductViewSet.retrieve",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:PATCH /products/{id}/",
+            "target": "handler:ProductViewSet.partial_update",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:POST /products/",
+            "target": "handler:ProductViewSet.create",
+            "kind": "handled_by",
+            "confidence": 0.9
+          },
+          {
+            "source": "route:PUT /products/{id}/",
+            "target": "handler:ProductViewSet.update",
+            "kind": "handled_by",
+            "confidence": 0.9
+          }
+        ]
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -r requirements.txt $([ -f requirements-dev.txt ] && echo -r requirements-dev.txt) $([ -f requirements-test.txt ] && echo -r requirements-test.txt)"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "compileall",
+              "-q",
+              "-x",
+              "/\\.venv/",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -r requirements.txt $([ -f requirements-dev.txt ] && echo -r requirements-dev.txt) $([ -f requirements-test.txt ] && echo -r requirements-test.txt)"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "compileall",
+              "-q",
+              "-x",
+              "/\\.venv/",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "if .venv/bin/python -c 'import coverage' 2>/dev/null; then .venv/bin/python -m coverage run --data-file=.codewright/.coverage --source=. --omit='.venv/*,*/tests/*,tests/*,*/test_*.py,test_*.py,*_test.py,*/conftest.py,conftest.py' -m pytest -q -p no:cacheprovider --junitxml=.codewright/reports/junit.xml; code=$?; .venv/bin/python -m coverage xml -q --data-file=.codewright/.coverage -o .codewright/reports/coverage.xml || true; exit $code; else exec .venv/bin/python -m pytest -q -p no:cacheprovider --junitxml=.codewright/reports/junit.xml; fi"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": "junit",
+            "optional": false
+          }
+        ],
+        "lint": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -r requirements.txt $([ -f requirements-dev.txt ] && echo -r requirements-dev.txt) $([ -f requirements-test.txt ] && echo -r requirements-test.txt)"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "ruff",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "ruff",
+              "check",
+              "--output-format",
+              "concise",
+              "--no-cache",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "mypy",
+            "toolchain": "python",
+            "cmd": [
+              ".venv/bin/python",
+              "-m",
+              "mypy",
+              "--ignore-missing-imports",
+              "--no-incremental",
+              "--exclude",
+              "\\.venv",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": true
+          }
+        ]
+      },
+      "run": {
+        "kind": "web",
+        "toolchain": "python",
+        "cmd": [
+          ".venv/bin/python",
+          "manage.py",
+          "runserver",
+          "0.0.0.0:8000"
+        ],
+        "workdir": ".",
+        "port": 8000,
+        "env": {},
+        "services": [],
+        "prepare": [
+          {
+            "name": "install",
+            "toolchain": "python",
+            "cmd": [
+              "sh",
+              "-c",
+              "uv venv --quiet --allow-existing --system-site-packages .venv && uv pip install --python .venv -r requirements.txt $([ -f requirements-dev.txt ] && echo -r requirements-dev.txt) $([ -f requirements-test.txt ] && echo -r requirements-test.txt)"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {
+              "UV_PROJECT_ENVIRONMENT": ".venv"
+            },
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "django"
+      }
+    }
+  ]
+}

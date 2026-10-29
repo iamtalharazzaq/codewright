@@ -44,6 +44,16 @@ export function DriveCard() {
             )
           )}
         </div>
+        {drive?.connected && (
+          <p className="text-sm text-muted-foreground">
+            Disconnect removes Codewright&apos;s local copy of your Drive token. Google still remembers the grant until
+            you revoke it yourself at{" "}
+            <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer" className="underline">
+              myaccount.google.com/permissions
+            </a>
+            .
+          </p>
+        )}
       </CardContent>
     </Card>
   );

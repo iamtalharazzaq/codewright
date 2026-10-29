@@ -95,6 +95,20 @@ async def test_template_builds_tests_and_lints(template: str, workspace: tuple[S
         await client.delete_session(sid)
 
 
+async def test_cpp_conan_fixture_builds(workspace: tuple[SandboxClient, str, Path]) -> None:
+    """Conan is installed in the sandbox image; vcpkg isn't yet, so only the Conan fixture gets a real build here."""
+    client, ws, work = workspace
+    shutil.copytree(FIXTURES / "cpp_cmake_conan", work, dirs_exist_ok=True)
+    sid = await _session(client, ws, work)
+    try:
+        [component] = detect_project(work)
+        result = await run_action(client, sid, work, component, "build", _events)
+        assert result.ok, [(s.step, s.output_tail) for s in result.steps if not s.ok]
+        assert [s.step for s in result.steps] == ["install", "configure", "build"]
+    finally:
+        await client.delete_session(sid)
+
+
 async def test_cpp_fixture_runs_in_the_terminal(workspace: tuple[SandboxClient, str, Path]) -> None:
     client, ws, work = workspace
     shutil.copytree(FIXTURES / "cpp_cmake", work, dirs_exist_ok=True)

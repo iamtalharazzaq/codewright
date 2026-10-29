@@ -1,0 +1,246 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "go",
+        "path": ".",
+        "kind": "api",
+        "frameworks": [
+          "echo"
+        ],
+        "entrypoints": [
+          "./cmd/server"
+        ],
+        "manifest": "go.mod",
+        "details": {
+          "module": "example.com/greet",
+          "go": "1.26",
+          "has_go_sum": false
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "route:GET /health",
+            "kind": "route",
+            "label": "GET /health",
+            "file": "cmd/server/main.go",
+            "line": 11,
+            "handler": ""
+          },
+          {
+            "id": "route:GET /api/v1/greetings/:id",
+            "kind": "route",
+            "label": "GET /api/v1/greetings/:id",
+            "file": "cmd/server/main.go",
+            "line": 14,
+            "handler": "greeting.Get"
+          },
+          {
+            "id": "route:POST /api/v1/greetings",
+            "kind": "route",
+            "label": "POST /api/v1/greetings",
+            "file": "cmd/server/main.go",
+            "line": 15,
+            "handler": "greeting.Create"
+          }
+        ],
+        "edges": [
+          {
+            "source": "route:GET /api/v1/greetings/:id",
+            "target": "handler:greeting.Get",
+            "kind": "handled_by",
+            "confidence": 0.7
+          },
+          {
+            "source": "route:POST /api/v1/greetings",
+            "target": "handler:greeting.Create",
+            "kind": "handled_by",
+            "confidence": 0.7
+          }
+        ]
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "install",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "mod",
+              "download"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "build",
+              "./..."
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "install",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "mod",
+              "download"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "build",
+              "./..."
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "test",
+              "-json",
+              "-coverprofile=.codewright/reports/cover.out",
+              "./..."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {
+              "GOFLAGS": "-buildvcs=false -mod=mod",
+              "GOPROXY": "off"
+            },
+            "report": "go-json",
+            "optional": false
+          }
+        ],
+        "lint": [
+          {
+            "name": "install",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "mod",
+              "download"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "vet",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "vet",
+              "./..."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {
+              "GOPROXY": "off"
+            },
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "gofmt",
+            "toolchain": "go",
+            "cmd": [
+              "sh",
+              "-c",
+              "out=$(gofmt -l .); [ -z \"$out\" ] || { echo \"$out\"; exit 1; }"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ]
+      },
+      "run": {
+        "kind": "web",
+        "toolchain": "go",
+        "cmd": [
+          "./.codewright/bin/app"
+        ],
+        "workdir": ".",
+        "port": 9100,
+        "env": {},
+        "services": [],
+        "prepare": [
+          {
+            "name": "install",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "mod",
+              "download"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "go",
+            "cmd": [
+              "go",
+              "build",
+              "-o",
+              ".codewright/bin/app",
+              "./cmd/server"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "./cmd/server"
+      }
+    }
+  ]
+}

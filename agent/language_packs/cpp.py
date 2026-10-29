@@ -1,14 +1,18 @@
 """C++ pack: CMake projects, console apps and libraries (C++17/20). CMake + Ninja + g++ · CTest (GoogleTest,
-Catch2) · cppcheck, clang-tidy.
+Catch2) · cppcheck, clang-tidy. Third-party dependencies: vendored/`FetchContent` (the default), or a `vcpkg.json`
+manifest, or a Conan `conanfile.txt`/`conanfile.py` — whichever manifest is present picks the configure command.
 
 Builds go to `<component>/.codewright/build`. Tests get no network; `FetchContent` of GoogleTest/Catch2 is first
-satisfied from the image's installed packages (`FETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS`).
+satisfied from the image's installed packages (`FETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS`). vcpkg manifest mode
+and `conan install` need the registry network only while resolving/building packages; the test/ctest step itself
+stays offline either way, same as a vendored project.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Literal
 
 from agent.language_packs import reports, templates
 from agent.language_packs.base import (
@@ -32,6 +36,8 @@ from agent.language_packs.base import (
 )
 
 BUILD = ".codewright/build"
+CONAN_OUT = ".codewright/conan"
+VCPKG_ROOT = "/opt/vcpkg"  # where sandbox/images/cpp.Dockerfile would install vcpkg (not installed yet)
 SOURCES = (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".h", ".ipp")
 _PROJECT = re.compile(r"\bproject\s*\(\s*([\w.-]+)", re.IGNORECASE)
 _EXECUTABLE = re.compile(r"\badd_executable\s*\(\s*([\w.-]+)", re.IGNORECASE)
@@ -44,6 +50,15 @@ _TEST = re.compile(
 _STANDARD = re.compile(r"CMAKE_CXX_STANDARD\s+(\d+)|cxx_std_(\d+)")
 _SUBDIR = re.compile(r"\badd_subdirectory\s*\(\s*([\w./-]+)", re.IGNORECASE)
 _CLASS = re.compile(r"^\s*(?:class|struct)\s+(?:\w+\s+)?([A-Z]\w*)\s*(?::[^{;]*)?\{", re.MULTILINE)
+
+
+def _package_manager(root: Path) -> str:
+    """Which manifest names this component's third-party dependencies, if any (picks the configure command)."""
+    if (root / "vcpkg.json").exists():
+        return "vcpkg"
+    if (root / "conanfile.txt").exists() or (root / "conanfile.py").exists():
+        return "conan"
+    return "none"
 
 
 def _cmake_files(root: Path) -> list[Path]:
@@ -107,6 +122,7 @@ class CppPack:
                         "libraries": sorted({m.group(1) for m in _LIBRARY.finditer(text)}),
                         "tests": sorted(tests),
                         "standard": next((g for g in (std.groups() if std else ()) if g), ""),
+                        "package_manager": _package_manager(root),
                     },
                 )
             )
@@ -140,13 +156,34 @@ class CppPack:
             "cmake", "-S", ".", "-B", BUILD, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug",
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON", "-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS", "-DBUILD_TESTING=ON",
         ]  # fmt: skip
-        return Step("configure", "cpp", cmd, component.path, "none")
+        manager = component.details.get("package_manager", "none")
+        network: Literal["registry", "none"] = "none"
+        if manager == "vcpkg":
+            # Manifest mode: vcpkg reads vcpkg.json and fetches/builds any missing port during this step.
+            cmd.append(f"-DCMAKE_TOOLCHAIN_FILE={VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+            network = "registry"
+        elif manager == "conan":
+            # The "install" step below writes this toolchain file (CMakeToolchain generator) before we configure.
+            cmd.append(f"-DCMAKE_TOOLCHAIN_FILE={CONAN_OUT}/conan_toolchain.cmake")
+        return Step("configure", "cpp", cmd, component.path, network)
+
+    def _conan_install(self, component: Component) -> Step:
+        # `profile detect` is idempotent and safe to repeat; conan needs a profile before its first `install`.
+        script = (
+            f"conan profile detect --force >/dev/null 2>&1 || true; "
+            f"conan install . --output-folder={CONAN_OUT} --build=missing -s build_type=Debug"
+        )
+        return Step("install", "cpp", ["sh", "-c", script], component.path, "registry")
 
     def build_steps(self, repo: Path, component: Component) -> list[Step]:
-        return [
+        steps = []
+        if component.details.get("package_manager") == "conan":
+            steps.append(self._conan_install(component))
+        steps += [
             self._configure(component),
             Step("build", "cpp", ["cmake", "--build", BUILD, "--parallel", "2"], component.path, "none"),
         ]
+        return steps
 
     def test_steps(self, repo: Path, component: Component) -> list[Step]:
         junit = "../reports/ctest.xml"  # relative to the test directory (BUILD)
@@ -154,9 +191,17 @@ class CppPack:
         # Coverage: a second build with --coverage, its tests run again, gcovr reads the counters. Optional: a project
         # whose build needs the network (FetchContent) or another compiler still gets its test report.
         cov = f"{STATE}/build-cov"
+        manager = component.details.get("package_manager", "none")
+        toolchain = (
+            f" -DCMAKE_TOOLCHAIN_FILE={VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+            if manager == "vcpkg"
+            else f" -DCMAKE_TOOLCHAIN_FILE={CONAN_OUT}/conan_toolchain.cmake"
+            if manager == "conan"
+            else ""
+        )
         coverage = (
             f"cmake -S . -B {cov} -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=--coverage"
-            f" -DCMAKE_C_FLAGS=--coverage >/dev/null && cmake --build {cov} >/dev/null"
+            f" -DCMAKE_C_FLAGS=--coverage{toolchain} >/dev/null && cmake --build {cov} >/dev/null"
             f" && ctest --test-dir {cov} >/dev/null;"
             f" gcovr -r . --object-directory {cov} --exclude '{STATE}/' --xml -o {REPORTS}/coverage.xml"
         )
@@ -176,13 +221,15 @@ class CppPack:
         ]
 
     def outdated_steps(self, repo: Path, component: Component) -> list[Step]:
-        return []  # CMake projects pin third-party sources by hand: nothing to ask a registry
+        # A vendored/FetchContent project pins sources by hand: nothing to ask a registry. vcpkg and Conan do have
+        # version registries, but neither has a simple, scriptable "what's outdated" query worth wiring up yet.
+        return []
 
     def upgrade_steps(self, repo: Path, component: Component, package: str, version: str) -> list[Step]:
         return []
 
     def audit_steps(self, repo: Path, component: Component) -> list[Step]:
-        return []  # no generic vulnerability DB for a CMake project's third-party sources
+        return []  # no generic vulnerability DB for a CMake/vcpkg/Conan project's third-party sources
 
     def run_spec(self, repo: Path, component: Component) -> RunSpec | None:
         if not component.entrypoints:

@@ -1,0 +1,237 @@
+{
+  "components": [
+    {
+      "component": {
+        "pack": "typescript",
+        "path": ".",
+        "kind": "api",
+        "frameworks": [
+          "eslint",
+          "nestjs",
+          "vitest"
+        ],
+        "entrypoints": [],
+        "manifest": "package.json",
+        "details": {
+          "name": "greet-api",
+          "manager": "npm",
+          "scripts": [
+            "build",
+            "lint",
+            "start"
+          ],
+          "has_tsconfig": true,
+          "module": "commonjs",
+          "coverage": ""
+        }
+      },
+      "graph": {
+        "nodes": [
+          {
+            "id": "route:GET /greetings/:id",
+            "kind": "route",
+            "label": "GET /greetings/:id",
+            "file": "src/greetings/greetings.controller.ts",
+            "line": 5
+          },
+          {
+            "id": "route:POST /greetings",
+            "kind": "route",
+            "label": "POST /greetings",
+            "file": "src/greetings/greetings.controller.ts",
+            "line": 10
+          }
+        ],
+        "edges": []
+      },
+      "plans": {
+        "build": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "build"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "test": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "build"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "test",
+            "toolchain": "node",
+            "cmd": [
+              "npx",
+              "--no-install",
+              "vitest",
+              "run",
+              "--reporter=default",
+              "--reporter=junit",
+              "--outputFile.junit=.codewright/reports/junit.xml"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": "junit",
+            "optional": false
+          }
+        ],
+        "lint": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "lint",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "lint"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "tsc",
+            "toolchain": "node",
+            "cmd": [
+              "npx",
+              "--no-install",
+              "tsc",
+              "--noEmit",
+              "-p",
+              "."
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ]
+      },
+      "run": {
+        "kind": "web",
+        "toolchain": "node",
+        "cmd": [
+          "npm",
+          "run",
+          "start"
+        ],
+        "workdir": ".",
+        "port": 9200,
+        "env": {
+          "PORT": "9200",
+          "HOST": "0.0.0.0"
+        },
+        "services": [],
+        "prepare": [
+          {
+            "name": "install",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "install",
+              "--no-audit",
+              "--no-fund"
+            ],
+            "workdir": ".",
+            "network": "registry",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          },
+          {
+            "name": "build",
+            "toolchain": "node",
+            "cmd": [
+              "npm",
+              "run",
+              "build"
+            ],
+            "workdir": ".",
+            "network": "none",
+            "timeout_s": null,
+            "env": {},
+            "report": null,
+            "optional": false
+          }
+        ],
+        "name": "greet-api"
+      }
+    }
+  ]
+}

@@ -31,6 +31,11 @@ FIXTURE_PACK = {
     "ts_next": "typescript",
     "js_express": "javascript",
     "cpp_cmake": "cpp",
+    "cpp_cmake_vcpkg": "cpp",
+    "cpp_cmake_conan": "cpp",
+    "python_django_drf": "python",
+    "go_echo": "go",
+    "ts_nestjs": "typescript",
 }
 
 
@@ -61,6 +66,41 @@ def test_framework_meaning() -> None:
     assert _labels("ts_next", "page") == ["/", "/about", "/pricing"]  # (marketing) route group dropped
     assert _labels("ts_next", "route") == ["ANY /api/items"]
     assert _labels("cpp_cmake", "target") == ["calc", "calc_core", "calc_tests"]
+    # Echo and NestJS share Gin's/Express's route regexes and get basic coverage too, no dedicated code needed
+    assert _labels("go_echo", "route") == ["GET /api/v1/greetings/:id", "GET /health", "POST /api/v1/greetings"]
+    assert _labels("ts_nestjs", "route") == ["GET /greetings/:id", "POST /greetings"]
+
+
+def test_cpp_package_managers() -> None:
+    # vcpkg manifest mode and `conan install` need the registry while resolving packages; everything else offline.
+    vcpkg = detect_project(FIXTURES / "cpp_cmake_vcpkg")[0]
+    assert vcpkg.details["package_manager"] == "vcpkg"
+    build = plan(FIXTURES / "cpp_cmake_vcpkg", vcpkg, "build")
+    assert [s.name for s in build] == ["configure", "build"]
+    assert build[0].network == "registry" and "/opt/vcpkg/scripts/buildsystems/vcpkg.cmake" in build[0].cmd[-1]
+    assert build[1].network == "none"
+
+    conan = detect_project(FIXTURES / "cpp_cmake_conan")[0]
+    assert conan.details["package_manager"] == "conan"
+    build = plan(FIXTURES / "cpp_cmake_conan", conan, "build")
+    assert [s.name for s in build] == ["install", "configure", "build"]
+    assert build[0].network == "registry" and "conan install" in build[0].cmd[-1]
+    assert build[1].network == "none" and ".codewright/conan/conan_toolchain.cmake" in build[1].cmd[-1]
+
+    vendored = detect_project(FIXTURES / "cpp_cmake")[0]
+    assert vendored.details["package_manager"] == "none"
+
+
+def test_django_rest_framework() -> None:
+    # a ModelViewSet registered on a DefaultRouter gets the 6 standard routes plus its @action-decorated ones
+    assert _labels("python_django_drf", "serializer") == ["ProductSerializer"]
+    assert _labels("python_django_drf", "model") == ["Product"]
+    routes = _labels("python_django_drf", "route")
+    assert "GET /products/" in routes and "POST /products/" in routes
+    assert "GET /products/{id}/" in routes and "PUT /products/{id}/" in routes
+    assert "PATCH /products/{id}/" in routes and "DELETE /products/{id}/" in routes
+    assert "ANY /products/{id}/restock/" in routes
+    assert "ANY /health/" in routes
 
 
 def test_mixed_project(tmp_path: Path) -> None:

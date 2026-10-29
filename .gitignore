@@ -28,3 +28,4 @@ local-source/*
 !local-source/.gitkeep
 deliveries/*
 !deliveries/.gitkeep
+/backups/
