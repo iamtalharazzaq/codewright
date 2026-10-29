@@ -693,6 +693,7 @@ def build_node(services: RunServices) -> Any:
             "build",
             "backend_developer",
             "built and tests pass" if built else f"removed: {note[:120]}",
+            ok=built,
             originals=originals,
             created=created,
             outcomes=[o.__dict__ for o in totals.outcomes],
@@ -734,6 +735,7 @@ def verify_node(services: RunServices) -> Any:
             "verify",
             "qa_engineer",
             "tests pass" if verification.get("tests_ok") else "nothing to verify" if not files else "tests FAIL",
+            ok=not files or verification["ok"],
             verification=verification,
             changed=files,
         )

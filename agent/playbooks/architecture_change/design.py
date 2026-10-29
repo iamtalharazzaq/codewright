@@ -722,8 +722,9 @@ async def _restructure_event_driven(
             git(work, "commit", "-q", "-m", "Architecture: event bus, subscribers and a review doc", check=False)
             outcomes.append(_event_outcome(info, done=True, note=""))
     summary = ev.brief(info).splitlines()[0]
+    ok = not outcomes or any(o["done"] for o in outcomes)
     return await steps.finish(
-        services, state, plan, "restructure", "backend_developer", summary,
+        services, state, plan, "restructure", "backend_developer", summary, ok=ok,
         outcomes=outcomes, restructure_notes=notes, rules={"style": "event_driven", "modules": len(rules["modules"])},
         remaining_violations=[], platform_detail={"event_driven": info},
     )  # fmt: skip
@@ -784,6 +785,7 @@ async def verify(services: RunServices, state: Any) -> dict[str, Any]:
     return await steps.finish(
         services, state, plan, "verify", "qa_engineer",
         f"tests {'pass' if tests_ok else 'FAIL'}; {len(new)} new violation(s)",
+        ok=tests_ok,
         verification=verification, result_brief="\n".join(lines), graph_change=change, artifacts=artifacts, diff=diff,
     )  # fmt: skip
 

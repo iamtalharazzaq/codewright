@@ -338,6 +338,7 @@ def verify_node(services: RunServices) -> Any:
         return await steps.finish(
             services, state, plan, "verify", "qa_engineer",
             f"tests {'pass' if tests_ok else 'FAIL'}; {len(done)} upgrade(s) kept",
+            ok=tests_ok,
             verification=verification, changed=changed, diff=diff, result_brief=brief, artifacts=artifacts,
         )  # fmt: skip
 

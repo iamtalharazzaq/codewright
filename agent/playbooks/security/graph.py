@@ -265,6 +265,7 @@ def verify_node(services: RunServices) -> Any:
             "verify",
             "qa_engineer",
             summary,
+            ok=tests_ok,
             verification=verification,
             rescan_note=rescan_note,
             result_brief=result_brief,

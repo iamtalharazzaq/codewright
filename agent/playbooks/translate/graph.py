@@ -517,6 +517,7 @@ def translate_node(services: RunServices) -> Any:
             "translate",
             "backend_developer",
             summary,
+            ok=best.ok,
             code=best.result["code"],
             names=names,
             skipped=skipped,
@@ -565,7 +566,9 @@ def verify_node(services: RunServices) -> Any:
         if not state.get("can_translate") or not state.get("build_ok"):
             why = state.get("declined") or state.get("build_error") or "nothing was translated"
             verification = {"checked": False, "why": why}
-            return await steps.finish(services, state, plan, "verify", "qa_engineer", why, verification=verification)
+            return await steps.finish(
+                services, state, plan, "verify", "qa_engineer", why, ok=False, verification=verification
+            )
         project = services.project(str(state["project_id"]))
         target = Target(**state["target"])
         comp = state["component"]
@@ -585,7 +588,12 @@ def verify_node(services: RunServices) -> Any:
                 "Pack's own tests were run instead",
             }
         summary = _verify_summary(verification)
-        return await steps.finish(services, state, plan, "verify", "qa_engineer", summary, verification=verification)
+        # Not having a way to prove it (an HTTP service, no captured cases) isn't itself a failure; an explicit
+        # "checked and it doesn't match" is.
+        ok = bool(verification.get("ok", True)) if verification.get("checked") else True
+        return await steps.finish(
+            services, state, plan, "verify", "qa_engineer", summary, ok=ok, verification=verification
+        )
 
     return node
 

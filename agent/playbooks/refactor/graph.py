@@ -274,6 +274,7 @@ def verify_node(services: RunServices) -> Any:
             "verify",
             "qa_engineer",
             summary,
+            ok=tests_ok,
             verification=verification,
             graph_change=change,
         )

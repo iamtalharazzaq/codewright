@@ -333,6 +333,7 @@ def verify_node(services: RunServices) -> Any:
             "verify",
             "qa_engineer",
             verdict(comparison).split("**")[1].rstrip(":").lower(),
+            ok=tests_ok,
             verification=verification,
             bench_after=after,
             comparison=comparison,

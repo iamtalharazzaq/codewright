@@ -260,6 +260,7 @@ def apply_node(services: RunServices) -> Any:
             services, state, plan, "apply", "database_engineer",
             ("applied and rolled back cleanly" if trial and trial.get("ok") else "the migration did not pass its trial")
             + f" (try {tries})",
+            ok=bool(trial and trial.get("ok")),
             files={m["up_file"]: sql["up"], m["down_file"]: sql["down"]}, trial=trial, tries=tries,
             migration={**m, "up_sql": sql["up"], "down_sql": sql["down"]},
         )  # fmt: skip
@@ -311,6 +312,7 @@ def verify_node(services: RunServices) -> Any:
         return await steps.finish(
             services, state, plan, "verify", "qa_engineer",
             f"tests {'pass' if tests_ok else 'not passing'}" if good else "skipped: the trial failed",
+            ok=not m or (good and tests_ok),
             verification=verification, diff=diff, changed=list(files) if good else [], result_brief=brief,
             artifacts=artifacts,
         )  # fmt: skip

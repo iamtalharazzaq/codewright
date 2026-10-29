@@ -72,3 +72,18 @@ async def test_asked_to_fix_opens_a_branch_and_removes_the_secret(tmp_path: Path
     assert "AKIA" not in (project.work / "app.py").read_text(encoding="utf-8")
     assert state["published"]["branch"].startswith("codewright/security-")
     assert state["verification"]["rescan_ok"] is True  # the secret scan is clean on the changed file now
+    assert state["steps"]["verify"]["status"] == "done"  # tests passed, so the step itself isn't marked failed
+
+
+async def test_failing_tests_after_the_fix_mark_the_verify_step_failed(tmp_path: Path) -> None:
+    project = _project(tmp_path, audit_outputs=[])
+    project._test_results = [[{"component": ".", "pack": "python", "ok": False, "report": {"passed": 0, "failed": 1}}]]
+    client, _ = llm_returning(fenced(FIXED))
+    services = FakeServices(clients={"remote_gpu": client}, project=project)
+    state, _ = await drive(
+        compiled("security", services),
+        cfg(),
+        initial_state("security", tmp_path, tier=2, request="find and fix the hard-coded secret", use_llm=False),
+        approve_all,
+    )
+    assert state["steps"]["verify"]["status"] == "failed"

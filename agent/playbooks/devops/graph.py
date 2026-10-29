@@ -222,6 +222,7 @@ def verify_node(services: RunServices) -> Any:
         return await steps.finish(
             services, state, plan, "verify", "security_engineer",
             "all checks pass" if not bad else f"{bad} problem(s) found",
+            ok=not bad,
             findings=findings, ci=ci, diff=diff, result_brief=brief, artifacts=artifacts,
         )  # fmt: skip
 

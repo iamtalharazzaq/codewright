@@ -475,8 +475,11 @@ def verify_node(services: RunServices) -> Any:
         ]
         brief = _brief(docs, verification, state["facts"])
         summary = f"{len(problems)} problems left" + (f", {fixed} fixed" if fixed else "")
+        # Leftover doc-wording problems are findings (this step's job to surface, like code_review's lint); only a
+        # build that actually ran and failed counts as this step not passing.
+        ok = not build.get("ran") or build.get("ok", True)
         return await steps.finish(
-            services, state, plan, "verify", "qa_engineer", summary,
+            services, state, plan, "verify", "qa_engineer", summary, ok=ok,
             documents=docs, verification=verification, result_brief=brief, artifacts=artifacts,
             **{k: v for k, v in update.items() if k != "documents"},
         )  # fmt: skip

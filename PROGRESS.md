@@ -112,6 +112,52 @@ and 18, fixed a real Reflection-loop bug it found live, and ran the Phase 8 eval
 Next: Phase 19 (deepen the 5 Language Packs/templates), then 20 (evals), 21 (polish), 22 (hardening, v1.0).
 Disk: 11GB free (96% used) — still don't prune Docker volumes or build cache without asking.
 
+## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
+
+Three issues reported from live testing (screenshots, not code), fixed on a separate branch from the phase/retrofit
+work above to avoid touching shared files mid-edit. Not phase work; tracked here as bug/fix entries instead.
+
+**Bug 1 — a failing verify/lint step was shown as a green "done" pass (fixed).** A completed run's "Run the tests"
+step showed a green checkmark, while its own summary read "tests failing: ... ; 1 lint step(s) failed." The run
+still reached "Approve result" looking like a routine pass, and a human approved it without a strong signal that
+anything was wrong. Root cause: `agent/playbooks/steps.py::finish()` hardcoded every step's recorded status to
+`"done"` regardless of outcome — the pass/fail text was in the prose summary, but the status field itself (which
+drives the Timeline, the Plan checklist, and ultimately whether `run.status` can be trusted) never said otherwise.
+The human-approval gate mechanism itself was confirmed working correctly (real Postgres `approvals` rows, real
+timestamps) — this was purely a misleading-status bug, not a bypassed gate.
+
+Fix: `finish()` now takes `ok: bool = True`; `ok=False` records `"failed"` on both the step and its plan item
+(`PlanStatus`/`StepResult` already modeled `"failed"`; plan items didn't). Threaded `ok=` through every playbook's
+verify/test/lint/build/migration-trial outcome step: `new_app` (the exact reported case — tests green **and**
+lint failing both now gate), `bug_fix`, `write_code`, `code_review` (lint findings alone aren't a failure — a
+linter that couldn't run is), `performance`, `refactor`, `security`, `translate`, `upgrade`, `devops`, `docs`
+(wording findings aren't a failure — a build that ran and failed is), `architecture_change` (`design.py`'s verify
+and restructure steps, `microservices.py`'s foundation step), `db_change` (apply and verify), `feature` (build and
+verify), and the `tests` playbook's write_verify step. Left as default (`ok=True`, no change) the genuine baseline
+steps that check the state *before* a change as context, not as this step's own pass/fail (`db_change.study_node`,
+`feature.survey_node`, `refactor.map_node`, `upgrade.survey_node`, `architecture_change/design.py`'s baseline step)
+and steps whose job is to report/publish rather than verify.
+
+Frontend: the Timeline and Plan checklist render a distinct failed icon/label instead of a step with status
+`"failed"` getting swept into green by the old `run.status === "completed"` fallback; the run-level status badge
+shows `"<status> · a step failed"` instead of a clean `"Completed"`; the `GateCard` approval screen (where a human
+actually clicks Approve/Edit/Reject) shows an unmissable red banner when any step failed, instead of a routine-
+looking card with the warning only in a scrollable markdown box.
+
+Tests: `agent/tests/playbooks/test_steps.py` (new) unit-tests `finish()`'s `ok` parameter directly.
+`test_new_app.py`'s existing `test_a_failing_app_is_shown_red_not_hidden` only ever asserted `state["passed"]` —
+never the step's own recorded status — which is exactly how this shipped unnoticed; it now also asserts
+`state["steps"]["verify"]["status"] == "failed"`, plus a new case for tests-green-but-lint-failing (the literal
+reported scenario). `test_security_playbook.py` gained a green-path and a red-path case for its `verify` step.
+Frontend: `run-view.test.tsx` (new) and `pending-card.test.tsx` cover the Timeline/badge/GateCard rendering.
+Commits: `cc45b0d` (core fix + the 4 most directly implicated playbooks), one follow-up (mechanical `ok=` threading
+through the rest).
+
+**Bug 2 — sidebar accumulates near-duplicate projects/chats (not yet investigated).**
+
+**UX problem — the Done card leads with the full agent timeline instead of pass/fail + code + a run action (not
+yet investigated).**
+
 ## Phase 8 eval (ADR 0023), run 2026-10-29
 
 `python3 evals/write_code.py` fails immediately (`ModuleNotFoundError: No module named 'evals'` — it must run as

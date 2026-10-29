@@ -200,6 +200,7 @@ async def foundation(services: RunServices, state: Any) -> dict[str, Any]:
     return await steps.finish(
         services, state, plan, "foundation", "devops_engineer",
         f"{len(written)} file(s) written" if ok else "not written: " + "; ".join([*problems, *notes])[:150],
+        ok=ok,
         foundation=info, foundation_brief="\n".join(lines), ms_rules=rules, service_queue=order,
     )  # fmt: skip
 

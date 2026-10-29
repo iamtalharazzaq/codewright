@@ -239,6 +239,7 @@ def write_verify_node(services: RunServices) -> Any:
             "write_verify",
             "qa_engineer",
             summary,
+            ok=not targets or bool(written),
             written=written,
             skipped=skipped,
             attempts=attempts,
