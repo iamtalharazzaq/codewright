@@ -135,6 +135,7 @@ class FakeServices:
         self.clients = clients or {}
         self.chat_models = chat_models or {}
         self._project = project
+        self.created: list[str] = []
 
     async def emit(
         self, run_id: str, event: str, *, step: str | None = None, data: dict[str, Any] | None = None
@@ -152,6 +153,10 @@ class FakeServices:
         if self._project is None:
             raise RuntimeError("no project in this test")
         return self._project
+
+    async def create_project(self, run_id: str, name: str) -> str:
+        self.created.append(name)
+        return "11111111-1111-1111-1111-111111111111"
 
 
 @pytest.fixture

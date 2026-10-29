@@ -30,3 +30,6 @@ playbooks:
   docs:
     per_step: { max_llm_calls: 30, max_tokens: 150000 }
     per_run: { max_tokens: 400000, max_hours: 2 }
+  new_app:
+    per_step: { max_llm_calls: 80, max_tokens: 400000 }
+    per_run: { max_tokens: 1500000, max_hours: 8 }

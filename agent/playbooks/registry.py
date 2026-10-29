@@ -42,6 +42,7 @@ _MODULES = (
     "feature",
     "frontend",
     "devops",
+    "new_app",
 )
 
 

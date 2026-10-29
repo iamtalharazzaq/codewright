@@ -1,0 +1,11 @@
+# CODEWRIGHT.md Section 5.17. Tier 1-3 by the size of the app: small = confirm card + approve the app; medium = approve
+# the plan + the app; large = four gates (requirements, design, screens, the app).
+title: New app
+description: >-
+  Turns an idea into a working project. The Product Manager writes the first version (features, stories, acceptance
+  criteria), the Solution Architect picks the stack by rules (your language always wins; only C++, TypeScript,
+  JavaScript, Go and Python are built) and plans the files inside a tested template, the app is built file by file,
+  tested in the sandbox with the Reflection loop, checked for secrets and lint, and documented with a GUIDE.md. The
+  project is created in Projects, so every other playbook works on it afterwards. Bigger apps ask for more approvals.
+intent: new_app
+lead_role: product_manager

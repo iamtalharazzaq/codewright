@@ -866,7 +866,10 @@ class ChatService:
                 ),
                 data={"intent": intent, "pending_phase": PLAYBOOK_PHASE[intent]},
             )
-        return await self._start_run(conversation_id, intent, inputs, int(card.data.get("tier") or 0), project_id)
+        # A new app gets its own project, whichever project this chat was opened from.
+        return await self._start_run(
+            conversation_id, intent, inputs, int(card.data.get("tier") or 0), None if intent == "new_app" else project_id
+        )
 
     async def _start_run(
         self,
@@ -986,6 +989,14 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
         )
     if intent in ("write_code", "fix_bug", "write_tests"):
         inputs.update(answers=data.get("answers", []), skill=data.get("skill"))
+    if intent == "new_app":
+        inputs.update(
+            answers=data.get("answers", []),
+            card=data.get("card", {}),
+            language=data.get("language") or "",
+            size={1: "small", 2: "medium", 3: "large"}.get(int(data.get("tier") or 0), ""),
+            skill=data.get("skill"),
+        )
     if intent == "write_code":
         inputs.update(card=data.get("card", {}), language=data.get("language") or "")
     if intent in ("write_docs", "review_code", "analyze_audit"):
@@ -1008,6 +1019,7 @@ SUGGESTIONS: dict[str, list[str]] = {
     "frontend": ["Explain what changed", "Review the changed code", "Add the next feature"],
     "devops": ["Explain the Dockerfiles", "Review the CI workflow", "Run the security review"],
     "feature": ["Explain how it works", "Review the new code", "Add another feature"],
+    "new_app": ["Add a feature", "Write more tests for it", "Dockerize it and set up CI"],
     "security": ["Explain the top finding", "Fix the critical and major findings", "Scan another module"],
     "tests": ["Test another module", "Review the code the tests cover", "Fix what the tests found"],
     "docs": ["Explain a part of the docs", "Review the code the docs describe", "Deliver it"],

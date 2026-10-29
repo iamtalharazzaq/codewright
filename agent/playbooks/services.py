@@ -85,3 +85,7 @@ class RunServices(Protocol):
 
     def project(self, project_id: str) -> ProjectTools:
         """The run's project (graph, search, sandbox linters, facts). Only for playbooks with `needs_project`."""
+
+    async def create_project(self, run_id: str, name: str) -> str:
+        """A new, empty project for this run (a New app builds in it): listed in Projects, its workspace created,
+        the run attached to it. Returns the project's id."""

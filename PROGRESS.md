@@ -3,9 +3,10 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phase 9 (Refactor and performance), built and live-tested; Phase 8's 20-example eval is still open. Phase 10 is next.
-Phase 6's audit review and M1 demo are still waiting with you, deferred to the end. Phase 1 VRAM table still pending.
-**Last updated:** 2026-10-28
+**Current phase:** Phases 13 (New app) and 15 (Architecture change I) in progress. Built so far: 0-12, 14 (11, 12 and 14 not yet
+run live); 13's `new_app` playbook (this branch) and its template library (a parallel branch); 15 in a parallel branch.
+Still open: Phase 8's 20-example eval, Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table.
+**Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
 
 ## How to run
@@ -21,6 +22,20 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 13: New app (ADR 0030; `new_app` built, not yet run live)
+
+| Task | Result |
+|---|---|
+| `new_app` playbook | requirements → [gate] → design → [gate] → [screens → gate] → scaffold → build → verify → review → docs → **approve app** → publish. Small = 1 gate, medium = 2 (plan, app), large = 4 (requirements, design, screens, app). |
+| Stack rules | `new_app/stacks.py`: app type → options with one recommended and a reason; the user's language wins; only the 5 languages; unsupported language declined with the closest stack; a missing template falls back and says so. |
+| Own project | The app is built in a new project (`create_project`), so Preview/Tests/other playbooks work on it; result card shows red builds as red; GUIDE.md run section comes from the template manifest. |
+| Chat | New app inputs and size (from the card's tier) wired in chat; a new app never attaches to the chat's current project; budgets for the playbook. |
+| Template library | Being built in a parallel branch (the 5 missing groups: Next.js sites, 3 full-stack, cli-go, api-fastapi/node, 4 libraries). |
+| Tests | `agent/tests/playbooks/test_new_app.py` (stack rules, a whole small run, red build, gates per size). Targeted tests pass; the full `make check` is the end pass. |
+
+Open: live runs (tic-tac-toe, calculator in 5 languages, 10 small + 5 medium apps, inventory, clinic); the M3 demo; Preview of
+a browser app / terminal app is started from the project's Preview tab, not by the playbook.
 
 ## Phases 12 and 14: Frontend and DevOps (ADR 0027, 0028; built, not yet run live)
 

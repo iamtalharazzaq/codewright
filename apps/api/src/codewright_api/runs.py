@@ -37,7 +37,7 @@ from agent.playbooks.plan import plan_from
 from agent.playbooks.registry import Playbook, get_playbook, playbooks
 from agent.playbooks.services import ProjectTools
 from agent.playbooks.state import RunState, empty_budget
-from agent.tools.workspace import put_back
+from agent.tools.workspace import Workspace, put_back
 from codewright_api.db import Approval, Project, Run, RunEvent
 from codewright_api.llm_settings import EffectiveLLM, effective_llm
 from codewright_api.settings import Settings
@@ -123,6 +123,23 @@ class _Services:
         return ApiProjectTools(
             project_id, self._manager.sessions, self._manager.graphs, self._manager.sandbox, self._manager.verification
         )
+
+    async def create_project(self, run_id: str, name: str) -> str:
+        manager = self._manager
+        async with manager.sessions() as session:
+            project = Project(name=name.strip()[:200] or "New app", status="ready", source={"kind": "empty", "ref": ""})
+            session.add(project)
+            await session.flush()
+            run = await session.get(Run, uuid.UUID(run_id))
+            if run is not None:
+                run.project_id = project.id
+            await session.commit()
+            project_id = project.id
+        await asyncio.to_thread(Workspace(manager.settings.workspaces_dir, str(project_id)).create)
+        await manager.record_event(
+            uuid.UUID(run_id), "note", step="scaffold", data={"text": f"Project created: {name}", "project_id": str(project_id)}
+        )
+        return str(project_id)
 
 
 class _StreamTranslator:
