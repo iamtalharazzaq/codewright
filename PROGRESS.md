@@ -122,8 +122,17 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target and 18 (2 language pairs) done; 7, 12/14 and
+**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target and 18 (2 language pairs) done; 12/14 and
 4/6/13/15/16 not started. Resume when you ask.
+
+**Phase 7 blocked, not a code gap:** real record/replay testing needs a running web app's HTTP port reachable
+from the test process. Confirmed empirically (`sandbox/runner/src/codewright_sandbox/gateway.py`'s own docstring
+says so, then verified with a throwaway preview + curl) that a sandbox preview's forwarded port is published on
+the real Docker **host's** `127.0.0.1` only — unreachable from inside the `api-checks` checks container by any
+hostname, reachable fine via `curl` from the actual host. This is the sandbox's own network isolation, not a bug:
+fixing it for testability means either widening the gateway's port binding (touches sandbox security/isolation
+code) or running that one test outside the checks container (breaks "verify via Docker, not host"). Left
+deferred at your call rather than touching either.
 
 - **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
   - `write_code` (`agent/tests/playbooks/test_write_code_sandbox.py`). Found and fixed a real bug in the
