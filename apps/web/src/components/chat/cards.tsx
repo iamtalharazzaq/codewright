@@ -65,10 +65,7 @@ export function QuestionsCard({
         {questions.map((q, i) => {
           const recommended = defaultOption(q);
           return (
-            <li
-              key={q.question}
-              className={cn("flex flex-col gap-2", (q.options.length === 0 || q.multi) && "sm:col-span-2")}
-            >
+            <li key={q.question} className="flex min-w-0 flex-col gap-2">
               <p className="text-sm">
                 <span className="text-muted-foreground">{i + 1}.</span> {q.question}
               </p>

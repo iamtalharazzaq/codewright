@@ -58,9 +58,9 @@ describe("QuestionsCard", () => {
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.queryByText("runs everywhere")).not.toBeInTheDocument(); // no description under a field
     expect(screen.getByRole("textbox", { name: "Who is it for?" })).toBeInTheDocument();
-    // two dropdowns to a row; the free-text question takes the whole row
+    // two fields to a row, whatever their kind; the odd one out sits alone on the last row
     expect(screen.getByRole("list")).toHaveClass("sm:grid-cols-2");
-    expect(screen.getByText("Who is it for?").closest("li")).toHaveClass("sm:col-span-2");
+    expect(screen.getByText("Who is it for?").closest("li")).not.toHaveClass("sm:col-span-2");
   });
 
   it("shows a tick-box question as a dropdown of checkboxes, the default ticked, and sends the ticked ones", async () => {

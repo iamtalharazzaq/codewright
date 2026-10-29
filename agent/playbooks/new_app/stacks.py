@@ -270,7 +270,7 @@ def extras(inputs: dict[str, Any]) -> Extras:
 
 
 def deliver_text(inputs: dict[str, Any]) -> str:
-    """What the user gets, from what was ticked: the confirm card must not promise tests, CI or a README they declined."""
+    """What the user gets, from what was ticked: the card must not promise what they declined."""
     wanted = extras(inputs)
     parts = ["a working app in Preview"]
     if wanted.backend_tests or wanted.frontend_tests:

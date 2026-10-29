@@ -12,13 +12,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Markdown } from "@/components/chat/markdown";
+import { PlanTab, intakeRows } from "@/components/chat/plan-tab";
 import { RunReport } from "@/components/chat/run-report";
 import { GraphView } from "@/components/graph/graph-view";
 import { PreviewTab } from "@/components/sandbox/preview-tab";
 import { TestsTab } from "@/components/tests/tests-tab";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { DiagramData } from "@/lib/api";
+import type { ChatMessage, DiagramData } from "@/lib/api";
 
 export const PANEL_TABS: Array<{ id: string; label: string; icon: LucideIcon; empty: string }> = [
   { id: "plan", label: "Plan", icon: ClipboardList, empty: "The plan and its live checklist appear here." },
@@ -53,6 +54,7 @@ export function SidePanel({
   diagram = null,
   runId = null,
   runTick = 0,
+  messages = [],
 }: {
   onClose: () => void;
   projectId?: string | null;
@@ -62,9 +64,11 @@ export function SidePanel({
   diagram?: DiagramData | null;
   runId?: string | null;
   runTick?: number;
+  messages?: ChatMessage[];
 }) {
   const active = PANEL_TABS.find((t) => t.id === tab) ?? PANEL_TABS[0];
   const filled = new Set<string>([
+    ...(runId || intakeRows(messages, false).length > 0 ? ["plan"] : []),
     ...(projectId ? ["graph", "tests", "preview"] : []),
     ...(diagram ? ["diagram"] : []),
     ...(runId ? ["report"] : []),
@@ -95,6 +99,11 @@ export function SidePanel({
           </TabsTrigger>
         ))}
       </TabsList>
+      {(runId || intakeRows(messages, false).length > 0) && (
+        <TabsContent value="plan" className="min-h-0 flex-1 overflow-y-auto">
+          <PlanTab messages={messages} runId={runId} runTick={runTick} />
+        </TabsContent>
+      )}
       {projectId && (
         <TabsContent value="graph" className="min-h-0 flex-1">
           <GraphView projectId={projectId} compact highlight={highlight} />

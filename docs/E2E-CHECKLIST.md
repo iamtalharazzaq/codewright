@@ -144,6 +144,9 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   CI workflow, README file, Graphify, Test cases (backend), Test cases (frontend); only backend tests ticked. No
   explanatory text under any field, and the "You get" line of the confirm card lists only what was ticked. Untick everything extra and run: the new project has no `.github/`, no
   `GRAPHIFY.md`/`mcp.example.json`, no `README.md` and no browser-code tests. Tick them: they come back.
+- Watch the side panel's **Plan** tab while the questions are open: Product Manager is in progress; after the card
+  shows it is done, then your confirmation, then the run's steps. A red build: the chat card says the log is in the
+  **Report** tab ("Failures"), where the test and lint output is.
 - **Real-sandbox retrofit:** `scaffold` + `verify` on the `cli-python` template are real-verified
   (`agent/tests/playbooks/test_new_app_sandbox.py`, `make check-sandbox`). The model-driven build is not.
 

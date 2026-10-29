@@ -259,6 +259,7 @@ export function ChatView({
           diagram={diagram}
           runId={runId}
           runTick={runTick}
+          messages={messages}
         />
       </aside>
     </div>

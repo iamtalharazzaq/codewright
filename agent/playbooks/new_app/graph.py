@@ -505,12 +505,29 @@ def verify_node(services: RunServices) -> Any:
         )
         preview = {"project_id": state["project_id"], **template.run}
         artifacts = [steps.write_artifact(state, "preview.json", _dump(preview), "preview", "Preview", "verify")]
+        if not ok or lint_bad:  # the log goes to the Report tab, not into the chat card
+            log = failure_report(why, lint_bad)
+            artifacts.append(steps.write_artifact(state, "test-failures.md", log, "report", "Failures", "verify"))
         return await steps.finish(
             services, state, plan, "verify", "qa_engineer", summary, ok=ok and not lint_bad,
             passed=ok, report=report, failure="" if ok else why, lint=lint_bad, artifacts=artifacts,
         )  # fmt: skip
 
     return node
+
+
+def failure_report(why: str, lint_bad: list[dict[str, Any]]) -> str:
+    """The failing tests and lint output as a report (shown in the Report tab beside the chat)."""
+    parts = ["# What failed"]
+    if why:
+        parts += ["## Tests", "```text\n" + why.strip()[:6000] + "\n```"]
+    if lint_bad:
+        parts.append("## Lint and type checks")
+        for r in lint_bad:
+            name = r.get("step") or r.get("component") or "lint"
+            out = str(r.get("output") or r.get("error") or "").strip()[:3000]
+            parts.append(f"**{name}**\n```text\n{out}\n```")
+    return "\n\n".join(parts) + "\n"
 
 
 def tests_green(results: list[dict[str, Any]], need_tests: bool = True) -> tuple[bool, str]:
@@ -630,7 +647,7 @@ def _brief(state: NewAppState) -> str:
     lines.append(
         f"✅ **All {report.get('passed', 0)} tests pass** in the sandbox."
         if state.get("passed")
-        else f"⚠️ **Tests still fail:**\n```\n{state.get('failure', '')[:600]}\n```"
+        else "⚠️ **Tests still fail.** The log is in the Report tab."
     )
     if not state.get("written"):
         lines.append("⚠️ **Nothing of this app was written:** the project is still the template's sample app.")
@@ -641,7 +658,7 @@ def _brief(state: NewAppState) -> str:
     if review.get("secrets"):
         lines.append("🔑 Secrets found: " + "; ".join(review["secrets"][:4]))
     if state.get("lint"):
-        lines.append(f"⚠️ {len(state['lint'])} lint step(s) fail.")
+        lines.append(f"⚠️ {len(state['lint'])} lint step(s) fail (see the Report tab).")
     lines.append("Open **Preview** to try it. The guide is `GUIDE.md` in the project.")
     return "\n\n".join(lines)
 

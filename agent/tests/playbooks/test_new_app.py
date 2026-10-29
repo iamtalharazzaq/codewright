@@ -315,3 +315,19 @@ def test_a_browser_request_in_a_language_without_a_browser_template_says_it_is_a
     python = stacks.choose({"request": "Make a calculator", "language": "Python"})
     assert python.template == "cli-python" and "no browser template for Python" in python.note
     assert stacks.choose({"request": "Make a calculator", "language": "TypeScript"}).note == ""
+
+
+def test_the_failure_log_goes_to_a_report_not_the_chat_card() -> None:
+    log = na.failure_report(
+        "src/a.test.js: expected 1 to be null", [{"step": "tsc", "output": "calc.ts(46,13): error TS2322"}]
+    )
+    assert "expected 1 to be null" in log and "TS2322" in log and log.startswith("# What failed")
+    state = {
+        "requirements": {"title": "Calc", "summary": "s"},
+        "choice": {"label": "React", "template": "web-react-js", "note": ""},
+        "passed": False,
+        "failure": "very long failing test output " * 40,
+        "written": ["a"],
+    }
+    brief = na._brief(state)  # type: ignore[arg-type]
+    assert "Report tab" in brief and "very long failing" not in brief
