@@ -331,3 +331,22 @@ def test_docker_and_instrumentation(name: str) -> None:
     p = pack(name)
     assert p.docker_base().dockerfile.startswith("FROM ")
     assert p.instrumentation().env["OTEL_EXPORTER_OTLP_ENDPOINT"].startswith("http://")
+
+
+def test_python_root_tests_ignore_a_nested_service_scaffold(tmp_path: Path) -> None:
+    """A scaffolded microservice under services/<name> (architecture_change, CODEWRIGHT.md 5.16) has its own
+    pyproject.toml; `detect()` folds it into the outer root component (a parent root always wins), but its tests
+    import from a package never installed into the root's own venv. The root's own test run must --ignore it, or
+    a good extraction gets undone on a false "the tests don't pass" (this is what happened live in Phase 16)."""
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'root'\n", encoding="utf-8")
+    service = tmp_path / "services" / "billing"
+    service.mkdir(parents=True)
+    (service / "pyproject.toml").write_text("[project]\nname = 'billing'\n", encoding="utf-8")
+    root = Component(pack="python", path=".", kind="api")
+    steps = pack("python").test_steps(tmp_path, root)
+    assert "--ignore=services/billing" in steps[0].cmd[-1]
+
+    # the service's own component (tested on its own) gets no self-ignore
+    nested = Component(pack="python", path="services/billing", kind="api")
+    nested_steps = pack("python").test_steps(tmp_path, nested)
+    assert "--ignore" not in nested_steps[0].cmd[-1]

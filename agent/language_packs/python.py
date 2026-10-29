@@ -100,6 +100,21 @@ def _module_name(path: Path, root: Path) -> str:
     return ".".join(parts)
 
 
+def _nested_manifest_dirs(repo: Path, component: Component) -> list[str]:
+    """Subdirectories of `component` with their own Python manifest -- a scaffolded microservice under
+    `services/<name>` (CODEWRIGHT.md 5.16), say. `detect()` folds these into this component since the outer root
+    always wins, but each has its own dependencies, never installed into this component's venv, so this
+    component's own pytest run must not also collect their tests."""
+    base = repo / component.path
+    found = {
+        rel(path.parent, base)
+        for marker in MARKERS
+        for path in manifests(base, marker, max_depth=3)
+        if path.parent != base
+    }
+    return sorted(found)
+
+
 class PythonPack:
     name = "python"
     language = "Python"
@@ -225,7 +240,8 @@ class PythonPack:
 
     def test_steps(self, repo: Path, component: Component) -> list[Step]:
         junit = f"{REPORTS}/junit.xml"
-        pytest = f"-m pytest -q -p no:cacheprovider --junitxml={junit}"
+        ignore = "".join(f" --ignore={d}" for d in _nested_manifest_dirs(repo, component))
+        pytest = f"-m pytest -q -p no:cacheprovider{ignore} --junitxml={junit}"
         # coverage.py is in the sandbox image (seen through the venv's system site-packages); without it, plain pytest
         omit = ".venv/*,*/tests/*,tests/*,*/test_*.py,test_*.py,*_test.py,*/conftest.py,conftest.py"
         script = (
