@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Markdown } from "@/components/chat/markdown";
+import { DeliverPanel } from "@/components/projects/deliver-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -281,6 +282,14 @@ export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (t
         <details className="text-sm">
           <summary className="cursor-pointer text-muted-foreground">Guide</summary>
           <Markdown>{guide}</Markdown>
+        </details>
+      )}
+      {message.data.playbook === "new_app" && message.run_id && (
+        <details open className="text-sm">
+          <summary className="cursor-pointer text-muted-foreground">Where should I keep it?</summary>
+          <div className="pt-2">
+            <DeliverPanel runId={message.run_id} />
+          </div>
         </details>
       )}
       {suggestions.length > 0 && (

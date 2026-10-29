@@ -167,7 +167,9 @@ def choose(inputs: dict[str, Any], root: Any = templates.ROOT) -> Choice:
     language = named_language(inputs)
     note = ""
     if blocked := unsupported_language(inputs):
-        note = f"{blocked.capitalize()} isn't one of the five supported languages, so the closest supported stack is used."
+        note = (
+            f"{blocked.capitalize()} isn't one of the five supported languages, so the closest supported stack is used."
+        )
         language = ""
     kind = KINDS[kind_name]
     option = _pick(kind, language)

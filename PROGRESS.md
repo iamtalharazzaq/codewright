@@ -34,6 +34,8 @@ Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the 
 | Template library | Being built in a parallel branch (the 5 missing groups: Next.js sites, 3 full-stack, cli-go, api-fastapi/node, 4 libraries). |
 | Tests | `agent/tests/playbooks/test_new_app.py` (stack rules, a whole small run, red build, gates per size). Targeted tests pass; the full `make check` is the end pass. |
 
+| Where to keep it | The Done card of a new app asks: ZIP download, local folder, GitHub PR, **Google Drive as a folder** or **Drive as one ZIP** (the user picks; the folder is the usual choice). An opt-in box deletes the code from this machine after a successful Drive/GitHub upload (kept if any upload fails; the project stays listed as delivered with the link). |
+
 Open: live runs (tic-tac-toe, calculator in 5 languages, 10 small + 5 medium apps, inventory, clinic); the M3 demo; Preview of
 a browser app / terminal app is started from the project's Preview tab, not by the playbook.
 

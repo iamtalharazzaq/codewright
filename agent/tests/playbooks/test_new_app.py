@@ -71,7 +71,9 @@ def _library(tmp_path: Path) -> Path:
         language = next((v for k, v in languages.items() if kind.split("-")[-1].startswith(k) or f"-{k}-" in kind), "")
         folder = tmp_path / "templates" / "apps" / kind
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "manifest.yaml").write_text(f"name: {kind}\nlanguage: {language or 'TypeScript'}\npack: x\n", encoding="utf-8")
+        (folder / "manifest.yaml").write_text(
+            f"name: {kind}\nlanguage: {language or 'TypeScript'}\npack: x\n", encoding="utf-8"
+        )
     (tmp_path / "templates" / "services").mkdir(exist_ok=True)
     return tmp_path / "templates"
 
@@ -116,7 +118,10 @@ async def test_a_small_app_is_planned_built_tested_and_committed(tmp_path: Path)
     client, _ = llm_returning(REQS, PLAN, fenced(GAME), fenced(GAME_TEST), "Play against a friend on one screen.")
     services = FakeServices(clients={"remote_gpu": client}, project=project)
     state, prompts = await drive(
-        compiled("new_app", services), cfg(), _state(tmp_path, **run_inputs()), approve_all  # type: ignore[arg-type]
+        compiled("new_app", services),
+        cfg(),
+        _state(tmp_path, **run_inputs()),
+        approve_all,  # type: ignore[arg-type]
     )
     assert gates_of(prompts) == ["approve_result"] and state["tier"] == 1
     assert services.created == ["Tic Tac Toe"] and state["project_id"]
@@ -133,7 +138,10 @@ async def test_a_failing_app_is_shown_red_not_hidden(tmp_path: Path) -> None:
     client, _ = llm_returning(REQS, PLAN, fenced(GAME), fenced(GAME_TEST), "text")
     services = FakeServices(clients={"remote_gpu": client}, project=project)
     state, _ = await drive(
-        compiled("new_app", services), cfg(), _state(tmp_path, **run_inputs()), approve_all  # type: ignore[arg-type]
+        compiled("new_app", services),
+        cfg(),
+        _state(tmp_path, **run_inputs()),
+        approve_all,  # type: ignore[arg-type]
     )
     assert state["passed"] is False and "Tests still fail" in state["result_brief"]
 

@@ -6,6 +6,9 @@ gets a new branch.
 
 from __future__ import annotations
 
+import asyncio
+import json
+import mimetypes
 import shutil
 import zipfile
 from datetime import UTC, datetime
@@ -92,4 +95,71 @@ async def to_drive(archive: Path, access_token: str | None, name: str) -> str:
     if res.status_code not in (200, 201):
         raise DeliveryError(f"Google Drive upload failed ({res.status_code}): {res.text[:200]}")
     link: str = res.json().get("webViewLink") or f"https://drive.google.com/file/d/{res.json()['id']}/view"
+    return link
+
+
+DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files"
+DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id"
+MAX_DRIVE_FILES = 3000
+MAX_DRIVE_FILE_BYTES = 50 * 1024 * 1024
+
+
+async def to_drive_folder(src: Path, access_token: str | None, name: str) -> str:
+    """Upload a project as a folder tree (the same files as the ZIP, same exclusions) into a new Drive folder
+    `name` (scope drive.file). Returns the folder's link."""
+    if not access_token:
+        raise DeliveryError("Google Drive isn't connected yet: connect it in Settings.")
+    files = [
+        p
+        for p in sorted(src.rglob("*"))
+        if p.is_file() and not p.is_symlink() and not any(part in SKIP_DIRS for part in p.relative_to(src).parts)
+    ]
+    if len(files) > MAX_DRIVE_FILES:
+        raise DeliveryError(f"{len(files)} files is too many to upload one by one; deliver it as a ZIP instead.")
+    if big := next((f for f in files if f.stat().st_size > MAX_DRIVE_FILE_BYTES), None):
+        raise DeliveryError(f"{big.relative_to(src).as_posix()} is over 50 MB; deliver it as a ZIP instead.")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300, connect=15), headers=headers) as http:
+
+        async def make_folder(folder: str, parent: str | None) -> tuple[str, str]:
+            body: dict[str, object] = {"name": folder, "mimeType": "application/vnd.google-apps.folder"}
+            if parent:
+                body["parents"] = [parent]
+            res = await http.post(f"{DRIVE_FILES_URL}?fields=id,webViewLink", json=body)
+            if res.status_code not in (200, 201):
+                raise DeliveryError(f"Google Drive couldn't create the folder {folder} ({res.status_code}).")
+            data = res.json()
+            return data["id"], data.get("webViewLink") or f"https://drive.google.com/drive/folders/{data['id']}"
+
+        root_id, link = await make_folder(name, None)
+        folders: dict[str, str] = {"": root_id}
+        for directory in sorted({p.relative_to(src).parent.as_posix() for p in files} - {"."}):
+            parent = ""
+            for part in directory.split("/"):  # parents sort first, so each one exists when its child needs it
+                path = f"{parent}/{part}".lstrip("/")
+                if path not in folders:
+                    folders[path], _ = await make_folder(part, folders[parent])
+                parent = path
+        gate = asyncio.Semaphore(4)
+
+        async def upload(path: Path) -> None:
+            rel = path.relative_to(src)
+            parent = folders["" if rel.parent.as_posix() == "." else rel.parent.as_posix()]
+            kind = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            async with gate:
+                res = await http.post(
+                    DRIVE_UPLOAD_URL,
+                    files={
+                        "metadata": (
+                            "metadata",
+                            json.dumps({"name": path.name, "parents": [parent]}),
+                            "application/json; charset=UTF-8",
+                        ),
+                        "file": (path.name, path.read_bytes(), kind),
+                    },
+                )
+            if res.status_code not in (200, 201):
+                raise DeliveryError(f"Google Drive upload of {rel.as_posix()} failed ({res.status_code}).")
+
+        await asyncio.gather(*(upload(p) for p in files))
     return link

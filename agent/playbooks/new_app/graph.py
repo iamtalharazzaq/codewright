@@ -72,7 +72,9 @@ class NewAppInputs(BaseModel):
 class Requirements(BaseModel):
     title: str = Field(description="The app's name, two to four words.")
     summary: str = Field(description="What the app is for, one or two sentences.")
-    features: list[str] = Field(default_factory=list, max_length=6, description="The first version (MVP), one line each.")
+    features: list[str] = Field(
+        default_factory=list, max_length=6, description="The first version (MVP), one line each."
+    )
     stories: list[str] = Field(default_factory=list, max_length=6, description="'As a ..., I want ... so that ...'.")
     criteria: list[str] = Field(default_factory=list, max_length=8, description="Observable acceptance criteria.")
     screens: list[str] = Field(default_factory=list, max_length=6, description="'Name: what it shows'.")
@@ -186,9 +188,13 @@ def requirements_node(services: RunServices) -> Any:
                     task="new_app_requirements",
                     max_tokens=900,
                 )
-                return TaskResult({"requirements": result.value.model_dump()}, len(result.attempts), result.usage.total_tokens)
+                return TaskResult(
+                    {"requirements": result.value.model_dump()}, len(result.attempts), result.usage.total_tokens
+                )
 
-            reqs = Requirements.model_validate((await llm_step(state, services, step="requirements", task=task))["requirements"])
+            reqs = Requirements.model_validate(
+                (await llm_step(state, services, step="requirements", task=task))["requirements"]
+            )
         summary = f"{reqs.title}: {len(reqs.features)} features, {len(reqs.criteria)} acceptance criteria"
         return await steps.finish(
             services, state, plan, "requirements", "product_manager", summary,
@@ -219,7 +225,12 @@ def template_files(template: templates.Template, limit: int = 60) -> list[str]:
 
 def safe_path(path: str) -> bool:
     p = path.strip()
-    return bool(p) and not p.startswith(("/", "..")) and ".." not in p.split("/") and not any(b in p + "/" for b in BLOCKED)
+    return (
+        bool(p)
+        and not p.startswith(("/", ".."))
+        and ".." not in p.split("/")
+        and not any(b in p + "/" for b in BLOCKED)
+    )
 
 
 def validate_plan(plan: AppPlan, existing: list[str]) -> AppPlan:
@@ -264,7 +275,9 @@ def design_node(services: RunServices) -> Any:
                     task="new_app_design",
                     max_tokens=1100,
                 )
-                return TaskResult({"app_plan": result.value.model_dump()}, len(result.attempts), result.usage.total_tokens)
+                return TaskResult(
+                    {"app_plan": result.value.model_dump()}, len(result.attempts), result.usage.total_tokens
+                )
 
             app_plan = AppPlan.model_validate((await llm_step(state, services, step="design", task=task))["app_plan"])
         app_plan = validate_plan(app_plan, existing)
@@ -303,7 +316,9 @@ def screens_node(services: RunServices) -> Any:
                     task="new_app_screens",
                     max_tokens=700,
                 )
-                return TaskResult({"screens": result.value.model_dump()}, len(result.attempts), result.usage.total_tokens)
+                return TaskResult(
+                    {"screens": result.value.model_dump()}, len(result.attempts), result.usage.total_tokens
+                )
 
             found = Screens.model_validate((await llm_step(state, services, step="screens", task=task))["screens"])
         return await steps.finish(
@@ -349,7 +364,8 @@ def build_context(state: NewAppState, template: templates.Template) -> str:
     parts = [
         f"App: {reqs['title']}: {reqs['summary']}",
         "Acceptance criteria:\n" + "\n".join(f"- {c}" for c in reqs["criteria"]),
-        "All planned files:\n" + "\n".join(f"- {'new ' if s['new'] else ''}{s['file']}: {s['change'][:90]}" for s in plan["steps"]),
+        "All planned files:\n"
+        + "\n".join(f"- {'new ' if s['new'] else ''}{s['file']}: {s['change'][:90]}" for s in plan["steps"]),
         "Template extension points:\n" + "\n".join(f"- {e}" for e in template.extension_points),
     ]
     if state.get("look"):
@@ -437,9 +453,9 @@ def verify_node(services: RunServices) -> Any:
         report = _merge_reports(results)
         lint_bad = [r for r in lint if not r.get("ok", True)]
         template = templates.get(_choice(state).template)
-        summary = (
-            f"{report.get('passed', 0)} test(s) passed" if ok else f"tests failing: {why[:120]}"
-        ) + (f"; {len(lint_bad)} lint step(s) failed" if lint_bad else "")
+        summary = (f"{report.get('passed', 0)} test(s) passed" if ok else f"tests failing: {why[:120]}") + (
+            f"; {len(lint_bad)} lint step(s) failed" if lint_bad else ""
+        )
         preview = {"project_id": state["project_id"], **template.run}
         artifacts = [steps.write_artifact(state, "preview.json", _dump(preview), "preview", "Preview", "verify")]
         return await steps.finish(
@@ -522,7 +538,10 @@ def docs_node(services: RunServices) -> Any:
                 result = await client.chat(
                     [
                         {"role": "system", "content": GUIDE_SYSTEM},
-                        {"role": "user", "content": f"{reqs['title']}: {reqs['summary']}\nFeatures: {reqs['features']}\nFiles:\n{files}"},
+                        {
+                            "role": "user",
+                            "content": f"{reqs['title']}: {reqs['summary']}\nFeatures: {reqs['features']}\nFiles:\n{files}",
+                        },
                     ],
                     name="new_app_guide",
                     max_tokens=600,
@@ -615,9 +634,19 @@ def build_graph(services: RunServices) -> StateGraph[NewAppState, None, NewAppSt
     g.add_conditional_edges("design", _after_design, [DESIGN_GATE.id, PLAN_GATE.id, "scaffold"])
     g.add_conditional_edges(DESIGN_GATE.id, after_gate(DESIGN_GATE.id, "screens", "design"), ["screens", "design"])
     g.add_edge("screens", SCREENS_GATE.id)
-    g.add_conditional_edges(SCREENS_GATE.id, after_gate(SCREENS_GATE.id, "scaffold", "screens"), ["scaffold", "screens"])
-    g.add_conditional_edges(PLAN_GATE.id, after_gate(PLAN_GATE.id, "scaffold", "requirements"), ["scaffold", "requirements"])
-    for a, b in (("scaffold", "build"), ("build", "verify"), ("verify", "review"), ("review", "docs"), ("docs", RESULT_GATE.id)):
+    g.add_conditional_edges(
+        SCREENS_GATE.id, after_gate(SCREENS_GATE.id, "scaffold", "screens"), ["scaffold", "screens"]
+    )
+    g.add_conditional_edges(
+        PLAN_GATE.id, after_gate(PLAN_GATE.id, "scaffold", "requirements"), ["scaffold", "requirements"]
+    )
+    for a, b in (
+        ("scaffold", "build"),
+        ("build", "verify"),
+        ("verify", "review"),
+        ("review", "docs"),
+        ("docs", RESULT_GATE.id),
+    ):
         g.add_edge(a, b)
     g.add_conditional_edges(RESULT_GATE.id, after_gate(RESULT_GATE.id, "publish", "build"), ["publish", "build"])
     g.add_edge("publish", END)

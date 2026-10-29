@@ -5,7 +5,7 @@ export type RunStatus = "created" | "running" | "waiting" | "completed" | "faile
 export type Decision = "approve" | "edit" | "reject";
 
 export type SourceKind = "zip" | "github" | "local" | "drive" | "empty";
-export type DeliverTarget = "local" | "zip" | "github" | "drive";
+export type DeliverTarget = "local" | "zip" | "github" | "drive" | "drive_zip";
 
 export interface ProjectSummary {
   files?: number;
@@ -50,7 +50,7 @@ export interface Connectors {
 }
 
 export interface DeliveryResult {
-  target: DeliverTarget;
+  target: DeliverTarget | "cleanup";
   ok: boolean;
   location?: string;
   detail?: string;
@@ -312,6 +312,7 @@ export const deliver = (body: {
   project_id?: string;
   run_id?: string;
   github_repo?: string;
+  remove_local?: boolean;
 }) => request<DeliveryResult[]>("POST", "/deliver", body);
 export const disconnectDrive = () => request<void>("DELETE", "/connectors/gdrive");
 export function uploadFile(file: File) {
@@ -464,6 +465,7 @@ export interface ChatMessage {
     proof?: string[];
     guide?: string | null;
     suggestions?: string[];
+    playbook?: string;
     [key: string]: unknown;
   };
   status: "complete" | "streaming" | "stopped" | "error";

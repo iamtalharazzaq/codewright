@@ -69,10 +69,11 @@ class MemoryIn(BaseModel):
 
 
 class DeliverIn(BaseModel):
-    targets: list[Literal["local", "zip", "github", "drive"]] = Field(min_length=1)
+    targets: list[Literal["local", "zip", "github", "drive", "drive_zip"]] = Field(min_length=1)
     project_id: uuid.UUID | None = None
     run_id: uuid.UUID | None = None
     github_repo: str | None = None
+    remove_local: bool = False  # delete the project's files here after a successful Drive/GitHub upload
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -202,7 +203,11 @@ async def deliver(body: DeliverIn, request: Request, session: SessionDep) -> lis
         raise HTTPException(404, "Nothing to deliver: no such project or run.")
     try:
         return await _service(request).deliver(
-            [t for t in body.targets if t in TARGETS], project=project, run=run, github_repo=body.github_repo
+            [t for t in body.targets if t in TARGETS],
+            project=project,
+            run=run,
+            github_repo=body.github_repo,
+            remove_local=body.remove_local,
         )
     except DeliveryError as exc:
         raise HTTPException(409, str(exc)) from None

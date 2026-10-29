@@ -12,8 +12,10 @@ const TARGETS: { target: DeliverTarget; label: string }[] = [
   { target: "zip", label: "Download as ZIP" },
   { target: "local", label: "Copy to my deliveries folder" },
   { target: "github", label: "GitHub pull request" },
-  { target: "drive", label: "Upload to Google Drive" },
+  { target: "drive", label: "Google Drive: upload as a folder" },
+  { target: "drive_zip", label: "Google Drive: upload as one ZIP file" },
 ];
+const REMOTE: DeliverTarget[] = ["drive", "drive_zip", "github"];
 
 /** Deliver (CODEWRIGHT.md C7): the user picks where; one result line per target. */
 export function DeliverPanel({
@@ -27,6 +29,7 @@ export function DeliverPanel({
 }) {
   const id = useId();
   const [picked, setPicked] = useState<DeliverTarget[]>(["zip"]);
+  const [removeLocal, setRemoveLocal] = useState(false);
   const [repo, setRepo] = useState(githubRepo ?? "");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<DeliveryResult[] | null>(null);
@@ -39,10 +42,12 @@ export function DeliverPanel({
       .catch(() => setConnectors(null));
   }, []);
 
+  const keepsElsewhere = !!(projectId || runId) && picked.some((t) => REMOTE.includes(t));
+
   function unavailable(target: DeliverTarget): string | null {
     if (!connectors) return null;
     if (target === "github" && !connectors.github_token) return "needs GITHUB_TOKEN in .env";
-    if (target === "drive" && !connectors.drive.connected) return "connect Drive in Settings";
+    if ((target === "drive" || target === "drive_zip") && !connectors.drive.connected) return "connect Drive in Settings";
     if (target === "local" && !connectors.output_folder) return "set ALLOWED_OUTPUT_DIRS in .env";
     return null;
   }
@@ -58,6 +63,7 @@ export function DeliverPanel({
           project_id: projectId,
           run_id: runId,
           github_repo: picked.includes("github") && repo.trim() ? repo.trim() : undefined,
+          remove_local: removeLocal && keepsElsewhere ? true : undefined,
         }),
       );
     } catch (e) {
@@ -98,6 +104,18 @@ export function DeliverPanel({
           />
         </div>
       )}
+      {keepsElsewhere && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={`${id}-remove`}
+            checked={removeLocal}
+            onCheckedChange={(c) => setRemoveLocal(c === true)}
+          />
+          <Label htmlFor={`${id}-remove`} className="font-normal">
+            Delete the code from this machine after it is uploaded (kept if an upload fails)
+          </Label>
+        </div>
+      )}
       <div>
         <Button onClick={() => void run()} disabled={busy || picked.length === 0}>
           {busy ? "Delivering…" : "Deliver"}
@@ -112,7 +130,9 @@ export function DeliverPanel({
         <ul aria-label="Delivery results" className="flex flex-col gap-1 text-sm">
           {results.map((r) => (
             <li key={r.target} className={r.ok ? "" : "text-destructive"}>
-              <span className="font-medium">{TARGETS.find((t) => t.target === r.target)?.label}:</span>{" "}
+              <span className="font-medium">
+                {r.target === "cleanup" ? "Local copy" : TARGETS.find((t) => t.target === r.target)?.label}:
+              </span>{" "}
               {r.ok ? (
                 r.location?.startsWith("http") || r.location?.startsWith("/api/") ? (
                   <a href={r.location} className="underline underline-offset-2" target="_blank" rel="noreferrer">

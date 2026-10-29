@@ -24,11 +24,12 @@ from codewright_api.db import Project, Run
 from codewright_api.gdrive import drive_access_token
 from codewright_api.settings import Settings
 from connectors.inputs import InputError, clone_github, copy_local, download_drive_zip, extract_zip
-from connectors.outputs import DeliveryError, make_zip, to_drive, to_github, to_local
+from connectors.outputs import DeliveryError, make_zip, to_drive, to_drive_folder, to_github, to_local
 
 log = logging.getLogger(__name__)
 
-TARGETS = ("local", "zip", "github", "drive")
+TARGETS = ("local", "zip", "github", "drive", "drive_zip")  # drive = a folder; drive_zip = one ZIP file
+REMOTE = ("drive", "drive_zip", "github")  # targets that keep the code somewhere else
 
 
 def workspace(settings: Settings, project_id: uuid.UUID | str) -> Workspace:
@@ -133,8 +134,11 @@ class ProjectService:
         project: Project | None = None,
         run: Run | None = None,
         github_repo: str | None = None,
+        remove_local: bool = False,
     ) -> list[dict[str, Any]]:
-        """Deliver a project's `work/` (its current branch) or a run's workspace. One result per target."""
+        """Deliver a project's `work/` (its current branch) or a run's workspace. One result per target. With
+        `remove_local`, the project's files are deleted from this machine once every remote target (Drive, GitHub)
+        has succeeded; the project stays listed, marked as delivered, with the link to where the code went."""
         if project is not None:
             ws = workspace(self.settings, project.id)
             src, name = ws.work, project.name
@@ -159,7 +163,25 @@ class ProjectService:
                 )
             except (DeliveryError, InputError, RuntimeError) as exc:
                 results.append({"target": target, "ok": False, "error": str(exc)})
+        if remove_local and project is not None:
+            results.append(await self._remove_local(project, results))
         return results
+
+    async def _remove_local(self, project: Project, results: list[dict[str, Any]]) -> dict[str, Any]:
+        """Delete the project's files after a delivery that left them elsewhere. Never on a partial failure."""
+        remote = [r for r in results if r["target"] in REMOTE]
+        if not remote or not all(r["ok"] for r in results if r["target"] in REMOTE):
+            why = "nothing was uploaded to Drive or GitHub" if not remote else "an upload failed"
+            return {"target": "cleanup", "ok": False, "error": f"The local copy was kept: {why}."}
+        where = next(r["location"] for r in remote)
+        await asyncio.to_thread(workspace(self.settings, project.id).delete)
+        async with self.sessions() as session:
+            row = await session.get(Project, project.id)
+            if row is not None:
+                row.status = "delivered"
+                row.source = {"kind": "delivered", "ref": where}
+                await session.commit()
+        return {"target": "cleanup", "ok": True, "location": where, "detail": "The local copy was deleted."}
 
     async def _deliver_one(
         self,
@@ -181,11 +203,15 @@ class ProjectService:
             await asyncio.to_thread(make_zip, src, archive)
             return {"location": f"/api/deliveries/{archive.name}", "detail": "ZIP ready to download."}
         if target == "drive":
+            token = await drive_access_token(self.sessions, self.settings)
+            link = await to_drive_folder(src, token, f"{safe}-{stamp}")
+            return {"location": link, "detail": "Uploaded to Google Drive as a folder."}
+        if target == "drive_zip":
             archive = self.settings.workspaces_dir / "_deliveries" / f"{safe}-{stamp}.zip"
             await asyncio.to_thread(make_zip, src, archive)
             token = await drive_access_token(self.sessions, self.settings)
             link = await to_drive(archive, token, archive.name)
-            return {"location": link, "detail": "Uploaded to Google Drive."}
+            return {"location": link, "detail": "Uploaded to Google Drive as a ZIP file."}
         if target == "github":
             repo = github_repo or (
                 project.source.get("ref") if project and project.source.get("kind") == "github" else None

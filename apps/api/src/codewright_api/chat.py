@@ -929,6 +929,7 @@ class ChatService:
                 "guide": guide,
                 "suggestions": _suggestions(run.playbook),
                 "skill": skill,
+                "playbook": run.playbook,
             },
         }
 
