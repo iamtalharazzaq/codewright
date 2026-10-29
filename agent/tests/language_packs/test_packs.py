@@ -14,6 +14,7 @@ import pytest
 from agent.language_packs import PACKS, detect_project, pack, reports, templates, unsupported_project
 from agent.language_packs import compose as compose_mod
 from agent.language_packs.base import Component, Contract, ServiceSpec
+from agent.language_packs.cpp import CONAN_BUMP_SCRIPT
 from agent.language_packs.executor import (
     copy_samples,
     exclude_from_git,
@@ -89,6 +90,41 @@ def test_cpp_package_managers() -> None:
 
     vendored = detect_project(FIXTURES / "cpp_cmake")[0]
     assert vendored.details["package_manager"] == "none"
+
+
+def test_cpp_conan_upgrade_path() -> None:
+    """Phase 19 Open item: a CMake package-manager upgrade path, analogous to agent/playbooks/upgrade/'s
+    npm/pip/go bumps. Conan has a real, scriptable registry (`conan search`); vcpkg and vendored/FetchContent
+    projects don't get one yet (vcpkg isn't installed in the sandbox; vendored pins sources by hand)."""
+    conan = detect_project(FIXTURES / "cpp_cmake_conan")[0]
+    outdated = pack("cpp").outdated_steps(FIXTURES / "cpp_cmake_conan", conan)
+    assert len(outdated) == 1
+    assert outdated[0].network == "registry"
+    assert "conan search nlohmann_json" in outdated[0].cmd[-1] and "3.11.3" in outdated[0].cmd[-1]
+
+    upgrade = pack("cpp").upgrade_steps(FIXTURES / "cpp_cmake_conan", conan, "nlohmann_json", "3.12.0")
+    assert [s.name for s in upgrade] == ["upgrade"]
+    assert upgrade[0].cmd[:2] == ["python3", "-c"] and upgrade[0].cmd[-2:] == ["nlohmann_json", "3.12.0"]
+    assert upgrade[0].network == "none"
+
+    vcpkg = detect_project(FIXTURES / "cpp_cmake_vcpkg")[0]
+    assert pack("cpp").outdated_steps(FIXTURES / "cpp_cmake_vcpkg", vcpkg) == []
+    assert pack("cpp").upgrade_steps(FIXTURES / "cpp_cmake_vcpkg", vcpkg, "fmt", "11.0.0") == []
+
+    vendored = detect_project(FIXTURES / "cpp_cmake")[0]
+    assert pack("cpp").outdated_steps(FIXTURES / "cpp_cmake", vendored) == []
+
+
+def test_cpp_conan_bump_script_rewrites_the_pin(tmp_path: Path) -> None:
+    """The actual text rewrite CONAN_BUMP_SCRIPT performs, run directly (not through the sandbox) for a fast,
+    no-network check that it edits the right line and leaves everything else alone."""
+    conanfile = tmp_path / "conanfile.txt"
+    conanfile.write_text("[requires]\nnlohmann_json/3.11.3\nfmt/10.2.1\n\n[generators]\nCMakeDeps\n", encoding="utf-8")
+    cmd = ["python3", "-c", CONAN_BUMP_SCRIPT, "nlohmann_json", "3.12.0"]
+    subprocess.run(cmd, cwd=tmp_path, check=True)  # noqa: S603
+    text = conanfile.read_text()
+    assert "nlohmann_json/3.12.0" in text
+    assert "fmt/10.2.1" in text  # untouched
 
 
 def test_django_rest_framework() -> None:
