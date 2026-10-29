@@ -123,23 +123,21 @@ real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`ma
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
 
-- **Phase 8, `write_code`: real-verified on all 5 languages** (commit `6e0bdcd`,
-  `agent/tests/playbooks/test_write_code_sandbox.py`). Found and fixed a real bug in the process: the
-  TypeScript scratch scaffold's generated `tsconfig.json` had no `skipLibCheck`, so `tsc --noEmit` failed on
-  `vitest`/`vite`'s own `.d.ts` files (missing `@types/node`) before ever reaching the user's code — this is
-  almost certainly the same issue the Phase 8 eval above saw and didn't chase (`#15 Trie, TypeScript`:
-  `Cannot find name 'setImmediate'`). Fixed in `agent/playbooks/write_code/scaffold.py`.
-- **Phase 8, `bug_fix` and `tests`: blocked, not yet retrofitted.** Both rely on `own_test_file()`
-  (`agent/playbooks/code_edit.py`) to place Codewright's own test file next to the source it's testing. On the
-  shared mini-app fixtures (`agent/tests/fixtures/mini_apps/*`) this convention's output location isn't
-  actually picked up: Python's `pyproject.toml` restricts `testpaths = ["tests"]` (a file placed next to
-  `src/miniapp/core.py` is invisible to pytest), and C++'s `tests/CMakeLists.txt` lists `core_test.cpp`
-  explicitly rather than globbing (a new file under `src/` never gets compiled into the test binary). Needs a
-  small fixture fix (broaden `testpaths`, glob the C++ test sources) before `bug_fix`/`tests` can be retrofitted
-  for real — not done yet since it touches the fixture every other phase's tests also build on.
-- Handy bonus found while surveying the fixtures: every mini-app's `avg()` has the same off-by-one divisor bug
-  (`sum / (len(xs) + 1)`), uncovered by the existing tests — good, consistent real material for `bug_fix`'s
-  retrofit once the blocker above is cleared.
+- **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
+  - `write_code` (`agent/tests/playbooks/test_write_code_sandbox.py`). Found and fixed a real bug in the
+    process: the TypeScript scratch scaffold's generated `tsconfig.json` had no `skipLibCheck`, so
+    `tsc --noEmit` failed on `vitest`/`vite`'s own `.d.ts` files (missing `@types/node`) before ever reaching
+    the user's code — this is almost certainly the same issue the Phase 8 eval above saw and didn't chase
+    (`#15 Trie, TypeScript`: `Cannot find name 'setImmediate'`). Fixed in
+    `agent/playbooks/write_code/scaffold.py`.
+  - `bug_fix` (`agent/tests/playbooks/test_bug_fix_sandbox.py`) and `tests`
+    (`agent/tests/playbooks/test_tests_sandbox.py`). Both rely on `own_test_file()`
+    (`agent/playbooks/code_edit.py`) to place Codewright's own test file next to the source it's testing, which
+    the mini-app fixtures didn't pick up (Python's `testpaths`, C++'s explicit test source list) — fixed first
+    (commit `f00cd45`: `testpaths = ["."]`, a `CONFIGURE_DEPENDS` glob for the C++ test target). `bug_fix` then
+    reproduces, fixes and commits the shared `avg()` off-by-one bug (every mini-app fixture has the exact same
+    one, uncovered by its existing tests — handy, consistent real material); `tests` writes and verifies a new
+    characterization test for `word_count`'s untested empty-string case.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 

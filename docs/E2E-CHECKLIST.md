@@ -82,11 +82,11 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   and a Tech Lead review before the branch is created.
 - `/write-tests <target>`. **Expect:** before/after passing-test counts, no regressions, files that never pass
   dropped and reported honestly.
-- **Real-sandbox retrofit:** `write_code` is real-verified on all 5 languages (`agent/tests/playbooks/
-  test_write_code_sandbox.py`, `make check-sandbox`) - scaffold, write/verify/explain/publish and the
-  Reflection loop's `test()` call all run for real; only the model is scripted. `bug_fix` and `tests` are not
-  yet retrofitted (blocked on the mini-app fixtures' test discovery not picking up Codewright's own-test-file
-  convention - see PROGRESS.md's Retrofit section).
+- **Real-sandbox retrofit:** all three playbooks are real-verified on all 5 languages (`make check-sandbox`):
+  `write_code` (`test_write_code_sandbox.py`), `bug_fix` (`test_bug_fix_sandbox.py`,
+  against the shared mini-apps' real `avg()` bug) and `tests` (`test_tests_sandbox.py`, a new
+  `word_count` empty-string test). Only the model is scripted; the toolchain runs for real. See
+  PROGRESS.md's Retrofit section for what this found and fixed along the way.
 
 ## Phase 9: Refactor and performance
 - `/refactor <folder>`. **Expect:** a plan gate, then a refactor with tests+replay verification; a failed refactor
