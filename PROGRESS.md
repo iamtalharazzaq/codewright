@@ -122,8 +122,8 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target and 18 (2 language pairs) done; 12/14 and
-4/6/13/15/16 not started. Resume when you ask.
+**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target, 18 (2 language pairs) and 6 done; 12/14 and
+4/13/15/16 not started. Resume when you ask.
 
 **Phase 7 blocked, not a code gap:** real record/replay testing needs a running web app's HTTP port reachable
 from the test process. Confirmed empirically (`sandbox/runner/src/codewright_sandbox/gateway.py`'s own docstring
@@ -209,6 +209,19 @@ deferred at your call rather than touching either.
   real-sandbox test already proved the pipeline; added a Go→Python pair (the mirror image: a different source
   pack, a different target language) to prove the inventory/target/builder machinery isn't accidentally
   Python-or-C++-specific. Both pairs pass; no bugs found this time (unlike every phase above).
+- **Phase 6: real-verified on Python only** (`test_code_review_sandbox.py`). Scope, lint and report all run for
+  real against the shared `mini_apps/python` fixture, scoped to its one file with the known `avg()` off-by-one bug
+  (the same bug `bug_fix`'s Phase 8 test fixes); only the review step's one structured call is scripted. Tier 0,
+  no gates, so the whole run is one `drive()` with no interrupts. Found a real harness bug, not a product bug:
+  `agent/tests/sandbox_harness.py::RealProject.lint()`/`.sandbox()` returned one aggregate dict per component
+  (`{component, pack, ok, report, error}`) instead of production's real shape, `step_outputs(activity)` — one
+  dict per step actually run (`{component, pack, step, ok, exit_code, output}`), which is what `code_review`'s
+  `parse_lint` and `security`'s `dependency_findings` both read. Every earlier phase happened not to depend on
+  this (nothing before Phase 6 consumed `.lint()`/`.sandbox()`'s real output shape), so it stayed hidden; fixed by
+  splitting `_run_action` into that method (now only used by `.test()`, whose production shape really is one dict
+  per component) and a new `_run_steps` (used by `.lint()`/`.sandbox()`). Verified with the full real-sandbox
+  suite (58 passed) after the fix, not just the new test, since this touches a method every other phase's test
+  also calls.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 

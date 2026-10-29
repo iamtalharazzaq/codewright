@@ -64,6 +64,11 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   top-3 summary.
 - In a chat, say "save this as a skill". **Expect:** a draft card → Save → it appears in Skills (disabled until
   you enable it) and future matching requests show "Using skill: ...".
+- Real-sandbox-verified (`agent/tests/playbooks/test_code_review_sandbox.py`, `make check-sandbox`): `/review-code`
+  on the shared `mini_apps/python` fixture, scoped to its one file — real scope/lint/report, a scripted review
+  finding on the fixture's known `avg()` bug. Python only; found and fixed a real bug in the shared test harness
+  along the way (`.lint()`/`.sandbox()` were returning the wrong output shape — see PROGRESS.md's Retrofit
+  section, Phase 6).
 
 ## Phase 7: Verification engine
 - Tests tab → **Characterize** then **Record** on a running project. **Expect:** a recorded set of journeys.

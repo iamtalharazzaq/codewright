@@ -96,15 +96,17 @@ class RealProject:
         return [h for _, h in hits[:limit]]
 
     async def lint(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
-        return await self._run_action("lint")
+        return await self._run_steps("lint")
 
     async def sandbox(self, action: str, paths: list[str] | None = None) -> list[dict[str, Any]]:
-        return await self._run_action(action)
+        return await self._run_steps(action)
 
     async def test(self, paths: list[str] | None = None) -> list[dict[str, Any]]:
         return await self._run_action("test")
 
     async def _run_action(self, action: Any) -> list[dict[str, Any]]:
+        """`test()`'s shape: one dict per component (production's `ApiProjectTools.test()` returns
+        `activity.results`, each entry an `ActionResult.as_dict()` - `component_result`/`failure_text` read it)."""
         [component] = detect_project(self._work)
         result = await run_action(self._client, self._sid, self._work, component, action, _events)
         return [
@@ -115,6 +117,24 @@ class RealProject:
                 "report": result.report.as_dict() if result.report else None,
                 "error": result.error,
             }
+        ]
+
+    async def _run_steps(self, action: Any) -> list[dict[str, Any]]:
+        """`lint()`/`sandbox()`'s shape: one dict per step actually run (production's `ApiProjectTools.lint()` and
+        `.sandbox()` both return `step_outputs(activity)` - `code_review`'s `parse_lint` and `security`'s
+        `dependency_findings` both read `step`/`output` per entry, not the per-component shape above)."""
+        [component] = detect_project(self._work)
+        result = await run_action(self._client, self._sid, self._work, component, action, _events)
+        return [
+            {
+                "component": result.component,
+                "pack": result.pack,
+                "step": s.step,
+                "ok": s.ok,
+                "exit_code": s.exit_code,
+                "output": s.output_tail,
+            }
+            for s in result.steps
         ]
 
     async def run_step(self, step: Step) -> dict[str, Any]:
