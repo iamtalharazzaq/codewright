@@ -87,6 +87,10 @@ async def test_router_tiers_and_low_confidence(
 CARD = {"what": "A calculator.", "stack": "TypeScript + React", "features": ["Basic math"], "deliver": "An app"}
 
 
+def _names(result: intake.Intake) -> list[str]:
+    return [q.question for q in result.questions]
+
+
 async def test_intake_always_asks_the_language_for_new_work() -> None:
     reply = {
         "recommended_language": "TypeScript",
@@ -96,35 +100,39 @@ async def test_intake_always_asks_the_language_for_new_work() -> None:
     }
     client, _ = client_returning(json.dumps(reply))
     result = await intake.check(client, "new_app", "Make a calculator")
-    assert [q.question for q in result.questions] == [
-        "Which language?",
-        "Which platform?",
-        "Add a CI workflow (GitHub Actions)?",
-        "Add test cases for the user interface?",
-    ]
-    assert result.questions[0].options[0] == "TypeScript" and result.questions[2].default == "No"
+    assert _names(result) == ["Which language?", "Which platform?", "Which frontend?", "Additional things to be added"]
+    assert result.questions[0].options[0] == "TypeScript"
     assert result.questions[1].options == ["Browser app", "Terminal (command line)", "API (REST)"]
+    assert result.questions[2].options[0] == "React + TypeScript" and result.questions[2].options[-1] == "None"
+    extra = result.questions[3]
+    assert extra.multi and extra.default == "Test cases (backend)"
+    assert extra.options == [
+        "CI workflow (GitHub Actions)",
+        "README file",
+        "Graphify",
+        "Test cases (backend)",
+        "Test cases (frontend)",
+    ]
+    assert all(q.hint == "" for q in result.questions)  # no description under a field
 
 
-async def test_intake_asks_about_ci_once_and_not_when_the_request_already_says() -> None:
+async def test_intake_ticks_what_the_request_already_asks_for_and_skips_what_is_answered() -> None:
     reply = {"recommended_language": "Python", "language_reason": "x", "questions": [], "card": CARD}
     client, _ = client_returning(json.dumps(reply))
-    asked = await intake.check(client, "new_app", "Make a terminal calculator in Python")
-    assert [q.question for q in asked.questions] == ["Add a CI workflow (GitHub Actions)?"]  # terminal: no UI tests
+    asked = await intake.check(client, "new_app", "Make a terminal calculator in Python with CI and a README")
+    assert _names(asked) == ["Additional things to be added"]  # terminal: no platform, no frontend
+    assert asked.questions[0].default == "CI workflow (GitHub Actions), README file, Test cases (backend)"
     client, _ = client_returning(json.dumps(reply))
-    said = await intake.check(client, "new_app", "Make a terminal calculator in Python with CI")
-    assert said.questions == []
-    client, _ = client_returning(json.dumps(reply))
-    answered = await intake.check(
+    done = await intake.check(
         client,
         "new_app",
-        "Make a calculator in Python",
-        answers=[("Add a CI workflow (GitHub Actions)?", "No"), ("Which platform?", "Terminal (command line)")],
+        "Make a terminal calculator in Python",
+        answers=[("x", "Additional things to be added README file")],
     )
-    assert answered.questions == []
+    assert done.questions == []
     client, _ = client_returning(json.dumps(reply))
     other = await intake.check(client, "add_feature", "Add a button in Python")
-    assert all("CI" not in q.question for q in other.questions)
+    assert all("Additional" not in q.question for q in other.questions)
 
 
 async def test_intake_last_round_shows_the_card_with_the_named_language() -> None:
@@ -149,15 +157,20 @@ async def test_intake_asks_the_platform_with_the_rules_default_and_not_when_it_i
     assert all(q.question != "Which platform?" for q in stated.questions)
 
 
-async def test_intake_asks_about_ui_tests_once_and_not_when_the_request_says() -> None:
-    reply = {"recommended_language": "TypeScript", "language_reason": "x", "questions": [], "card": CARD}
-    ui = "Add test cases for the user interface?"
+async def test_intake_asks_for_the_frontend_once_and_not_for_a_terminal_app() -> None:
+    reply = {"recommended_language": "JavaScript", "language_reason": "x", "questions": [], "card": CARD}
     client, _ = client_returning(json.dumps(reply))
-    asked = await intake.check(client, "new_app", "A todo website in TypeScript, no CI please")
-    assert ui in [q.question for q in asked.questions]
+    web = await intake.check(client, "new_app", "A todo website in JavaScript")
+    assert "Which frontend?" in _names(web)
+    assert next(q for q in web.questions if q.question == "Which frontend?").default == "React + JavaScript"
     client, _ = client_returning(json.dumps(reply))
-    said = await intake.check(client, "new_app", "A todo website in TypeScript with unit tests")
-    assert ui not in [q.question for q in said.questions]
+    terminal = await intake.check(client, "new_app", "A terminal todo list in JavaScript")
+    assert "Which frontend?" not in _names(terminal)
     client, _ = client_returning(json.dumps(reply))
-    answered = await intake.check(client, "new_app", "A todo website in TypeScript", answers=[("x", ui + " No")])
-    assert ui not in [q.question for q in answered.questions]
+    answered = await intake.check(
+        client,
+        "new_app",
+        "A todo website in JavaScript",
+        answers=[("x", "Which frontend? None\nAdditional things to be added README file")],
+    )
+    assert "Which frontend?" not in _names(answered) and "Additional things to be added" not in _names(answered)

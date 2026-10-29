@@ -81,11 +81,11 @@ def frontend_root(template: str) -> str | None:
 
 def scaffold(
     spec: ServiceSpec, out: Path, root: Path = ROOT, *, ci: bool = True, graphify: bool = True,
-    frontend_tests: bool = True,
+    frontend_tests: bool = True, readme: bool = True,
 ) -> Template:  # fmt: skip
     """Copy template `spec.template` into `out` (which must be empty or missing), filling the placeholders.
     `ci=False` leaves out `.github/`, `graphify=False` the Graphify setup files, `frontend_tests=False` the sample
-    tests of the template's browser code (the backend's tests stay)."""
+    tests of the template's browser code (the backend's tests stay), `readme=False` the template's `README.md`."""
     template = get(spec.template, root)
     if out.exists() and any(out.iterdir()):
         raise FileExistsError(f"{out} isn't empty")
@@ -94,7 +94,7 @@ def scaffold(
         relative = src.relative_to(template.path)
         if any(part in SKIP for part in relative.parts) or src.name == "manifest.yaml":
             continue
-        if _left_out(template.name, relative, ci=ci, graphify=graphify, frontend_tests=frontend_tests):
+        if _left_out(template.name, relative, ci=ci, graphify=graphify, frontend_tests=frontend_tests, readme=readme):
             continue
         target = out / fill(relative.as_posix(), values).replace(".tmpl", "")
         if src.is_dir():
@@ -109,8 +109,10 @@ def scaffold(
     return template
 
 
-def _left_out(name: str, relative: Path, *, ci: bool, graphify: bool, frontend_tests: bool) -> bool:
+def _left_out(name: str, relative: Path, *, ci: bool, graphify: bool, frontend_tests: bool, readme: bool) -> bool:
     if not ci and relative.parts[0] == ".github":
+        return True
+    if not readme and relative.parts == ("README.md",):
         return True
     if not graphify and len(relative.parts) == 1 and relative.name in GRAPHIFY_FILES:
         return True

@@ -223,34 +223,57 @@ def test_the_size_sets_the_tier() -> None:
 
 
 # ── what a new app only gets when asked for ──────────────────────────────────
-CI = "Add a CI workflow (GitHub Actions)?"
+ADD = "Additional things to be added"
 
 
 def _extras(request: str, *answers: tuple[str, str]) -> stacks.Extras:
     return stacks.extras({"request": request, "answers": [list(a) for a in answers]})
 
 
-def test_ci_graphify_and_frontend_tests_are_off_unless_the_user_asks() -> None:
-    assert _extras("Make a calculator") == stacks.Extras(False, False, False)
-    assert _extras("Make a calculator", (CI, "No")).ci is False
-    assert _extras("Make a calculator", (CI, "Yes")).ci is True
-    combined = ("Which language? / " + CI, "Which language? Python\n" + CI + " Yes")  # how the chat sends answers
-    assert _extras("Make a calculator", combined).ci is True
-    assert _extras("Make a calculator", ("x", "Which platform? Terminal\n" + CI + " No")).ci is False
+def test_extras_are_off_unless_the_user_asks_and_backend_tests_are_on() -> None:
+    assert _extras("Make a calculator") == stacks.Extras(False, False, False, True, False)
     assert _extras("Make a calculator with GitHub Actions").ci is True
     assert _extras("Make it, and set up Graphify").graphify is True
     assert _extras("Make a todo app with unit tests").frontend_tests is True
-    assert _extras("Make a todo app", (CI, "No")).frontend_tests is False
-    ui = "Add test cases for the user interface?"
-    assert _extras("Make a todo app", ("x", "Which platform? Browser app\n" + ui + " Yes")).frontend_tests is True
-    assert _extras("Make a todo app", ("x", ui + " No")).frontend_tests is False
+    assert _extras("Make a todo app with a README").readme is True
+
+
+def test_the_ticked_boxes_decide_the_extras() -> None:
+    both = _extras("Make a todo app", ("x", f"{ADD} README file, Graphify, Test cases (frontend)"))
+    assert both == stacks.Extras(False, True, True, False, True)  # no CI, backend tests unticked
+    chat_reply = f"Which language? Python\n{ADD} CI workflow (GitHub Actions), Test cases (backend)"
+    assert _extras("Make a todo app", ("Which language? / x", chat_reply)) == stacks.Extras(
+        True, False, False, True, False
+    )
+    assert _extras("Make a todo app", ("x", f"{ADD} ")).backend_tests is False  # nothing ticked
+    assert _extras("Make a todo app with CI", ("x", f"{ADD} README file")).ci is False  # the boxes win
+
+
+def test_the_chosen_frontend_picks_the_template_and_says_when_it_changes_the_language() -> None:
+    fe = "Which frontend?"
+    inputs = {"request": "Make a todo app", "answers": [["x", "Which language? Python\n" + fe + " React + TypeScript"]]}
+    choice = stacks.choose(inputs)
+    assert choice.template == "web-react-ts" and "not Python" in choice.note
+    js = {
+        "request": "Make a todo app",
+        "answers": [["x", "Which language? JavaScript\n" + fe + " Next.js (JavaScript)"]],
+    }
+    assert stacks.choose(js).template == "site-nextjs-js"
+    none = {"request": "Make a todo app", "answers": [["x", "Which language? Python\n" + fe + " None"]]}
+    assert stacks.choose(none).template == "cli-python"
 
 
 def _scaffolded(
-    tmp_path: Path, template: str, *, ci: bool = True, graphify: bool = True, frontend_tests: bool = True
+    tmp_path: Path,
+    template: str,
+    *,
+    ci: bool = True,
+    graphify: bool = True,
+    frontend_tests: bool = True,
+    readme: bool = True,
 ) -> set[str]:
     spec = ServiceSpec(name="demo", template=template, description="d")
-    templates.scaffold(spec, tmp_path / "out", ci=ci, graphify=graphify, frontend_tests=frontend_tests)
+    templates.scaffold(spec, tmp_path / "out", ci=ci, graphify=graphify, frontend_tests=frontend_tests, readme=readme)
     return {p.relative_to(tmp_path / "out").as_posix() for p in (tmp_path / "out").rglob("*") if p.is_file()}
 
 
@@ -272,13 +295,20 @@ def test_frontend_tests_are_left_out_but_the_backends_tests_stay(tmp_path: Path)
     assert [f for f in _scaffolded(tmp_path / "d", "cli-python", frontend_tests=False) if f.startswith("tests/")]
 
 
+def test_the_readme_is_left_out_unless_ticked(tmp_path: Path) -> None:
+    assert "README.md" not in _scaffolded(tmp_path / "a", "site-nextjs-ts", readme=False)
+    assert "README.md" in _scaffolded(tmp_path / "b", "site-nextjs-ts")
+
+
 def test_zero_tests_pass_only_for_a_browser_app_nobody_asked_tests_for() -> None:
     empty = [{"component": ".", "report": {"ok": True, "passed": 0, "failed": 0}}]
     assert na.tests_green(empty, need_tests=False) == (True, "")
     assert stacks.expects_tests("web-react-ts", stacks.Extras()) is False
     assert stacks.expects_tests("web-react-ts", stacks.Extras(frontend_tests=True)) is True
     assert stacks.expects_tests("cli-python", stacks.Extras()) is True
+    assert stacks.expects_tests("cli-python", stacks.Extras(backend_tests=False)) is False
     assert stacks.expects_tests("fullstack-fastapi-nextjs", stacks.Extras()) is True
+    assert stacks.expects_tests("fullstack-fastapi-nextjs", stacks.Extras(backend_tests=False)) is False
 
 
 def test_a_browser_request_in_a_language_without_a_browser_template_says_it_is_a_terminal_app() -> None:

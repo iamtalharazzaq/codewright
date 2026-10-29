@@ -118,6 +118,11 @@ def size_of(inputs: dict[str, Any]) -> str:
 
 def named_language(inputs: dict[str, Any]) -> str:
     """The language the user named in the language/stack fields or the answers ('' = none named)."""
+    said = answer_to(inputs, "Which language?")
+    if said:  # an answer to the language question beats words that happen to appear in other answers
+        for word, lang in _LANG_WORDS:
+            if word in " " + said.lower() + " ":
+                return lang
     explicit = " " + " ".join(
         [
             str(inputs.get("language", "")),
@@ -181,6 +186,17 @@ def choose(inputs: dict[str, Any], root: Any = templates.ROOT) -> Choice:
     kind = KINDS[kind_name]
     option = _pick(kind, language)
     have = {t.name: t for t in templates.available(root)}
+    chosen = (answer_to(inputs, FRONTEND_QUESTION) or "").lower()
+    if kind_name == "browser" and chosen:
+        template = _FRONTEND_TEMPLATE.get(chosen)  # "None": no browser code, so the terminal pick above stays
+        if template in have:
+            option = Option(have[template].name, template)
+            if language and have[template].language != language:
+                got = have[template].language
+                note = (
+                    note + " " if note else ""
+                ) + f"The frontend you chose is {got}, so the app is {got}, not {language}."
+            language = ""  # the chosen frontend decides; no "no browser template" note below
     if option.template not in have:
         fallback = next((o for o in kind.options if o.template in have), None)
         if fallback is None:
@@ -198,7 +214,6 @@ def choose(inputs: dict[str, Any], root: Any = templates.ROOT) -> Choice:
 
 
 # ── extras the user has to ask for ───────────────────────────────────────────
-CI_QUESTION = "Add a CI workflow (GitHub Actions)?"
 _CI_WORDS = ("ci", "github actions", "continuous integration", "pipeline")
 _TEST_WORDS = ("test", "testing", "unit test", "vitest", "jest", "tdd")
 
@@ -210,6 +225,8 @@ class Extras:
     ci: bool = False
     graphify: bool = False
     frontend_tests: bool = False
+    backend_tests: bool = True
+    readme: bool = False
 
 
 def _asked(inputs: dict[str, Any]) -> str:
@@ -234,29 +251,69 @@ def answer_to(inputs: dict[str, Any], question: str) -> str | None:
 
 def extras(inputs: dict[str, Any]) -> Extras:
     text = _asked(inputs)
-    ci_answer = answer_to(inputs, CI_QUESTION)
-    ci = ci_answer.lower().startswith("y") if ci_answer else _has(text.replace(CI_QUESTION.lower(), " "), _CI_WORDS)
-    ui_answer = answer_to(inputs, TEST_QUESTION)
-    ui_tests = (
-        ui_answer.lower().startswith("y") if ui_answer else _has(text.replace(TEST_QUESTION.lower(), " "), _TEST_WORDS)
+    extra = answer_to(inputs, ADDITIONS_QUESTION)
+    if extra is not None:  # the ticked boxes, e.g. "README file, Test cases (backend)"
+        ticked = extra.lower()
+        return Extras(
+            ci=CI.lower() in ticked,
+            graphify=GRAPHIFY.lower() in ticked,
+            frontend_tests=FRONTEND_TESTS.lower() in ticked,
+            backend_tests=BACKEND_TESTS.lower() in ticked,
+            readme=README.lower() in ticked,
+        )
+    return Extras(  # not asked yet (or a run started without the card): only what the request says
+        ci=_has(text, _CI_WORDS),
+        graphify=_has(text, ("graphify",)),
+        frontend_tests=_has(text, _TEST_WORDS),
+        readme=_has(text, ("readme",)),
     )
-    return Extras(ci=ci, graphify=_has(text, ("graphify",)), frontend_tests=ui_tests)
+
+
+def additions_default(request: str) -> str:
+    """The boxes ticked at first: the backend's tests, plus whatever the request already asks for."""
+    wanted = extras({"request": request})
+    ticked = [
+        name
+        for name, on in (
+            (CI, wanted.ci),
+            (README, wanted.readme),
+            (GRAPHIFY, wanted.graphify),
+            (BACKEND_TESTS, True),
+            (FRONTEND_TESTS, wanted.frontend_tests),
+        )
+        if on
+    ]
+    return ", ".join(ticked)
 
 
 def expects_tests(template: str, wanted: Extras) -> bool:
-    """A browser-only app has no tests unless they were asked for; everything else ships with some."""
-    return not (templates.frontend_root(template) == "" and not wanted.frontend_tests)
+    """Whether the built app should have tests: its backend's (terminal, API and full-stack apps) or its browser
+    code's, each only when asked for."""
+    top = templates.frontend_root(template)
+    return (top != "" and wanted.backend_tests) or (top is not None and wanted.frontend_tests)
 
 
-TEST_QUESTION = "Add test cases for the user interface?"
+FRONTEND_QUESTION = "Which frontend?"
+FRONTENDS = ("React + TypeScript", "React + JavaScript", "Next.js (TypeScript)", "Next.js (JavaScript)", "None")
+_FRONTEND_TEMPLATE = {
+    "react + typescript": "web-react-ts", "react + javascript": "web-react-js",
+    "next.js (typescript)": "site-nextjs-ts", "next.js (javascript)": "site-nextjs-js",
+}  # fmt: skip
+ADDITIONS_QUESTION = "Additional things to be added"
+CI = "CI workflow (GitHub Actions)"
+README, GRAPHIFY = "README file", "Graphify"
+BACKEND_TESTS, FRONTEND_TESTS = "Test cases (backend)", "Test cases (frontend)"
+ADDITIONS = (CI, README, GRAPHIFY, BACKEND_TESTS, FRONTEND_TESTS)
 _NO_UI_WORDS = ("terminal", "cli", "command line", "console", "api", "rest api")
 
 
-def ui_tests_open(inputs: dict[str, Any]) -> bool:
-    """Whether to ask about UI tests: not once answered or asked for, nor for a stated terminal/API app."""
-    if answer_to(inputs, TEST_QUESTION) is not None or extras(inputs).frontend_tests:
-        return False
-    return not _has(_asked(inputs), _NO_UI_WORDS)
+def frontend_open(inputs: dict[str, Any]) -> bool:
+    """Whether to ask which frontend: not once answered, nor for a stated terminal/API app."""
+    return answer_to(inputs, FRONTEND_QUESTION) is None and not _has(_asked(inputs), _NO_UI_WORDS)
+
+
+def frontend_default(language: str) -> str:
+    return FRONTENDS[1] if language == "JavaScript" else FRONTENDS[0]
 
 
 PLATFORM_QUESTION = "Which platform?"

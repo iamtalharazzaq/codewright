@@ -10,11 +10,28 @@ import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { FormSelect } from "@/components/form-select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { answerConfirm, answerRun, getRun, type ChatMessage, type Question, type RunDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const CARD = "my-1 flex flex-col gap-3 rounded-xl border bg-card p-4";
+
+/** The ticked options of a tick-box question ("README file, Graphify" → two names). */
+function splitTicks(answer: string): string[] {
+  return answer
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/** The answer after (un)ticking one option, in the options' order. */
+function toggleTick(answer: string, option: string, on: boolean, options: string[]): string {
+  const ticked = new Set(splitTicks(answer));
+  if (on) ticked.add(option);
+  else ticked.delete(option);
+  return options.filter((o) => ticked.has(o)).join(", ");
+}
 
 /** The option a question's default points at ("Python" for "Python (recommended)"), if any. */
 function defaultOption(q: Question): string | undefined {
@@ -36,11 +53,18 @@ export function QuestionsCard({
   onSend: (text: string) => void;
 }) {
   const questions = message.data.questions ?? [];
-  const [answers, setAnswers] = useState<string[]>(() => questions.map((q) => defaultOption(q) ?? ""));
+  const [answers, setAnswers] = useState<string[]>(() =>
+    questions.map((q) => (q.multi ? q.default : (defaultOption(q) ?? ""))),
+  );
   if (questions.length === 0) return <Markdown>{message.content}</Markdown>;
 
   const set = (i: number, value: string) => setAnswers((prev) => prev.map((a, j) => (j === i ? value : a)));
-  const send = () => onSend(questions.map((q, i) => `${q.question} ${answers[i].trim() || q.default}`).join("\n"));
+  const send = () =>
+    onSend(
+      questions
+        .map((q, i) => `${q.question} ${q.multi ? answers[i].trim() : answers[i].trim() || q.default}`)
+        .join("\n"),
+    );
 
   return (
     <div className={CARD}>
@@ -49,11 +73,31 @@ export function QuestionsCard({
         {questions.map((q, i) => {
           const recommended = defaultOption(q);
           return (
-            <li key={q.question} className={cn("flex flex-col gap-2", q.options.length === 0 && "sm:col-span-2")}>
+            <li
+              key={q.question}
+              className={cn("flex flex-col gap-2", (q.options.length === 0 || q.multi) && "sm:col-span-2")}
+            >
               <p className="text-sm">
                 <span className="text-muted-foreground">{i + 1}.</span> {q.question}
               </p>
-              {q.options.length > 0 ? (
+              {q.multi && q.options.length > 0 ? (
+                <div role="group" aria-label={q.question} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {q.options.map((o) => {
+                    const ticked = splitTicks(answers[i]).includes(o);
+                    return (
+                      <label key={o} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={ticked}
+                          disabled={!canAnswer}
+                          aria-label={o}
+                          onCheckedChange={(on) => set(i, toggleTick(answers[i], o, on, q.options))}
+                        />
+                        {o}
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : q.options.length > 0 ? (
                 <FormSelect
                   id={`question-${i}`}
                   value={answers[i]}
@@ -73,7 +117,6 @@ export function QuestionsCard({
                   className="h-9"
                 />
               )}
-              {q.hint && <p className="text-xs text-muted-foreground">{q.hint}</p>}
             </li>
           );
         })}

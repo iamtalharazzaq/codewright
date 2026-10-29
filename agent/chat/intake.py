@@ -17,15 +17,18 @@ from agent.chat.intents import INTENT_LABELS, Intent, intent_config, named_langu
 from agent.llm.client import LLMClient, Usage
 from agent.llm.structured import structured
 from agent.playbooks.new_app.stacks import (
-    CI_QUESTION,
+    ADDITIONS,
+    ADDITIONS_QUESTION,
+    FRONTEND_QUESTION,
+    FRONTENDS,
     PLATFORM_QUESTION,
     PLATFORMS,
-    TEST_QUESTION,
+    additions_default,
     answer_to,
     default_platform,
-    extras,
+    frontend_default,
+    frontend_open,
     platform_stated,
-    ui_tests_open,
 )
 
 Language = Literal["Python", "TypeScript", "JavaScript", "Go", "C++"]
@@ -36,6 +39,7 @@ class Question(BaseModel):
     default: str = Field(description="The answer used if the user says defaults are fine.")
     options: list[str] = Field(default_factory=list, max_length=6, description="Choices, if it's a pick-one.")
     hint: str = Field(default="", description="Optional: why the default fits, under 10 words.")
+    multi: bool = Field(default=False, description="Tick-boxes: any number of the options, the default a comma list.")
 
 
 class ConfirmCard(BaseModel):
@@ -142,53 +146,47 @@ async def check(
         if last_round:
             language = out.recommended_language
         else:
-            questions.insert(0, _language_question(out.recommended_language, out.language_reason))
+            questions.insert(0, _language_question(out.recommended_language))
     if intent == "new_app" and not last_round:
-        at = 1 if asked_language else 0
-        inputs = {"request": request, "answers": [list(a) for a in answers]}
-        questions = [
-            q
-            for q in questions
-            if "platform" not in q.question.lower() and q.question not in (CI_QUESTION, TEST_QUESTION)
-        ]
-        if not platform_stated(inputs):
-            questions.insert(at, _platform_question(default_platform(inputs)))
-            at += 1
-        if not _ci_decided(request, answers):
-            questions.insert(at, _ci_question())
-            at += 1
-        if ui_tests_open(inputs):
-            questions.insert(
-                at, _yes_no(TEST_QUESTION, "the browser code's own tests; terminal and API apps always have tests")
-            )
+        questions = _new_app_questions(
+            questions, request, answers, asked_language, frontend=frontend_default(out.recommended_language)
+        )
     if language and cfg.new and language.lower() not in out.card.stack.lower():
         out.card.stack = f"{language} · {out.card.stack}"
     limit = router_settings()["max_questions_per_round"]
     return Intake(questions[:limit], out.card, language, result.usage)
 
 
-def _language_question(recommended: str, reason: str) -> Question:
+def _new_app_questions(
+    asked: list[Question], request: str, answers: Sequence[tuple[str, str]], after_language: bool, *, frontend: str
+) -> list[Question]:
+    """What a new app always asks, in code (the model may miss it): platform, frontend, CI and the extras. The
+    model's own questions about these are dropped; what the request or an earlier answer settled is not asked."""
+    inputs = {"request": request, "answers": [list(a) for a in answers]}
+    questions = [
+        q
+        for q in asked
+        if not {"platform", "frontend"} & set(q.question.lower().split())
+        and q.question not in (FRONTEND_QUESTION, ADDITIONS_QUESTION)
+    ]
+    ours: list[Question] = []
+    if not platform_stated(inputs):
+        ours.append(_platform_question(default_platform(inputs)))
+    if frontend_open(inputs):
+        ours.append(_frontend_question(frontend))
+    if answer_to(inputs, ADDITIONS_QUESTION) is None:
+        ours.append(_additions_question(request))
+    at = 1 if after_language else 0
+    return [*questions[:at], *ours, *questions[at:]]
+
+
+def _language_question(recommended: str) -> Question:
     others = [lang for lang in ("Python", "TypeScript", "JavaScript", "Go", "C++") if lang != recommended]
     return Question(
         question="Which language?",
         default=recommended,
         options=[recommended, *others],
-        hint=_clip(reason, 80).rstrip("."),
     )
-
-
-def _ci_decided(request: str, answers: Sequence[tuple[str, str]]) -> bool:
-    """CI is asked once: not again after an answer, nor when the request itself says whether it wants it."""
-    inputs = {"request": request, "answers": [list(a) for a in answers]}
-    return answer_to(inputs, CI_QUESTION) is not None or extras(inputs).ci
-
-
-def _ci_question() -> Question:
-    return _yes_no(CI_QUESTION, "a workflow that runs the tests on every push")
-
-
-def _yes_no(question: str, hint: str) -> Question:
-    return Question(question=question, default="No", options=["No", "Yes"], hint=hint)
 
 
 def _platform_question(default: str) -> Question:
@@ -196,5 +194,14 @@ def _platform_question(default: str) -> Question:
         question=PLATFORM_QUESTION,
         default=default,
         options=list(PLATFORMS),
-        hint="where the app runs",
+    )
+
+
+def _frontend_question(default: str) -> Question:
+    return Question(question=FRONTEND_QUESTION, default=default, options=list(FRONTENDS))
+
+
+def _additions_question(request: str) -> Question:
+    return Question(
+        question=ADDITIONS_QUESTION, default=additions_default(request), options=list(ADDITIONS), multi=True
     )

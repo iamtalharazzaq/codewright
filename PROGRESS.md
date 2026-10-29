@@ -278,13 +278,16 @@ again (flagged as a regression).
   the microservices build are unchanged); the backend's tests always stay. The frontend `test` scripts are
   `vitest run --passWithNoTests`, and `verify` accepts 0 tests only for a browser-only app nobody asked tests for
   (a run that found 0 tests is otherwise a failure: the model had put CLI code into the test file).
-  The intake now always asks a **Which platform?** question too (Browser app / Terminal / API, default from the
-  rules, skipped when the request names one) and the chat renders every pick-one question as a **dropdown**
-  (default marked "Recommended") instead of chips. A browser request in a language with no browser template
-  (e.g. Python) says so in the card's note instead of silently becoming a terminal app. Answers arrive as one
-  reply, a line per question, so `stacks.answer_to` reads them by question text. A fourth dropdown, **Add test cases
-  for the user interface?** (default No; skipped when the request says tests or names a terminal/API app), decides
-  `frontend_tests`; the questions sit two to a row in the card.
+  The intake now asks, as dropdowns, **Which language?**, **Which platform?** (Browser app / Terminal / API) and
+  **Which frontend?** (React + TypeScript/JavaScript, Next.js TypeScript/JavaScript, None; not asked for a
+  terminal/API app; it picks the browser template and the card says when it changes the language), then one tick-box
+  group, **Additional things to be added**: CI workflow, README file, Graphify, Test cases (backend), Test cases
+  (frontend). Backend tests are ticked at first, plus whatever the request already names. Nothing is explained under
+  a field. Yes/no choices are boxes, not dropdowns. Answers arrive as one reply, a line per question, so
+  `stacks.answer_to` reads them by question text; a "Which language?" answer beats language words elsewhere. The
+  README is the template's `README.md` (left out unless ticked; when ticked, the generated guide). Unticking the
+  backend's tests tells the model to write none and accepts 0 tests, but the template's sample tests stay. A
+  browser request in a language with no browser template says so in the card note. Questions sit two to a row.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the

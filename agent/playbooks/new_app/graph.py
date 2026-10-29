@@ -247,7 +247,7 @@ def validate_plan(plan: AppPlan, existing: list[str], limit: int = MAX_FILES) ->
 
 
 WITH_TESTS = "include exactly one new test file that checks\nthe acceptance criteria"
-NO_TESTS = "plan no test files at all: the user did not ask for tests of the browser code"
+NO_TESTS = "plan no test files at all: the user did not ask for tests"
 
 
 def design_system(choice: stacks.Choice, state: NewAppState) -> str:
@@ -366,6 +366,7 @@ def scaffold_node(services: RunServices) -> Any:
                 ci=wanted.ci,
                 graphify=wanted.graphify,
                 frontend_tests=wanted.frontend_tests,
+                readme=wanted.readme,
             )
             git(work, "init", "-q", "-b", "main")
             git(work, "add", "-A")
@@ -604,7 +605,11 @@ def docs_node(services: RunServices) -> Any:
             body = text if text else body
         guide = f"# {reqs['title']}\n\n{reqs['summary']}\n\n{body.rstrip()}\n\n{run_section(template)}\n"
         (project.work / GUIDE).write_text(guide, encoding="utf-8")
-        project.files_changed([GUIDE])
+        written = [GUIDE]
+        if stacks.extras(state["inputs"]).readme:  # only when ticked: the guide's text, as the project's README.md
+            (project.work / "README.md").write_text(guide, encoding="utf-8")
+            written.append("README.md")
+        project.files_changed(written)
         artifacts = [steps.write_artifact(state, GUIDE, guide, "file", "GUIDE.md", "docs")]
         (Path(state["workspace"]) / GUIDE).write_text(guide, encoding="utf-8")  # the Done card shows this one
         brief = _brief(state)

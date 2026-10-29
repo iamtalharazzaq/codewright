@@ -434,6 +434,8 @@ export interface Question {
   default: string;
   options: string[];
   hint?: string;
+  /** Tick-boxes: any number of the options; the answer is a comma list. */
+  multi?: boolean;
 }
 
 export interface ConfirmCardData {
