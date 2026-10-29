@@ -109,7 +109,7 @@ def used_members(
     return members, star
 
 
-def _defs(source: str) -> dict[str, str]:
+def top_level_defs(source: str) -> dict[str, str]:
     """Top-level names a file defines: name → 'function' | 'async' | 'other'."""
     try:
         tree = ast.parse(source)
@@ -178,7 +178,7 @@ def plan_extraction(work: Path, rules: dict[str, Any], name: str, libraries: fro
             if member not in plan.entries[file]:
                 plan.entries[file].append(member)
     for file, names in list(plan.entries.items()):
-        defs = _defs((work / file).read_text(encoding="utf-8", errors="replace"))
+        defs = top_level_defs((work / file).read_text(encoding="utf-8", errors="replace"))
         for n in list(names):
             kind = defs.get(n)
             if kind in ("function", "async"):
@@ -531,6 +531,7 @@ def restore(work: Path, before: dict[str, str | None]) -> None:
         if text is None:
             (work / rel).unlink(missing_ok=True)
         else:
+            (work / rel).parent.mkdir(parents=True, exist_ok=True)  # a merge may have rmtree'd the whole folder
             (work / rel).write_text(text, encoding="utf-8")
 
 

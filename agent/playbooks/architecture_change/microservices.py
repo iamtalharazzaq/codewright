@@ -30,7 +30,7 @@ from agent.decomposition import moves as mv
 from agent.decomposition.platform import platform_design
 from agent.language_packs import templates
 from agent.language_packs.base import ServiceSpec
-from agent.microservices import dbsplit, schedule
+from agent.microservices import data, dbsplit, schedule
 from agent.microservices import extract as ex
 from agent.microservices import foundation as fd
 from agent.playbooks import steps
@@ -307,7 +307,10 @@ async def build_one(  # noqa: PLR0911  (one linear procedure with its exits)
     # review: secrets in what was copied or generated
     changed = sorted(p for p in undo if p.endswith((".py", ".toml", ".yml", ".yaml", ".env")))
     found = secret_findings(work, changed)
-    result["review"] = {"secrets": [f"{f['file']}:{f['line']}: {f['problem']}" for f in found], "checks": "secrets scan; no model review"}
+    result["review"] = {
+        "secrets": [f"{f['file']}:{f['line']}: {f['problem']}" for f in found],
+        "checks": "secrets scan; no model review",
+    }
     exposed = {b.py_dotted(f, roots): fs for f, fs in plan_x.entries.items()}
     runbook = f"docs/runbooks/cutover-{fd.safe_name(name)}.md"
     (work / runbook).parent.mkdir(parents=True, exist_ok=True)
@@ -414,13 +417,19 @@ async def db_split(services: RunServices, state: Any) -> dict[str, Any]:
     results = state.get("service_results") or {}
     built = [n for n in schedule.order(design) if (results.get(n) or {}).get("status") == "extracted"]
     split = dbsplit.split_plan(work, state["ms_rules"], design, platform, built)
-    files = dbsplit.migration_files(split)
-    written = fd.write_files(work, files)
+    expand_files = dbsplit.migration_files(split)  # the expand stage only; tried on a throwaway database below
+    stages = data.stage_files(split)  # check, contract, apply.sh, rollback.sh, STAGES.md (Phase 17)
+    sagas = data.saga_files(platform)  # the saga library, its definitions and its generated tests, when there are any
+    written = fd.write_files(work, {**expand_files, **stages, **sagas})
     trials: dict[str, Any] = {}
-    for rel in sorted(f for f in files if f.endswith(".up.sql")):
+    for rel in sorted(f for f in expand_files if f.endswith(".up.sql")):
         trials[rel] = await project.db_trial(rel, [])
     if written:
-        _commit(work, written, "Microservices: schema per service, outbox, processed events, saga state (up and down)")
+        _commit(
+            work,
+            written,
+            "Microservices: schema per service, outbox, processed events, saga state, stages and apply/rollback scripts",
+        )
         project.files_changed(written)
     lines = [
         "**Database split** (one migration per service that owns tables, events or sagas; apply in order, roll back in reverse):",
@@ -437,9 +446,25 @@ async def db_split(services: RunServices, state: Any) -> dict[str, Any]:
     skipped = [n for n in schedule.order(design) if n not in built]
     if skipped:
         lines.append(f"⚠️ Not split because the service was not extracted: {', '.join(skipped)}.")
-    lines += ["", "Nothing was applied to any real database. Approve to keep the migration files on the branch."]
+    if sagas:
+        paths = data.saga_paths(platform)
+        lines += [
+            "",
+            f"**Sagas**: `{data.SAGA_DIR}/saga.py` (compensation and crash-resume) plus `{paths}` generated path "
+            f"test(s) in `{data.SAGA_DIR}/test_sagas.py` (success, a failure at each step, a failing undo, a crash "
+            "and resume), one set per designed saga.",
+        ]
+    lines += [
+        "",
+        f"**Stages**: expand (above) → check (`{dbsplit.MIGRATIONS}/apply.sh check`) → contract, once every caller "
+        f"uses the service (`{dbsplit.MIGRATIONS}/apply.sh contract`). `{dbsplit.MIGRATIONS}/STAGES.md` has the "
+        "order and how to undo each one.",
+        "",
+        "Nothing was applied to any real database except the expand stage's own trial above. Approve to keep the "
+        "migration files on the branch.",
+    ]
     return await steps.finish(
-        services, state, plan, "db_split", "database_engineer", f"{len(files) // 2} migration(s) written",
+        services, state, plan, "db_split", "database_engineer", f"{len(expand_files) // 2} migration(s) written",
         db_split_stage=len(trials), db_split=split, db_split_brief="\n".join(lines),
     )  # fmt: skip
 
@@ -455,21 +480,43 @@ async def frontend(services: RunServices, state: Any) -> dict[str, Any]:
     design = state["to_be"]["design"]
     groups = [g for g in design["groups"] if g["kind"] == "frontend"]
     used: dict[str, list[str]] = {}
-    for rel in b.code_files(work):
-        if rel.startswith("services/") or not any(
-            rel.startswith(m.rstrip("/") + "/") or rel == m for g in groups for m in g["modules"]
-        ):
-            continue
+    frontend_files = [
+        rel
+        for rel in b.code_files(work)
+        if not rel.startswith("services/")
+        and any(rel.startswith(m.rstrip("/") + "/") or rel == m for g in groups for m in g["modules"])
+    ]
+    for rel in frontend_files:
         for var in set(API_VARS.findall((work / rel).read_text(encoding="utf-8", errors="replace"))):
             used.setdefault(var, []).append(rel)
     written: list[str] = []
+    rewritten: dict[str, list[str]] = {}
     if groups:
         var = next(iter(used), "API_BASE_URL")
         env = f"# Point the frontend at the gateway (Codewright, CODEWRIGHT.md 5.18 step 9)\n{var}=http://localhost:{fd.GATEWAY_PORT}\n"
-        written = fd.write_files(work, {"platform/frontend.env.example": env})
+        written += fd.write_files(work, {"platform/frontend.env.example": env})
+        # A hardcoded `http://localhost:<port>` on a line that talks about an API, not read from a variable: point
+        # it at the gateway directly (data.gateway_rewrite), the same way a config file or a hand-rolled fetch would
+        # need to change if it never read an environment variable in the first place.
+        for rel in frontend_files:
+            text = (work / rel).read_text(encoding="utf-8", errors="replace")
+            new_text, changed = data.gateway_rewrite(text)
+            if changed:
+                (work / rel).write_text(new_text, encoding="utf-8")
+                written.append(rel)
+                rewritten[rel] = changed
+        routes_path = work / "gateway/routes.json"
+        if routes_path.is_file():
+            routes = json.loads(routes_path.read_text(encoding="utf-8"))
+            doc = data.gateway_routes_doc(design, routes)
+            doc_path = "docs/architecture/GATEWAY_ROUTES.md"
+            (work / doc_path).parent.mkdir(parents=True, exist_ok=True)
+            (work / doc_path).write_text(doc, encoding="utf-8")
+            written.append(doc_path)
         if written:
-            _commit(work, written, "Microservices: frontend environment pointing at the gateway")
-    status = {"groups": [g["name"] for g in groups], "api_vars": used, "written": written}
+            _commit(work, written, "Microservices: frontend against the gateway")
+            project.files_changed(written)
+    status = {"groups": [g["name"] for g in groups], "api_vars": used, "written": written, "rewritten": rewritten}
     lines = (
         [
             f"**One frontend:** {', '.join(g['name'] for g in groups)}.",
@@ -478,6 +525,12 @@ async def frontend(services: RunServices, state: Any) -> dict[str, Any]:
                 f"API address variable found in {', '.join(sorted({f for fs in used.values() for f in fs})[:4])}: `platform/frontend.env.example` sets it to the gateway."
                 if used
                 else "No API address variable was found in the frontend's code; check how it chooses its API address."
+            ),
+            *(
+                [
+                    f"- `{rel}`: {len(lines_)} line(s) now point at `http://localhost:{fd.GATEWAY_PORT}`."
+                    for rel, lines_ in sorted(rewritten.items())
+                ]
             ),
             "The modern, accessible UI is the separate **Modernize UI** playbook; this step does not redesign anything.",
         ]

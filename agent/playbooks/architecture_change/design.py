@@ -21,6 +21,7 @@ The model only names the groups. Everything else is rules on the graph, so a 9B 
 from __future__ import annotations
 
 import re
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -36,9 +37,13 @@ from agent.decomposition.platform import platform_design
 from agent.decomposition.recommend import goals_in, recommend
 from agent.llm.config import ProfileName
 from agent.llm.structured import structured
+from agent.microservices import event_driven as ev
+from agent.microservices import extract as ex
+from agent.microservices import foundation as fd
+from agent.microservices import merge as mg
 from agent.microservices import schedule
+from agent.microservices import serverless as sv
 from agent.playbooks import steps
-from agent.playbooks.architecture_change.steps import CONVERT_TARGETS
 from agent.playbooks.change_core import baseline_recording, behavior_check, behavior_line
 from agent.playbooks.code_edit import description, is_green
 from agent.playbooks.llm_step import TaskResult, llm_step
@@ -492,11 +497,14 @@ async def restructure(services: RunServices, state: Any) -> dict[str, Any]:
     base = state.get("baseline", {})
     if state.get("outcomes"):  # a rework starts again from the commit before the first move
         git(work, "reset", "-q", "--hard", base.get("base_sha", "HEAD"), check=False)
-    rules = (
-        mv.rules_from_layers(data["design"])
-        if data["target"] == "modules"
-        else mv.rules_from_modules(work, data["design"])
-    )
+    target = data["target"]
+    if target == "merge":
+        return await _restructure_merge(services, state, plan, project, base)
+    if target == "serverless":
+        return await _restructure_serverless(services, state, plan, project, base, data)
+    if target == "event_driven":
+        return await _restructure_event_driven(services, state, plan, project, base, data)
+    rules = mv.rules_from_layers(data["design"]) if target == "modules" else mv.rules_from_modules(work, data["design"])
     outcomes: list[dict[str, Any]] = []
     notes: list[str] = []
     planned, planner_notes = mv.plan_moves(work, rules)
@@ -545,6 +553,187 @@ async def _try_move(services: RunServices, project: ProjectTools, move: mv.Move)
     git(work, "add", "-A", "--", *before)
     git(work, "commit", "-q", "-m", f"Architecture: {move.title()}", check=False)
     return {**out, "done": True}
+
+
+# ── merge ────────────────────────────────────────────────────────────────────
+async def _restructure_merge(
+    services: RunServices, state: Any, plan: list[Any], project: ProjectTools, base: dict[str, Any]
+) -> dict[str, Any]:
+    """Fold every service the working tree holds back into the monolith (CODEWRIGHT.md 5.18, target `merge`):
+    detected from the shims, not from the design, so this works however the services got there."""
+    work = project.work
+    moves, notes = mg.plan(work)
+    if not base.get("tests_green"):
+        notes.append("The tests did not all pass before the change, so no service was merged back.")
+        moves = []
+    outcomes = [await _try_merge(services, project, m) for m in moves]
+    cleanup: list[str] = []
+    for outcome, move in zip(outcomes, moves, strict=True):
+        if outcome["done"]:
+            cleanup += mg.drop_gateway_route(work, move.service)
+    cleanup += mg.remove_unused_acl(work)
+    if cleanup:
+        git(work, "add", "-A", "--", *cleanup)
+        git(
+            work, "commit", "-q", "-m", "Architecture: drop gateway routes and the unused anti-corruption layer",
+            check=False,
+        )  # fmt: skip
+    done = sum(o["done"] for o in outcomes)
+    summary = f"{done} of {len(outcomes)} service(s) merged back into the monolith" if outcomes else "nothing to merge"
+    return await steps.finish(
+        services, state, plan, "restructure", "backend_developer", summary,
+        outcomes=outcomes, restructure_notes=notes, rules={"style": "merge", "modules": 0}, remaining_violations=[],
+    )  # fmt: skip
+
+
+async def _try_merge(services: RunServices, project: ProjectTools, move: mg.Move) -> dict[str, Any]:
+    work = project.work
+    out = {
+        "title": move.title(), "kind": "merge", "file": move.service_dir, "to": "monolith", "reason": move.reason,
+        "done": False, "note": "",
+    }  # fmt: skip
+    try:
+        before = mg.apply_merge(work, move)
+    except mg.CannotMerge as exc:
+        return {**out, "note": f"not applied: {exc}"}
+    project.files_changed(sorted(before))
+    results = await project.test(None)
+    if not all_green(results):
+        mg.restore(work, before)
+        project.files_changed(sorted(before))
+        return {**out, "note": "undone: the tests failed after it"}
+    git(work, "add", "-A", "--", *before)
+    git(work, "commit", "-q", "-m", f"Architecture: {move.title()}", check=False)
+    return {**out, "done": True}
+
+
+# ── serverless ───────────────────────────────────────────────────────────────
+async def _restructure_serverless(
+    services: RunServices, state: Any, plan: list[Any], project: ProjectTools, base: dict[str, Any],
+    data: dict[str, Any],
+) -> dict[str, Any]:  # fmt: skip
+    """Package every stateless backend group as a serverless function (CODEWRIGHT.md 5.18, target `serverless`).
+    The monolith's own copy of the code is never touched, so there is nothing to undo on a success; a failed
+    package (its tests red) is removed."""
+    work = project.work
+    design = data["design"]
+    rules = mv.rules_from_modules(work, design)
+    groups = sv.stateless_groups(design)
+    results: dict[str, dict[str, Any]] = {}
+    notes: list[str] = []
+    if not base.get("tests_green"):
+        notes.append("The tests did not all pass before the change, so nothing was packaged.")
+        groups = []
+    for name in groups:
+        results[name] = await _try_serverless(project, rules, name)
+
+    def _outcome(name: str, r: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "title": f"Package `{name}` as a serverless function",
+            "kind": "serverless",
+            "file": sv.service_dir(name),
+            "to": "a deploy manifest",
+            "reason": r.get("reason", "") or "packaged",
+            "done": r["status"] == "packaged",
+            "note": "" if r["status"] == "packaged" else f"{r['status']}: {r.get('reason', '')}",
+        }
+
+    outcomes = [_outcome(name, r) for name, r in results.items()]
+    done = sum(1 for r in results.values() if r["status"] == "packaged")
+    summary = (
+        f"{done} of {len(results)} stateless part(s) packaged as serverless functions"
+        if results
+        else "nothing stateless to package (every backend group owns a table or orchestrates a saga)"
+    )
+    return await steps.finish(
+        services, state, plan, "restructure", "backend_developer", summary,
+        outcomes=outcomes, restructure_notes=notes, rules={"style": "serverless", "modules": len(rules["modules"])},
+        remaining_violations=[], platform_detail={"serverless_results": results},
+    )  # fmt: skip
+
+
+async def _try_serverless(project: ProjectTools, rules: dict[str, Any], name: str) -> dict[str, Any]:
+    work = project.work
+    result: dict[str, Any] = {"service": name, "status": "pending"}
+    target_dir = work / sv.service_dir(name)
+    if target_dir.exists():
+        return {
+            **result,
+            "status": "blocked",
+            "reason": f"`{sv.service_dir(name)}` already exists; it is never overwritten",
+        }
+    plan_x = ex.plan_extraction(work, rules, name)
+    if plan_x.blocked:
+        return {**result, "status": "blocked", "reason": plan_x.blocked}
+    roots = boundaries.py_roots(work)
+    package = f"{fd.safe_name(name)}_service"
+    runtime = sv.RUNTIME_FOR.get("Python", "python3.12")
+    before = sv.apply_package(work, plan_x, roots, package, runtime)
+    project.files_changed(sorted(before))
+    results = await project.test(None)
+    if not all_green(results):
+        ex.restore(work, before)
+        project.files_changed(sorted(before))
+        shutil.rmtree(target_dir, ignore_errors=True)
+        return {**result, "status": "undone", "reason": "the tests failed after it was packaged"}
+    git(work, "add", "-A", "--", *before)
+    git(work, "commit", "-q", "-m", f"Package the {name} function for serverless", check=False)
+    exposed = {
+        boundaries.py_dotted(f, roots): names
+        for f, names in sorted(plan_x.entries.items())
+        if boundaries.py_dotted(f, roots)
+    }
+    return {
+        **result, "status": "packaged", "runtime": runtime, "exposed": exposed,
+        "copied": len(plan_x.files) + len(plan_x.shared),
+    }  # fmt: skip
+
+
+# ── event-driven ─────────────────────────────────────────────────────────────
+async def _restructure_event_driven(
+    services: RunServices, state: Any, plan: list[Any], project: ProjectTools, base: dict[str, Any],
+    data: dict[str, Any],
+) -> dict[str, Any]:  # fmt: skip
+    """Wire the safe half of every event the design proposes (CODEWRIGHT.md 5.18, target `event_driven`): the bus,
+    the envelope and each consumer's subscription. Rewriting the producer's call site is left for a human
+    (`agent.microservices.event_driven`'s module docstring says why) and is never applied."""
+    work = project.work
+    design = data["design"]
+    platform = data.get("platform") or platform_design(design)
+    rules = mv.rules_from_modules(work, design)
+    notes: list[str] = []
+    before: dict[str, str | None] = {}
+    info: dict[str, Any] = {"events": 0, "subscribed": {}, "call_sites": {}}
+    if platform.get("events") and not base.get("tests_green"):
+        notes.append("The tests did not all pass before the change, so nothing was generated.")
+    else:
+        before, info = ev.apply(work, rules, platform)
+    outcomes: list[dict[str, Any]] = []
+    if before:
+        project.files_changed(sorted(before))
+        results = await project.test(None)
+        if not all_green(results):
+            ev.restore(work, before)
+            project.files_changed(sorted(before))
+            notes.append("Wiring the event bus and subscribers changed behavior (the tests failed), so it was undone.")
+            outcomes.append(_event_outcome(info, done=False, note="undone: the tests failed after it"))
+        else:
+            git(work, "add", "-A", "--", *before)
+            git(work, "commit", "-q", "-m", "Architecture: event bus, subscribers and a review doc", check=False)
+            outcomes.append(_event_outcome(info, done=True, note=""))
+    summary = ev.brief(info).splitlines()[0]
+    return await steps.finish(
+        services, state, plan, "restructure", "backend_developer", summary,
+        outcomes=outcomes, restructure_notes=notes, rules={"style": "event_driven", "modules": len(rules["modules"])},
+        remaining_violations=[], platform_detail={"event_driven": info},
+    )  # fmt: skip
+
+
+def _event_outcome(info: dict[str, Any], *, done: bool, note: str) -> dict[str, Any]:
+    return {
+        "title": "Wire the event bus and subscribers", "kind": "event_driven", "file": "libs/events",
+        "to": "libs/events/bus.py", "reason": f"{info['events']} event(s) from the design", "done": done, "note": note,
+    }  # fmt: skip
 
 
 # ── verify ───────────────────────────────────────────────────────────────────
@@ -621,16 +810,30 @@ def report_text(state: Any, *, conversion: bool) -> str:
     elif conversion:
         lines += ["## What was changed", *(state.get("result_brief", "").splitlines()[:-2]), ""]
     else:
-        lines += [
-            "## Next",
-            "Nothing was changed. Run this again in conversion mode to apply it"
-            + (
-                " (clean modules and modular monolith are built; the other targets are design only for now)."
-                if data["target"] not in CONVERT_TARGETS
-                else "."
-            ),
-            "",
-        ]
+        lines += ["## Next", "Nothing was changed. Run this again in conversion mode to apply it.", ""]
+    return "\n".join(lines)
+
+
+def generic_comparison(state: Any) -> str:
+    """Before/after for a conversion that isn't microservices (clean modules, modular monolith, merge, serverless,
+    event-driven): the generic `outcomes` every one of `restructure()`'s branches fills in, and the module graph
+    before and after (`verify()` already compared it)."""
+    data = state["to_be"]
+    done = [o for o in state.get("outcomes", []) if o["done"]]
+    skipped = [o for o in state.get("outcomes", []) if not o["done"]]
+    lines = [
+        f"# Before and after: {TARGET_TITLES[data['target']]}",
+        "",
+        f"**{len(done)} change(s) made, {len(skipped)} not applied.**",
+        "",
+        *(f"- {o['title']} ({o['reason']})" for o in done),
+        *(f"- not applied: {o['title']}: {o['note']}" for o in skipped),
+        "",
+        f"📈 {state.get('graph_change', 'Dependencies between modules were not compared.')}",
+        "",
+        f"Generated {time.strftime('%Y-%m-%d')} by Codewright.",
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -650,18 +853,25 @@ async def report(services: RunServices, state: Any) -> dict[str, Any]:
     plan = await steps.start(services, state, "report", "technical_writer")
     update: dict[str, Any] = {}
     extra: list[Any] = []
-    if state["to_be"]["target"] == "microservices":
+    target = state["to_be"]["target"]
+    comparison, doc_name, message = "", "COMPARISON.md", ""
+    if target == "microservices":
         from agent.playbooks.architecture_change import microservices  # noqa: PLC0415  (it imports this module)
 
         update["graph_change"] = await microservices.graph_comparison(services, state)
         state = {**state, **update}
         comparison = microservices.comparison(state)
+        doc_name, message = "MICROSERVICES.md", "Microservices: report"
+    elif target in ("merge", "serverless", "event_driven") and state["inputs"]["mode"] == "conversion":
+        comparison = generic_comparison(state)
+        message = f"{TARGET_TITLES[target]}: report"
+    if comparison:
         extra.append(steps.write_artifact(state, "COMPARISON.md", comparison, "report", "Before and after", "report"))
         project = project_of(services, state)
         folder = project.work / "docs" / "architecture"
         folder.mkdir(parents=True, exist_ok=True)
-        (folder / "MICROSERVICES.md").write_text(comparison, encoding="utf-8")
-        git(project.work, "add", "-A", "--", "docs/architecture/MICROSERVICES.md")
+        (folder / doc_name).write_text(comparison, encoding="utf-8")
+        git(project.work, "add", "-A", "--", f"docs/architecture/{doc_name}")
         git(
             project.work,
             "-c",
@@ -671,7 +881,7 @@ async def report(services: RunServices, state: Any) -> dict[str, Any]:
             "commit",
             "-q",
             "-m",
-            "Microservices: report",
+            message,
             check=False,
         )
     text = report_text(state, conversion=True)
