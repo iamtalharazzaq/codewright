@@ -24,7 +24,9 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from agent.playbooks.architecture_change.design import REAL, SERVICE_TARGETS
+from agent.playbooks.architecture_change import microservices
+from agent.playbooks.architecture_change.design import REAL as DESIGN_REAL
+from agent.playbooks.architecture_change.design import SERVICE_TARGETS
 from agent.playbooks.architecture_change.steps import STEPS, MicroservicesInputs, MicroservicesState, stub_step
 from agent.playbooks.gates import GateDef, after_gate, gate_node, last_decision, result_gate
 from agent.playbooks.registry import PlaybookSpec
@@ -67,7 +69,12 @@ BRIEFS = {
     "gate4": "language_brief",
     "gate8": "report_brief",
 }
-REAL_GATES: dict[str, GateDef] = {g: replace(GATES[g], summary_keys=(key,)) for g, key in BRIEFS.items()}
+# The microservices conversion's gates (5-7) show their own briefs too.
+CONVERSION_BRIEFS = {"gate5": "service_brief", "gate6": "db_split_brief", "gate7": "frontend_brief"}
+REAL_GATES: dict[str, GateDef] = {
+    g: replace(GATES[g], summary_keys=(key,)) for g, key in {**BRIEFS, **CONVERSION_BRIEFS}.items()
+}
+REAL = {**DESIGN_REAL, **microservices.REAL}
 RESULT_GATE = result_gate(reworks="restructure", summary_keys=("result_brief",))
 
 AUDIT_FLOW = ["intake", "gate1", "baseline", "as_is", "gate2", "to_be", "gate3", "languages", "gate4",
@@ -77,7 +84,7 @@ CONVERSION_FLOW = [*AUDIT_FLOW[:9], "foundation", "build_service", "gate5", "db_
 
 
 def flow(inputs: dict[str, Any]) -> list[str]:
-    if inputs.get("simulate"):
+    if inputs.get("simulate") or (inputs.get("target") == "microservices" and inputs.get("mode") != "audit"):
         return AUDIT_FLOW if inputs.get("mode") == "audit" else CONVERSION_FLOW
     head = ["intake", "gate1", "baseline", "as_is", "gate2", "to_be", "gate3"]
     if inputs.get("target") in SERVICE_TARGETS:
@@ -92,7 +99,7 @@ def _after_design(state: MicroservicesState) -> str:
     inputs = state["inputs"]
     if inputs.get("mode") == "audit":
         return "audit_report"
-    return "foundation" if inputs.get("simulate") else "restructure"
+    return "foundation" if inputs.get("simulate") or inputs.get("target") == "microservices" else "restructure"
 
 
 def _step_node(step: str, services: RunServices) -> Node[MicroservicesState]:
@@ -120,7 +127,7 @@ def _gate(gate_id: str) -> Node[MicroservicesState]:
 
 
 def _build_service_loop(services: RunServices) -> CompiledStateGraph[Any, Any, Any, Any]:
-    """Step 7 sub-graph (simulated): one service at a time from `service_queue`, each ending at Gate 5."""
+    """Step 7 sub-graph: one service at a time from `service_queue`, each ending at Gate 5."""
 
     async def next_service(state: MicroservicesState) -> dict[str, Any]:
         queue = list(state.get("service_queue", []))
@@ -136,8 +143,8 @@ def _build_service_loop(services: RunServices) -> CompiledStateGraph[Any, Any, A
 
     loop: Graph = StateGraph(MicroservicesState)
     loop.add_node("next_service", next_service)
-    loop.add_node("build_service", stub_step("build_service", services))
-    loop.add_node("gate5", gate_node(GATES["gate5"]))
+    loop.add_node("build_service", _step_node("build_service", services))
+    loop.add_node("gate5", _gate("gate5"))
     loop.add_edge(START, "next_service")
     loop.add_conditional_edges("next_service", has_service, ["build_service", END])
     loop.add_edge("build_service", "gate5")
@@ -162,11 +169,9 @@ def build(services: RunServices) -> Graph:
     for step in shared:
         g.add_node(step, _step_node(step, services))
     for step in ("foundation", "db_split", "frontend"):
-        g.add_node(step, stub_step(step, services))
-    for gate_id in BRIEFS:
+        g.add_node(step, _step_node(step, services))
+    for gate_id in (*BRIEFS, "gate6", "gate7"):
         g.add_node(gate_id, _gate(gate_id))
-    for gate_id in ("gate6", "gate7"):
-        g.add_node(gate_id, gate_node(GATES[gate_id]))
     g.add_node(RESULT_GATE.id, gate_node(RESULT_GATE))
     g.add_node("service_loop", _build_service_loop(services))
 
@@ -204,8 +209,14 @@ def build(services: RunServices) -> Graph:
         RESULT_GATE.id, after_gate(RESULT_GATE.id, "report", "restructure"), ["report", "restructure"]
     )
 
-    # The simulated microservices conversion.
-    g.add_edge("foundation", "service_loop")
+    # The microservices conversion (real, or simulated with `simulate`). A foundation that could not be written ends
+    # the conversion at the report: there is nothing to build services on.
+    def after_foundation(state: MicroservicesState) -> str:
+        if state["inputs"].get("simulate") or (state.get("foundation") or {}).get("ok"):
+            return "service_loop"
+        return "report"
+
+    g.add_conditional_edges("foundation", after_foundation, ["service_loop", "report"])
     g.add_edge("service_loop", "db_split")
     g.add_edge("db_split", "gate6")
     g.add_conditional_edges("gate6", after_gate("gate6", "frontend", "db_split"), ["frontend", "db_split"])

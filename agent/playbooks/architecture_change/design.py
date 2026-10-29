@@ -36,6 +36,7 @@ from agent.decomposition.platform import platform_design
 from agent.decomposition.recommend import goals_in, recommend
 from agent.llm.config import ProfileName
 from agent.llm.structured import structured
+from agent.microservices import schedule
 from agent.playbooks import steps
 from agent.playbooks.architecture_change.steps import CONVERT_TARGETS
 from agent.playbooks.change_core import baseline_recording, behavior_check, behavior_line
@@ -381,9 +382,8 @@ async def to_be(services: RunServices, state: Any) -> dict[str, Any]:
 
 
 def _queue(design: dict[str, Any]) -> list[str]:
-    """Services in the order to build them: the least coupled first."""
-    backend = [g for g in design["groups"] if g["kind"] == "backend"]
-    return [g["name"] for g in sorted(backend, key=lambda g: (len(g["calls"]) + len(g["called_by"]), g["name"]))]
+    """Services in the order to build them: callees before callers, the least coupled first (Phase 16)."""
+    return schedule.order(design)
 
 
 def _to_be_brief(data: dict[str, Any]) -> str:
@@ -614,7 +614,11 @@ def report_text(state: Any, *, conversion: bool) -> str:
     lines += ["## The design", *(_to_be_brief(data).splitlines()[:-2]), ""]
     if state.get("language_plan"):
         lines += ["## Languages", *(state.get("language_brief", "").splitlines()[1:-2]), ""]
-    if conversion:
+    if conversion and data["target"] == "microservices":
+        from agent.playbooks.architecture_change import microservices  # noqa: PLC0415  (it imports this module)
+
+        lines += ["## What was changed", *microservices.report_lines(state), ""]
+    elif conversion:
         lines += ["## What was changed", *(state.get("result_brief", "").splitlines()[:-2]), ""]
     else:
         lines += [
@@ -644,13 +648,39 @@ async def audit_report(services: RunServices, state: Any) -> dict[str, Any]:
 
 async def report(services: RunServices, state: Any) -> dict[str, Any]:
     plan = await steps.start(services, state, "report", "technical_writer")
+    update: dict[str, Any] = {}
+    extra: list[Any] = []
+    if state["to_be"]["target"] == "microservices":
+        from agent.playbooks.architecture_change import microservices  # noqa: PLC0415  (it imports this module)
+
+        update["graph_change"] = await microservices.graph_comparison(services, state)
+        state = {**state, **update}
+        comparison = microservices.comparison(state)
+        extra.append(steps.write_artifact(state, "COMPARISON.md", comparison, "report", "Before and after", "report"))
+        project = project_of(services, state)
+        folder = project.work / "docs" / "architecture"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "MICROSERVICES.md").write_text(comparison, encoding="utf-8")
+        git(project.work, "add", "-A", "--", "docs/architecture/MICROSERVICES.md")
+        git(
+            project.work,
+            "-c",
+            "user.name=Codewright",
+            "-c",
+            "user.email=codewright@localhost",
+            "commit",
+            "-q",
+            "-m",
+            "Microservices: report",
+            check=False,
+        )
     text = report_text(state, conversion=True)
     artifact = steps.write_artifact(
         state, "architecture-report.md", text, "report", "Architecture change report", "report"
     )
     return await steps.finish(
         services, state, plan, "report", "technical_writer", "Report written",
-        report={"kind": "report", "path": artifact["path"]}, report_brief=text, artifacts=[artifact],
+        report={"kind": "report", "path": artifact["path"]}, report_brief=text, artifacts=[artifact, *extra], **update,
     )  # fmt: skip
 
 
