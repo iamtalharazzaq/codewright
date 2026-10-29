@@ -219,19 +219,22 @@ async def test_reworking_the_result_starts_again_from_the_baseline(tmp_path: Pat
     assert (work / "shop/web/slug.py").is_file() or any(not o["done"] for o in state["outcomes"])
 
 
-async def test_conversion_to_an_unbuilt_target_is_refused_up_front(tmp_path: Path) -> None:
+async def test_recommend_cannot_be_converted_directly_but_every_target_can_be_designed(tmp_path: Path) -> None:
+    """Phase 17: merge, serverless and event-driven are real conversions now (CONVERT_TARGETS); only `recommend`
+    (pick a target, don't commit to one) still has to be resolved to a real target first."""
     from pydantic import ValidationError  # noqa: PLC0415
 
     from agent.playbooks.registry import get_playbook  # noqa: PLC0415
 
     inputs = get_playbook("architecture_change").spec.inputs
-    for target in ("serverless", "merge", "event_driven", "recommend"):
-        try:
-            inputs.model_validate({"target": target, "mode": "conversion"})
-        except ValidationError as exc:
-            assert "conversion" in str(exc)
-        else:
-            raise AssertionError(f"{target} conversion should be refused")
+    try:
+        inputs.model_validate({"target": "recommend", "mode": "conversion"})
+    except ValidationError as exc:
+        assert "conversion" in str(exc)
+    else:
+        raise AssertionError("recommend conversion should be refused")
+    for target in ("serverless", "merge", "event_driven", "modules", "modular_monolith", "microservices"):
+        inputs.model_validate({"target": target, "mode": "conversion"})  # does not raise
     assert (
         inputs.model_validate({"target": "serverless"}).model_dump()["mode"] == "audit"
     )  # but every target can be designed

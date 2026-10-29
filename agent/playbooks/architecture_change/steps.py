@@ -24,7 +24,9 @@ from agent.playbooks.state import Node, RunState, merge
 
 Target = Literal["recommend", "microservices", "modules", "modular_monolith", "merge", "serverless", "event_driven"]
 DESIGN_TARGETS = ("recommend", "modules", "modular_monolith", "microservices", "merge", "serverless", "event_driven")
-CONVERT_TARGETS = ("modules", "modular_monolith", "microservices")  # changed for real; the others arrive in Phase 17
+# Phase 17: merge is a real, mechanical fold-back; serverless packages stateless parts; event_driven wires the bus
+# and the safe half of each subscription. All seven targets can be designed; these six can be converted for real.
+CONVERT_TARGETS = ("modules", "modular_monolith", "microservices", "merge", "serverless", "event_driven")
 
 
 class MicroservicesInputs(BaseModel):
@@ -84,13 +86,9 @@ class MicroservicesInputs(BaseModel):
         if self.simulate and self.target != "microservices":
             raise ValueError("Only the microservices conversion has simulated steps.")
         if self.mode == "conversion" and not self.simulate and self.target not in CONVERT_TARGETS:
-            wanted = (
-                "Pick a target to convert (clean modules, modular monolith or microservices)"
-                if self.target == "recommend"
-                else (f"The {self.target} conversion isn't available yet")
-            )
             raise ValueError(
-                f"{wanted}; every target can be designed in audit mode. Conversion works for clean modules, modular monolith and microservices."  # noqa: E501
+                "Pick a target to convert (clean modules, modular monolith, microservices, merge, serverless or "
+                "event-driven); every target can be designed in audit mode."
             )
         return self
 
@@ -132,6 +130,9 @@ class MicroservicesState(RunState):
     diff: NotRequired[str]
     published: NotRequired[dict[str, Any]]
     done_summary: NotRequired[str]
+    # Phase 17: per-target detail the generic `outcomes` can't hold (serverless's packages by name, event_driven's
+    # subscriptions and unreviewed call sites), read back by `report()` and `comparison()`.
+    platform_detail: NotRequired[dict[str, Any]]
 
 
 STEPS: dict[str, StepDef] = {

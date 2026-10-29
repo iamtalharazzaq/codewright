@@ -180,7 +180,7 @@ def render(entry: dict[str, Any], owners: dict[str, str | None]) -> tuple[str, s
     if entry["sagas"]:
         up.append(
             f"CREATE TABLE IF NOT EXISTS {schema}.saga_state (id uuid PRIMARY KEY, name text NOT NULL, step integer NOT NULL, "
-            "status text NOT NULL CHECK (status IN ('running', 'completed', 'compensating', 'failed')), "
+            "status text NOT NULL CHECK (status IN ('running', 'completed', 'compensating', 'compensated', 'failed')), "
             "context jsonb NOT NULL DEFAULT '{}', updated_at timestamptz NOT NULL DEFAULT now());"
         )
     for extra in ("outbox", "processed_events", "saga_state"):
