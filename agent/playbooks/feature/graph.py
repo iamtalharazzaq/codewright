@@ -47,6 +47,7 @@ from agent.playbooks.change_core import (
     behavior_line,
 )
 from agent.playbooks.code_edit import (
+    MAX_FAILURE_CHARS,
     description,
     is_green,
     own_test_file,
@@ -568,10 +569,17 @@ def restore(project: ProjectTools, originals: dict[str, str], created: list[str]
 
 
 async def run_tests(project: ProjectTools) -> tuple[bool, str]:
+    """Green only when the tests pass and the project's own lint/type-check steps do too: Vitest and Jest transpile
+    with esbuild/Babel and never type-check, so a TypeScript error (e.g. a name that shadows an import) can pass
+    `test()` and only surface in `tsc`/eslint — which, without this, nothing in the Reflection loop ever sees."""
     results = await project.test(None)
     ok = bool(results) and all(is_green(r.get("report")) for r in results)
-    bad = next((r for r in results if not is_green(r.get("report"))), None)
-    return ok, "" if ok else result_failure(bad)
+    if not ok:
+        bad = next((r for r in results if not is_green(r.get("report"))), None)
+        return False, result_failure(bad)
+    lint = await project.lint(None)
+    bad_lint = next((r for r in lint if not r.get("ok", True)), None)
+    return bad_lint is None, "" if bad_lint is None else (bad_lint.get("output") or "")[-MAX_FAILURE_CHARS:]
 
 
 async def write_feature(
