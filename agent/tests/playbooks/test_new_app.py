@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -101,7 +102,7 @@ def test_the_options_message_recommends_one_with_a_reason() -> None:
 
 
 # ── whole runs ───────────────────────────────────────────────────────────────
-def _state(tmp_path: Path, **inputs: object) -> dict[str, object]:
+def _state(tmp_path: Path, **inputs: Any) -> dict[str, Any]:
     state = dict(initial_state("new_app", tmp_path, **inputs))
     state["project_id"] = None  # the run manager gives a new app no project; the scaffold creates it
     return state
@@ -121,7 +122,7 @@ async def test_a_small_app_is_planned_built_tested_and_committed(tmp_path: Path)
         compiled("new_app", services),
         cfg(),
         _state(tmp_path, **run_inputs()),
-        approve_all,  # type: ignore[arg-type]
+        approve_all,
     )
     assert gates_of(prompts) == ["approve_result"] and state["tier"] == 1
     assert services.created == ["Tic Tac Toe"] and state["project_id"]
@@ -141,7 +142,7 @@ async def test_a_failing_app_is_shown_red_not_hidden(tmp_path: Path) -> None:
         compiled("new_app", services),
         cfg(),
         _state(tmp_path, **run_inputs()),
-        approve_all,  # type: ignore[arg-type]
+        approve_all,
     )
     assert state["passed"] is False and "Tests still fail" in state["result_brief"]
 
@@ -159,7 +160,7 @@ async def test_the_gates_grow_with_the_size_of_the_app(tmp_path: Path, size: str
     state, prompts = await drive(
         compiled("new_app", services),
         cfg(),
-        _state(tmp_path, **run_inputs(size=size, use_llm=False)),  # type: ignore[arg-type]
+        _state(tmp_path, **run_inputs(size=size, use_llm=False)),
         approve_all,
     )
     assert gates_of(prompts) == gates

@@ -869,7 +869,11 @@ class ChatService:
             )
         # A new app gets its own project, whichever project this chat was opened from.
         return await self._start_run(
-            conversation_id, intent, inputs, int(card.data.get("tier") or 0), None if intent == "new_app" else project_id
+            conversation_id,
+            intent,
+            inputs,
+            int(card.data.get("tier") or 0),
+            None if intent == "new_app" else project_id,
         )
 
     async def _start_run(

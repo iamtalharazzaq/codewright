@@ -137,7 +137,10 @@ class _Services:
             project_id = project.id
         await asyncio.to_thread(Workspace(manager.settings.workspaces_dir, str(project_id)).create)
         await manager.record_event(
-            uuid.UUID(run_id), "note", step="scaffold", data={"text": f"Project created: {name}", "project_id": str(project_id)}
+            uuid.UUID(run_id),
+            "note",
+            step="scaffold",
+            data={"text": f"Project created: {name}", "project_id": str(project_id)},
         )
         return str(project_id)
 

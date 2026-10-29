@@ -47,7 +47,8 @@ export function DeliverPanel({
   function unavailable(target: DeliverTarget): string | null {
     if (!connectors) return null;
     if (target === "github" && !connectors.github_token) return "needs GITHUB_TOKEN in .env";
-    if ((target === "drive" || target === "drive_zip") && !connectors.drive.connected) return "connect Drive in Settings";
+    if ((target === "drive" || target === "drive_zip") && !connectors.drive.connected)
+      return "connect Drive in Settings";
     if (target === "local" && !connectors.output_folder) return "set ALLOWED_OUTPUT_DIRS in .env";
     return null;
   }
@@ -106,11 +107,7 @@ export function DeliverPanel({
       )}
       {keepsElsewhere && (
         <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${id}-remove`}
-            checked={removeLocal}
-            onCheckedChange={(c) => setRemoveLocal(c === true)}
-          />
+          <Checkbox id={`${id}-remove`} checked={removeLocal} onCheckedChange={(c) => setRemoveLocal(c === true)} />
           <Label htmlFor={`${id}-remove`} className="font-normal">
             Delete the code from this machine after it is uploaded (kept if an upload fails)
           </Label>

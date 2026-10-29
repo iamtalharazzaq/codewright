@@ -2,7 +2,7 @@
 each (the language the table recommends or the request names), approved at the result gate. A run passes when its
 tests pass in the sandbox (the verify step says "N test(s) passed"); a run that gives up says so and counts as a fail.
 
-    python3 evals/write_code.py [--only 1 2 3] [--api http://localhost:8000/api] [--out evals/results]
+    python3 -m evals.write_code [--only 1 2 3] [--api http://localhost:8000/api] [--out evals/results]
 
 Runs one after another (Codewright allows one active run). Standard library only; needs a running stack with the
 sandbox images built.
@@ -48,7 +48,7 @@ def run_one(api: str, request: str, language: str, seconds: float) -> dict[str, 
     rid = str(run["id"])
 
     def finished() -> dict[str, Any] | None:
-        now = call(api, "GET", f"/runs/{rid}")
+        now: dict[str, Any] = call(api, "GET", f"/runs/{rid}")
         if now["status"] in ("failed", "cancelled"):
             return now
         if now["status"] == "waiting" and now["pending"]:
@@ -82,7 +82,8 @@ def main() -> None:
             result = {"passed": False, "status": "error", "error": str(exc)[:300]}
         result |= {"n": number, "request": request, "language": language, "seconds": round(time.monotonic() - started)}
         results.append(result)
-        print(f"#{number} {language}: {'PASS' if result['passed'] else 'FAIL'} {result.get('verify') or result.get('error')}")
+        verdict = "PASS" if result["passed"] else "FAIL"
+        print(f"#{number} {language}: {verdict} {result.get('verify') or result.get('error')}")
     passed = sum(1 for r in results if r["passed"])
     print(f"{passed}/{len(results)} passed")
     args.out.mkdir(parents=True, exist_ok=True)

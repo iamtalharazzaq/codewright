@@ -34,7 +34,8 @@ class AppKind:
 KINDS: dict[str, AppKind] = {k.name: k for k in (
     AppKind("browser", "it runs in the browser, so you can play it in Preview", (
         Option("TypeScript + React", "web-react-ts"), Option("JavaScript + React", "web-react-js"),
-        Option("Python (terminal)", "cli-python"), Option("Go (terminal)", "cli-go"), Option("C++ (terminal)", "cli-cpp"),
+        Option("Python (terminal)", "cli-python"), Option("Go (terminal)", "cli-go"),
+        Option("C++ (terminal)", "cli-cpp"),
     )),
     AppKind("site", "Next.js pages are fast and good for search engines", (
         Option("Next.js (TypeScript)", "site-nextjs-ts"), Option("Next.js (JavaScript)", "site-nextjs-js"),
@@ -116,7 +117,11 @@ def size_of(inputs: dict[str, Any]) -> str:
 def named_language(inputs: dict[str, Any]) -> str:
     """The language the user named in the language/stack fields or the answers ('' = none named)."""
     explicit = " " + " ".join(
-        [str(inputs.get("language", "")), str(inputs.get("stack", "")), str((inputs.get("card") or {}).get("stack", ""))]
+        [
+            str(inputs.get("language", "")),
+            str(inputs.get("stack", "")),
+            str((inputs.get("card") or {}).get("stack", "")),
+        ]
         + [str(a[1]) for a in inputs.get("answers", []) if isinstance(a, list | tuple) and len(a) == 2]
     ).lower() + " "  # fmt: skip
     for word, lang in _LANG_WORDS:
