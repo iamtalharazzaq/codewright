@@ -8,6 +8,20 @@ Still open: Phase 8's 20-example eval, Phase 6's audit review and M1 demo (with 
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
 
+## Resume here (written 2026-10-29, for a new session or account)
+
+Running when this was written (background agents of the previous session; they stop if that session ends, their
+files stay on disk in `.claude/worktrees/`):
+1. **Phase 16** (microservices build): branch `worktree-agent-a41c939c87c60e480`. When done: merge it into this branch, then update this file.
+2. **Live runs of Phases 11 → 12 → 13 → 14 → 15**, one after another (Codewright allows one active run; one GPU). Fixes are committed straight on this branch; the report lists what ran, what broke, what is open.
+
+Then, in this order:
+- `python3 evals/write_code.py` (Phase 8: the 20 `EXAMPLES.md` section 2 requests, ~1-2 h on the GPU; run only after the live runs, same single run slot). Write the result into the Phase 8 section.
+- Phase 6 audit review and the M1 demo need **you** (see "Decisions waiting on you").
+- Next phases: 17 (architecture III), 18 (Translate), 19 (deepen Language Packs/templates), 20 (evals), 21 (polish), 22 (hardening, v1.0).
+- One `make check` pass at the end of a batch (project rule: features first, one check pass). Known: `agent/tests/graph/test_graph.py::test_graphify_build_versions_and_queries` fails on the host venv only (Graphify not installed there); ruff reports ~20 long-line errors in `new_app`, `chat.py`, `runs.py` to fix; the web changes (Done card delivery panel, Drive folder/ZIP options) were never type-checked.
+- Disk was at 98% (5.6 GB free) after pruning the Docker build cache; old worktrees under `.claude/worktrees/` (about 600 MB) can go once their branches are merged or abandoned.
+
 ## How to run
 
 ```bash
