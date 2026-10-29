@@ -151,6 +151,10 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
 ## Phase 17: Architecture change III (merge / serverless / event-driven)
 - `target=merge` on a project with an already-extracted service. **Expect:** the service's code is restored into
   the monolith, its gateway route and runbook removed.
+- **Real-sandbox retrofit:** `merge` is real-verified on Python (`make check-sandbox`,
+  `test_architecture_merge_sandbox.py`) — found and fixed two real bugs: a dangling shim test left behind after
+  every real merge, and `__pycache__` breaking `git add -A` (and never being excluded from real commits at all).
+  `serverless`/`event_driven` and the other 4 languages are not retrofitted.
 - `target=serverless` on a Python project. **Expect:** stateless entry points packaged per function with a deploy
   manifest template; the monolith's own copy is left untouched.
 - `target=event_driven`. **Expect:** a generated `EVENT_REWRITE_REVIEW.md` naming every call site a human should
