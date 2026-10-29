@@ -103,6 +103,10 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   tests.
 - `/database-change` (e.g. "add an index on X"). **Expect:** a numbered migration + rollback, tried on a throwaway
   Postgres (up/down, row counts, checksums, query plan before/after).
+- **Real-sandbox retrofit:** `security` is real-verified on all 5 languages (`make check-sandbox`,
+  `test_security_sandbox.py`) and `upgrade` on TypeScript (`test_upgrade_sandbox.py`) — found and fixed a real bug
+  where Node/TS outdated-dependency detection silently found nothing. `db_change` is not retrofitted yet (needs a
+  scratch-Postgres harness extension). See PROGRESS.md's Retrofit section for details.
 
 ## Phase 11: Add a feature
 - Ask for a feature "like an existing one" in a project with a similar feature already. **Expect:** a plan that

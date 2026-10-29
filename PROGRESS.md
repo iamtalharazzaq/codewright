@@ -122,7 +122,7 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-29 at your request** (pace/token use) — Phase 8 and 9 done; 10, 11, 17 and the rest of the
+**Paused here 2026-10-29 at your request** (pace/token use) — Phase 8, 9 and 10 done; 11, 17 and the rest of the
 order above not started. Resume when you ask.
 
 - **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
@@ -146,6 +146,29 @@ order above not started. Resume when you ask.
   against). `performance` (`test_performance_sandbox.py`, reuses refactor's fixtures): finds its target via
   real code search (no DB/sleep code in the fixtures to trip the static smell-scan), fixes it with a real
   test-verified rewrite, and honestly reports the benchmark as "not measured" for the same reason.
+- **Phase 10: real-verified on `security` (all 5 languages) and `upgrade` (TypeScript only); `db_change` deferred.**
+  `security` (`test_security_sandbox.py`): a real secret/dependency/lint scan finds a planted fake AWS key, a
+  scripted fix removes it, a real rescan and real tests confirm it; all 5 languages pass (~113s, real
+  `pip-audit`/`npm audit`/`govulncheck` network calls). `upgrade` (`test_upgrade_sandbox.py`, TypeScript only —
+  building a safe "really outdated" fixture per registry for all 5 languages is a lot of fixture upkeep for the
+  same proof, and Python/Go/C++ fixtures have no real dependencies to upgrade yet) bumps a real outdated `lodash`
+  pin via real `npm outdated`/`npm install`, verified by real tests, committed on its own branch. Found and fixed
+  two real bugs along the way:
+  - `agent/playbooks/upgrade/outdated.py::parse_outdated` dispatched on `pack == "node"` to pick the Node/npm
+    `outdated --json` parser, but a Node/TS component's real `Component.pack` is always `"typescript"` or
+    `"javascript"` (there is no `"node"` pack) — every real upgrade survey silently found zero outdated Node/TS
+    dependencies. The existing fake-mocked unit test never caught this because it called `parse_outdated("node",
+    ...)` with that same wrong literal directly. Fixed the dispatch to check `pack in ("typescript",
+    "javascript")`; fixed the unit test's literal too (`test_upgrade_db_playbooks.py`).
+  - `agent/tests/sandbox_harness.py::start_session` only ran `git init`, never an initial commit, so every
+    fixture started with nothing tracked. `upgrade`'s own change detection (`_dirty()` in `graph.py`, `git diff
+    --name-only HEAD`) only reports tracked files — with no HEAD it was always empty before *and* after a real
+    bump, so the upgrade commit step silently committed nothing (and this stayed hidden, since the other
+    retrofit tests detect "changed" files a different way). Fixed by committing the fixture as a baseline right
+    after `git init`, matching how every real imported project already arrives with committed history.
+  `db_change` is not retrofitted: `RealProject.db_trial()` is an honest "not available in the real-sandbox
+  retrofit harness" stub (no scratch Postgres wired into this harness) — a real test would need that harness
+  extension, left for later rather than silently skipped.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 
