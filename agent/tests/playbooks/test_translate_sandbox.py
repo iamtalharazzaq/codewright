@@ -61,6 +61,34 @@ int main(int argc, char** argv) {
     return 0;
 }
 """
+CALC_GO = """package main
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
+func add(a int, b int) int {
+	return a + b
+}
+
+func main() {
+	if len(os.Args) != 3 {
+		fmt.Println("usage: calc <a> <b>")
+		os.Exit(1)
+	}
+	a, _ := strconv.Atoi(os.Args[1])
+	b, _ := strconv.Atoi(os.Args[2])
+	fmt.Println(add(a, b))
+}
+"""
+ADD_PY = "def add(a: int, b: int) -> int:\n    return a + b\n"
+MAIN_PY = (
+    "import sys\n\n\ndef main() -> None:\n"
+    '    if len(sys.argv) != 3:\n        print("usage: calc <a> <b>")\n        sys.exit(1)\n'
+    "    print(add(int(sys.argv[1]), int(sys.argv[2])))\n"
+)
 
 
 async def _events(_: dict[str, Any]) -> None:
@@ -154,6 +182,49 @@ async def test_cli_translation_passes_the_same_blackbox_cases(workspace: tuple[S
         )
         services = RealServices(project, llm_client)
         state = initial_state("translate", work, request="rewrite calc.py in C++", language="C++")
+
+        survey = await graph.survey_node(services)(state)  # type: ignore[arg-type]
+        state = {**state, **survey}
+        assert len(survey["units"]) == 2, survey
+        assert len(survey["cases"]) == 2, survey
+
+        planned = await graph.plan_node(services)(state)  # type: ignore[arg-type]
+        state = {**state, **planned}
+        assert planned["can_translate"] is True, planned.get("plan_brief")
+
+        translated = await graph.translate_node(services)(state)  # type: ignore[arg-type]
+        state = {**state, **translated}
+        assert translated["build_ok"] is True, translated.get("build_error")
+
+        verified = await graph.verify_node(services)(state)  # type: ignore[arg-type]
+        verification = verified["verification"]
+        assert verification["checked"] is True, verification
+        assert verification["ok"] is True, verification
+        assert verification["passing"] == verification["cases"] == 2, verification
+    finally:
+        await client.delete_session(sid)
+
+
+async def test_go_cli_translated_to_python_passes_the_same_blackbox_cases(
+    workspace: tuple[SandboxClient, str, Path],
+) -> None:
+    """A second real language pair (Phase 18's "more language pairs" follow-up): a Go CLI translated into Python,
+    the mirror image of the Python->C++ pair above - proves the inventory/target/builder machinery isn't
+    accidentally Python-or-C++-specific."""
+    client, ws, work = workspace
+    (work / "go.mod").write_text("module calc\n\ngo 1.22\n", encoding="utf-8")
+    (work / "calc.go").write_text(CALC_GO, encoding="utf-8")
+    sid = await _session(client, ws, work)
+    subprocess.run(["git", "config", "--global", "--add", "safe.directory", str(work)], check=True)  # noqa: S603, S607
+    try:
+        project = RealProject(client, sid, work)
+        llm_client, _bodies = llm_returning(
+            '{"cases": [{"args": ["2", "3"], "stdin": ""}, {"args": ["10", "-4"], "stdin": ""}]}',
+            ADD_PY,
+            MAIN_PY,
+        )
+        services = RealServices(project, llm_client)
+        state = initial_state("translate", work, request="rewrite calc.go in Python", language="Python")
 
         survey = await graph.survey_node(services)(state)  # type: ignore[arg-type]
         state = {**state, **survey}
