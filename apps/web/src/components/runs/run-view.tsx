@@ -164,6 +164,7 @@ export function RunView({ runId }: { runId: string }) {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-6">
           <Timeline run={run} playbook={playbook} events={events} />
+          <ServiceBoard run={run} />
           <PlanCard run={run} />
           {run.artifacts.length > 0 && <ArtifactsCard run={run} />}
         </div>
@@ -185,6 +186,55 @@ export function RunView({ runId }: { runId: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+const SERVICE_STATUS: Record<string, { label: string; tone: string }> = {
+  extracted: { label: "Extracted", tone: "text-emerald-600" },
+  scaffolded: { label: "Scaffolded, code not moved", tone: "text-amber-600" },
+  blocked: { label: "Not extracted", tone: "text-amber-600" },
+  undone: { label: "Undone (tests or replay failed)", tone: "text-red-600" },
+  skipped: { label: "Skipped", tone: "text-muted-foreground" },
+};
+
+/** One row per service of a microservices conversion, from the `build_service:<name>` results: its status and the
+ *  reason when it was not extracted or was undone (the step summary reads "<name>: <status> (<reason>)"). */
+function ServiceBoard({ run }: { run: RunDetail }) {
+  const rows = Object.entries(run.steps)
+    .filter(([k]) => k.startsWith("build_service:"))
+    .map(([k, v]) => {
+      const name = k.slice("build_service:".length);
+      const rest = (v.summary ?? "").replace(`${name}: `, "");
+      const [status] = rest.split(" ");
+      const reason = rest.includes("(") ? rest.slice(rest.indexOf("(") + 1).replace(/\)$/, "") : "";
+      return { name, status, reason };
+    });
+  if (rows.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Services</CardTitle>
+        <CardDescription>
+          Nothing here is deployed. Replay results and the cut-over steps are in the approval card and the report.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col gap-2">
+          {rows.map((r) => {
+            const s = SERVICE_STATUS[r.status] ?? { label: r.status, tone: "text-muted-foreground" };
+            return (
+              <li key={r.name} className="flex flex-col text-sm">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="font-medium">{r.name}</span>
+                  <span className={cn("text-xs", s.tone)}>{s.label}</span>
+                </span>
+                {r.reason && <span className="text-xs text-muted-foreground">{r.reason}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 

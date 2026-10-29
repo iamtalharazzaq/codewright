@@ -24,7 +24,7 @@ from agent.playbooks.state import Node, RunState, merge
 
 Target = Literal["recommend", "microservices", "modules", "modular_monolith", "merge", "serverless", "event_driven"]
 DESIGN_TARGETS = ("recommend", "modules", "modular_monolith", "microservices", "merge", "serverless", "event_driven")
-CONVERT_TARGETS = ("modules", "modular_monolith")  # changed for real; the others arrive in Phases 16-17
+CONVERT_TARGETS = ("modules", "modular_monolith", "microservices")  # changed for real; the others arrive in Phase 17
 
 
 class MicroservicesInputs(BaseModel):
@@ -38,8 +38,8 @@ class MicroservicesInputs(BaseModel):
     mode: Literal["conversion", "audit"] = Field(
         title="Mode",
         default="audit",
-        description="Audit: analyse and design, change nothing. Conversion: also change the code (clean modules and "
-        "modular monolith).",
+        description="Audit: analyse and design, change nothing. Conversion: also change the code (clean modules, "
+        "modular monolith, microservices).",
     )
     request: str = Field(
         default="",
@@ -64,6 +64,15 @@ class MicroservicesInputs(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
     stub_delay_s: float = Field(default=2.0, ge=0, le=60, json_schema_extra={"x-advanced": True})
+    max_parallel: int = Field(
+        default=2,
+        ge=1,
+        le=8,
+        title="Services prepared at once",
+        description="Independent services are prepared together, up to this many; changes to the monolith are always "
+        "one service at a time.",
+        json_schema_extra={"x-advanced": True},
+    )
     use_llm: bool = Field(
         default=False,
         title="Use the model",
@@ -76,12 +85,12 @@ class MicroservicesInputs(BaseModel):
             raise ValueError("Only the microservices conversion has simulated steps.")
         if self.mode == "conversion" and not self.simulate and self.target not in CONVERT_TARGETS:
             wanted = (
-                "Pick a target to convert (clean modules or modular monolith)"
+                "Pick a target to convert (clean modules, modular monolith or microservices)"
                 if self.target == "recommend"
                 else (f"The {self.target} conversion isn't available yet")
             )
             raise ValueError(
-                f"{wanted}; every target can be designed in audit mode. Conversion works for clean modules and modular monolith."  # noqa: E501
+                f"{wanted}; every target can be designed in audit mode. Conversion works for clean modules, modular monolith and microservices."  # noqa: E501
             )
         return self
 
@@ -106,6 +115,14 @@ class MicroservicesState(RunState):
     language_brief: NotRequired[str]
     result_brief: NotRequired[str]
     report_brief: NotRequired[str]
+    # Phase 16: the microservices conversion (microservices.py).
+    foundation: NotRequired[dict[str, Any]]
+    foundation_brief: NotRequired[str]
+    ms_rules: NotRequired[dict[str, Any]]
+    service_brief: NotRequired[str]
+    db_split: NotRequired[dict[str, Any]]
+    db_split_brief: NotRequired[str]
+    frontend_brief: NotRequired[str]
     graph_before: NotRequired[dict[str, list[str]]]
     graph_change: NotRequired[str]
     outcomes: NotRequired[list[dict[str, Any]]]

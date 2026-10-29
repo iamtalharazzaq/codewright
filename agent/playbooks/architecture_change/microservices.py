@@ -1,0 +1,552 @@
+# ruff: noqa: E501, PLR0915, RUF001
+"""The microservices conversion (CODEWRIGHT.md Section 5.18, Phase 16), replacing the simulated steps:
+
+    foundation → per service (least coupled first): spec → scaffold → extract + anti-corruption layer → tests →
+      replay → fix (bounded) → review → commit → Gate 5 → [finalize: remove the local code] → database split (Gate 6)
+      → frontend (Gate 7) → report
+
+Everything that changes code is mechanical (`agent.microservices`): templates for the service and the foundation, a
+copy of the module group with an RPC surface, a shim in the monolith that sends a share of the calls to the service.
+The model's only job here is to repair a failing file inside the service's own folder, a few times at most.
+
+What this does not do, and the cards say so: build or start any image (the sandbox has no Docker daemon, by design),
+run the canary against live traffic (the stages 10 → 50 → 100 are configuration and a runbook, applied where the
+services run), or extract anything but Python (Go, TypeScript and C++ services are scaffolded; their code stays in the
+monolith until the compiler-based extraction exists). A service that cannot be extracted is `blocked` with the
+reason; one whose tests or replay fail is `undone` and the tree is exactly as it was.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import time
+from pathlib import Path
+from typing import Any
+
+from agent.decomposition import boundaries as b
+from agent.decomposition import moves as mv
+from agent.decomposition.platform import platform_design
+from agent.language_packs import templates
+from agent.language_packs.base import ServiceSpec
+from agent.microservices import dbsplit, schedule
+from agent.microservices import extract as ex
+from agent.microservices import foundation as fd
+from agent.playbooks import steps
+from agent.playbooks.architecture_change.design import all_green, passed, project_of
+from agent.playbooks.change_core import ChangePlan, PlannedStep, apply_steps, behavior_check, behavior_line
+from agent.playbooks.code_edit import result_failure
+from agent.playbooks.plan import mark
+from agent.playbooks.refactor.graph import edges_of, graph_change
+from agent.playbooks.reflection import Attempt, reflect
+from agent.playbooks.review_core import secret_findings
+from agent.playbooks.services import ProjectTools, RunServices
+from agent.playbooks.upgrade.graph import files_in
+from agent.tools.workspace import git
+
+FIX_ATTEMPTS = 3
+GIT = ("-c", "user.name=Codewright", "-c", "user.email=codewright@localhost")
+
+
+def _commit(work: Path, paths: list[str], message: str) -> str:
+    git(work, "add", "-A", "--", *paths)
+    git(work, *GIT, "commit", "-q", "-m", message, check=False)
+    return git(work, "rev-parse", "HEAD", check=False).strip()
+
+
+def _failure(results: list[dict[str, Any]]) -> str:
+    bad = next((r for r in results if not r.get("ok", True) or (r.get("report") or {}).get("failed")), None)
+    return result_failure(bad) if bad else ""
+
+
+def _languages(state: Any) -> dict[str, str]:
+    return {n: c["language"] for n, c in (state.get("language_plan") or {}).items()}
+
+
+def _platform(state: Any) -> dict[str, Any]:
+    data = state["to_be"]
+    platform: dict[str, Any] = data.get("platform") or platform_design(data["design"])
+    return platform
+
+
+def _spec_text(group: dict[str, Any], platform: dict[str, Any], choice: dict[str, Any]) -> str:
+    produces = [e["event"] for e in platform.get("events", []) if e["producer"] == group["name"]]
+    consumes = [e["event"] for e in platform.get("events", []) if group["name"] in e["consumers"]]
+    lines = [
+        f"# {group['name']} service",
+        "",
+        group.get("purpose") or "",
+        "",
+        f"- **Modules:** {', '.join(group['modules'])}",
+        f"- **Owns tables:** {', '.join(group['tables']) or 'none'}",
+        f"- **Calls:** {', '.join(group['calls']) or 'nothing'}",
+        f"- **Called by:** {', '.join(group['called_by']) or 'no one'}",
+        f"- **Publishes:** {', '.join(produces) or 'no events'} · **Consumes:** {', '.join(consumes) or 'no events'}",
+        f"- **Language:** {choice.get('language', '?')} ({choice.get('mode', 'extract')})",
+        "",
+        "## Contract",
+        "",
+        "While the service is being cut over it exposes `POST /rpc/<module>/<function>` (JSON arguments and result) for "
+        "the functions the monolith calls; the list is `EXPOSED` in its `codewright_rpc.py`. Black-box tests: the "
+        "tests that travel with the code, plus a contract test of the RPC surface. Events use the envelope in "
+        "`libs/events/envelope.schema.json`.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _runbook(name: str, exposed: dict[str, list[str]]) -> str:
+    var = name.upper()
+    fns = ", ".join(f"`{m}.{f}`" for m, fs in exposed.items() for f in fs) or "(nothing is called by other modules)"
+    return f"""# Cut over the {name} service
+
+Generated by Codewright (CODEWRIGHT.md 5.18). Codewright did not run any of this: the stages happen where the
+services run. Roll back at any stage by setting the share back to 0.
+
+The monolith calls the service for {fns} by the share set in `CUTOVER_PERCENT_{var}` (0 = the monolith's own code).
+A call that cannot reach the service falls back to the local code below 100%.
+
+1. **Shadow.** Set `CODEWRIGHT_ACL_MODE=shadow` and `SERVICE_URL_{var}`. Calls are answered by the local code; the
+   service is asked as well and every difference is logged to `acl-shadow.log`. Move on when it has stayed empty.
+2. **10%.** `CUTOVER_PERCENT_{var}=10`. Watch errors and latency in Jaeger (http://localhost:16686) for the traffic
+   that goes to the service.
+3. **50%.** `CUTOVER_PERCENT_{var}=50`.
+4. **100%.** `CUTOVER_PERCENT_{var}=100`. There is no fallback any more; a call that cannot reach the service fails.
+5. **Remove the local code.** Come back to the run and edit Gate 5 with `finalize`: the shims become plain clients,
+   the local copies are deleted if the tests and the replay still pass, and the gateway routes
+   `/{fd.host_name(name)}/` to the service.
+"""
+
+
+def parse_feedback(comment: str) -> tuple[frozenset[str], bool]:
+    """(groups to treat as shared libraries, whether to remove the local code) from what the user typed at Gate 5."""
+    shared = re.search(r"(?i)shared(?:\s+librar(?:y|ies))?\s*[:=]\s*([\w\s,/-]+)", comment)
+    libraries = frozenset(x for x in re.split(r"[,\s]+", shared.group(1).strip()) if x) if shared else frozenset()
+    return libraries, bool(re.search(r"(?i)\bfinali[sz]e\b|remove\s+(?:the\s+)?local", comment))
+
+
+# ── foundation ───────────────────────────────────────────────────────────────
+async def foundation(services: RunServices, state: Any) -> dict[str, Any]:
+    plan = await steps.start(services, state, "foundation", "devops_engineer")
+    project = project_of(services, state)
+    work = project.work
+    base = state.get("baseline") or {}
+    data = state["to_be"]
+    design, platform = data["design"], _platform(state)
+    languages = _languages(state)
+    waves = schedule.waves(design, int(state["inputs"].get("max_parallel", 2)))
+    order = [n for w in waves for n in w]
+    notes: list[str] = []
+    ok = True
+    written: list[str] = []
+    problems: list[str] = []
+    behavior: dict[str, Any] = {"checked": False, "why": "nothing was written"}
+    if not base.get("tests_green"):
+        ok = False
+        notes.append("The tests did not all pass before the change, so nothing was generated: fix them first.")
+    else:
+        name = (await project.summary()).get("name") or "app"
+        files = fd.foundation_files(design, platform, languages, str(name))
+        problems = fd.check_foundation(files)
+        # The specs of one wave do not depend on each other, so they are written together.
+        by_name = {g["name"]: g for g in design["groups"]}
+        specs = {
+            f"docs/services/{fd.safe_name(n)}.md": _spec_text(by_name[n], platform, state["language_plan"].get(n, {}))
+            for n in order
+            if n in by_name
+        }
+
+        async def write_wave(wave: list[str]) -> None:
+            await asyncio.gather(
+                *(
+                    asyncio.to_thread(
+                        fd.write_files, work, {p: t for p, t in specs.items() if p.endswith(f"/{fd.safe_name(n)}.md")}
+                    )
+                    for n in wave
+                )
+            )
+
+        if problems:
+            ok = False
+            notes.append("The generated files failed their own checks, so nothing was written.")
+        else:
+            written = fd.write_files(work, files)
+            for wave in waves:
+                await write_wave(wave)
+            written += sorted(specs)
+            _commit(work, written, "Microservices: gateway, platform, event envelope, auth, CI and service specs")
+            project.files_changed(written)
+            results = await project.test(None)
+            behavior = await behavior_check(project, base.get("recording"))
+            if not all_green(results) or (behavior.get("checked") and not behavior.get("ok")):
+                ok = False
+                git(work, "reset", "-q", "--hard", "HEAD~1", check=False)
+                notes.append("Adding the foundation changed behavior (tests or replay failed), so it was undone.")
+    rules = mv.rules_from_modules(work, design)
+    lines = [
+        f"{'✅' if ok else '❌'} **Foundation** {'written' if ok else 'not written'}: gateway (everything still goes to the "
+        "monolith: the Strangler Fig), compose with broker, tracing and database, event envelope, JWT check, CI.",
+        *(f"- {p}" for p in problems),
+        *(f"- ⚠️ {n}" for n in notes),
+        "",
+        "**Build order** (callees first; services in one wave do not depend on each other):",
+        *(f"{i}. {', '.join(w)}" for i, w in enumerate(waves, 1)),
+        "",
+        behavior_line(behavior) if ok else "",
+        "Static checks only: no image was built and nothing was started (the sandbox has no Docker daemon, by design).",
+    ]
+    info = {"ok": ok, "written": written, "problems": problems, "notes": notes, "waves": waves, "behavior": behavior}
+    return await steps.finish(
+        services, state, plan, "foundation", "devops_engineer",
+        f"{len(written)} file(s) written" if ok else "not written: " + "; ".join([*problems, *notes])[:150],
+        foundation=info, foundation_brief="\n".join(lines), ms_rules=rules, service_queue=order,
+    )  # fmt: skip
+
+
+# ── one service ──────────────────────────────────────────────────────────────
+async def _tests_and_replay(project: ProjectTools, base: dict[str, Any]) -> tuple[bool, str, dict[str, Any], int]:
+    results = await project.test(None)
+    behavior = await behavior_check(project, base.get("recording"))
+    green = all_green(results)
+    ok = green and not (behavior.get("checked") and not behavior.get("ok"))
+    why = (
+        _failure(results)
+        if not green
+        else (f"replay found {behavior.get('regressions')} regression(s)" if not ok else "")
+    )
+    return ok, why, behavior, passed(results)
+
+
+async def build_one(  # noqa: PLR0911  (one linear procedure with its exits)
+    services: RunServices, state: Any, name: str
+) -> dict[str, Any]:
+    project = project_of(services, state)
+    work = project.work
+    base = state.get("baseline") or {}
+    design = state["to_be"]["design"]
+    choice = (state.get("language_plan") or {}).get(name, {"language": "Python", "mode": "extract"})
+    language, mode = choice["language"], choice.get("mode", "extract")
+    comment = (state.get("feedback") or {}).get("build_service", "")
+    libraries, finalize = parse_feedback(comment)
+    previous = (state.get("service_results") or {}).get(name) or {}
+    if previous.get("base_sha"):  # a rework starts again from the commit before this service
+        git(work, "reset", "-q", "--hard", previous["base_sha"], check=False)
+        git(work, "clean", "-fdq", "--", ex.service_dir(name), check=False)
+    result: dict[str, Any] = {
+        "service": name, "language": language, "mode": mode, "status": "pending", "notes": [],
+        "base_sha": git(work, "rev-parse", "HEAD", check=False).strip(),
+    }  # fmt: skip
+    if not (state.get("foundation") or {}).get("ok"):
+        return {**result, "status": "skipped", "reason": "the foundation was not written"}
+    template = fd.TEMPLATE_FOR.get(language)
+    if template is None:
+        return {**result, "status": "blocked", "reason": f"there is no API template for {language} services"}
+    svc = ex.service_dir(name)
+    package = f"{fd.safe_name(name)}_service"
+    group = next(g for g in design["groups"] if g["name"] == name)
+    # scaffold (from the Language Pack's template, tests and Graphify setup included)
+    target = work / svc
+    if target.exists():
+        return {**result, "status": "blocked", "reason": f"`{svc}` already exists; it is never overwritten"}
+    spec = ServiceSpec(
+        name=f"{fd.safe_name(name)}-service", template=template, description=(group.get("purpose") or name)[:200]
+    )
+    templates.scaffold(spec, target)
+    scaffolded = sorted(p.relative_to(work).as_posix() for p in target.rglob("*") if p.is_file())
+    result["scaffold"] = {"template": template, "files": len(scaffolded)}
+    if language != "Python" or mode != "extract":
+        why = (
+            "translating to another language is Phase 18 (Translate)"
+            if mode == "translate"
+            else f"extracting {language} code needs its compiler: the service is scaffolded and its code stays in the monolith"
+        )
+        sha = _commit(work, [svc], f"Scaffold the {name} service ({template})")
+        project.files_changed(scaffolded)
+        return {**result, "status": "scaffolded", "reason": why, "commit": sha, "files": scaffolded[:40]}
+    # extract + the anti-corruption layer
+    plan_x = ex.plan_extraction(work, state["ms_rules"], name, libraries)
+    if plan_x.blocked:
+        import shutil  # noqa: PLC0415  (only on this exit)
+
+        shutil.rmtree(target, ignore_errors=True)
+        return {**result, "status": "blocked", "reason": plan_x.blocked, "notes": plan_x.notes}
+    roots = b.py_roots(work)
+    undo: dict[str, str | None] = {}
+    attempt_info: dict[str, Any] = {}
+
+    async def make(n: int, feedback: str | None) -> Attempt[dict[str, Any]]:
+        if n == 1:
+            undo.update(ex.apply_extraction(work, plan_x, roots, package))
+            project.files_changed(sorted(undo))
+        else:
+            targets = [f for f in files_in(feedback or "", work) if f.startswith(svc + "/")][:2]
+            if not targets or not state["inputs"].get("use_llm", True):
+                return Attempt(False, attempt_info, feedback or "")
+            for t in targets:
+                fix = ChangePlan(
+                    goal=f"the {name} service",
+                    steps=[PlannedStep(file=t, change=f"Fix what makes the tests fail: {(feedback or '')[:700]}")],
+                )
+                await apply_steps(
+                    services, state, project, fix, step="build_service", role="backend_developer", verify=False
+                )
+        ok, why, behavior, count = await _tests_and_replay(project, base)
+        attempt_info.update(behavior=behavior, tests=count)
+        return Attempt(ok, dict(attempt_info), why)
+
+    best, tries = await reflect(make, FIX_ATTEMPTS)
+    result.update(tries=tries, behavior=best.result.get("behavior"), tests=best.result.get("tests", 0))
+    if not best.ok:
+        ex.restore(work, undo)
+        import shutil  # noqa: PLC0415
+
+        shutil.rmtree(target, ignore_errors=True)
+        project.files_changed(sorted(undo))
+        return {**result, "status": "undone", "reason": f"after {tries} attempt(s): {best.summary[:300]}"}
+    # review: secrets in what was copied or generated
+    changed = sorted(p for p in undo if p.endswith((".py", ".toml", ".yml", ".yaml", ".env")))
+    found = secret_findings(work, changed)
+    result["review"] = {"secrets": [f"{f['file']}:{f['line']}: {f['problem']}" for f in found], "checks": "secrets scan; no model review"}
+    exposed = {b.py_dotted(f, roots): fs for f, fs in plan_x.entries.items()}
+    runbook = f"docs/runbooks/cutover-{fd.safe_name(name)}.md"
+    (work / runbook).parent.mkdir(parents=True, exist_ok=True)
+    (work / runbook).write_text(_runbook(name, exposed), encoding="utf-8")  # type: ignore[arg-type]
+    paths = [*undo, runbook, svc]
+    result.update(
+        status="extracted", exposed=exposed, copied=len(plan_x.files) + len(plan_x.shared), shared=plan_x.shared,
+        third_party=plan_x.third_party, runbook=runbook, notes=plan_x.notes, scaffold_files=len(scaffolded),
+    )  # fmt: skip
+    result["commit"] = _commit(
+        work, paths, f"Extract the {name} service ({len(plan_x.files)} file(s)) behind an anti-corruption layer"
+    )
+    project.files_changed(sorted(paths))
+    if finalize:
+        removed = ex.remove_local(work, plan_x, roots)
+        project.files_changed(sorted(removed))
+        ok, why, behavior, count = await _tests_and_replay(project, base)
+        if ok:
+            routes_path = work / "gateway/routes.json"
+            routes = (
+                json.loads(routes_path.read_text(encoding="utf-8")) if routes_path.is_file() else fd.routes_for(design)
+            )
+            if fd.safe_name(name) in routes["services"]:
+                routes["services"][fd.safe_name(name)]["live"] = True
+            routes_path.write_text(json.dumps(routes, indent=2) + "\n", encoding="utf-8")
+            (work / "gateway/nginx.conf").write_text(fd.render_nginx(routes), encoding="utf-8")
+            result["commit"] = _commit(
+                work, [*removed, "gateway"], f"Remove the local {name} code; the gateway routes it to the service"
+            )
+            result.update(finalized=True, behavior=behavior, tests=count, removed=sorted(removed))
+        else:
+            ex.restore(work, removed)
+            project.files_changed(sorted(removed))
+            result["notes"] = [*result["notes"], f"Removing the local code was undone: {why[:200]}"]
+    return result
+
+
+def service_brief(result: dict[str, Any]) -> str:
+    name, status = result["service"], result["status"]
+    head = {
+        "extracted": f"✅ **{name}** extracted ({result.get('language')}).",
+        "scaffolded": f"🟡 **{name}** scaffolded, code not moved: {result.get('reason')}.",
+        "blocked": f"⏭️ **{name}** not extracted: {result.get('reason')}.",
+        "undone": f"↩️ **{name}** undone, the project is as it was: {result.get('reason')}",
+        "skipped": f"⏭️ **{name}** skipped: {result.get('reason')}.",
+    }.get(status, name)
+    lines = [head]
+    if status == "extracted":
+        lines += [
+            f"- {result['copied']} file(s) copied into `services/{fd.safe_name(name)}/`; the monolith keeps its own code and "
+            "calls the service by the share in `CUTOVER_PERCENT_" + name.upper() + "` (0 today).",
+            f"- Exposed: {', '.join(f'`{m}.{f}`' for m, fs in (result.get('exposed') or {}).items() for f in fs) or 'nothing is called by other modules'}",
+            f"- ✅ Tests pass ({result.get('tests', 0)}), attempt {result.get('tries', 1)}",
+            behavior_line(result.get("behavior") or {"checked": False, "why": "not run"}),
+            *(f"- 🔑 {s}" for s in (result.get("review") or {}).get("secrets", [])),
+            *(f"- ℹ️ {n}" for n in result.get("notes", [])),
+            "- The service is **not deployed**: no image was built. Cut-over (shadow → 10% → 50% → 100%) is in "
+            f"`{result.get('runbook')}`.",
+        ]
+        if result.get("third_party"):
+            lines.append(
+                f"- Third-party imports added to the service's pyproject by import name (check them): {', '.join(result['third_party'])}"
+            )
+        if result.get("finalized"):
+            lines.append("- ✅ The local code was removed and the gateway routes the service.")
+    else:
+        lines += [f"- ℹ️ {n}" for n in result.get("notes", [])]
+    lines += [
+        "",
+        "Approve to keep it. Edit with `shared: util` (treat a group as shared code) or `finalize` (remove the local code once the service is at 100%).",
+    ]
+    return "\n".join(lines)
+
+
+async def build_service(services: RunServices, state: Any) -> dict[str, Any]:
+    name = state.get("current_service")
+    run_id = state["run_id"]
+    await services.emit(
+        run_id, "step_started", step="build_service", data={"role": "backend_developer", "subject": name}
+    )
+    result = await build_one(services, state, name)
+    plan = state.get("plan", [])
+    if not state.get("service_queue"):  # the last service finishes the step
+        plan = mark(plan, "build_service", "done")
+    await services.emit(
+        run_id, "step_completed", step="build_service", data={"role": "backend_developer", "subject": name}
+    )
+    summary = f"{name}: {result['status']}" + (f" ({result['reason'][:80]})" if result.get("reason") else "")
+    brief = service_brief(result)
+    if not state.get("service_results") and state.get("foundation_brief"):  # the first card also shows the foundation
+        brief = state["foundation_brief"] + "\n\n---\n\n" + brief
+    return {
+        "plan": plan, "service_results": {name: result}, "service_brief": brief,
+        "steps": {f"build_service:{name}": {"status": "done", "summary": summary, "subject": name}},
+    }  # fmt: skip
+
+
+# ── database split ───────────────────────────────────────────────────────────
+async def db_split(services: RunServices, state: Any) -> dict[str, Any]:
+    plan = await steps.start(services, state, "db_split", "database_engineer")
+    project = project_of(services, state)
+    work = project.work
+    design, platform = state["to_be"]["design"], _platform(state)
+    results = state.get("service_results") or {}
+    built = [n for n in schedule.order(design) if (results.get(n) or {}).get("status") == "extracted"]
+    split = dbsplit.split_plan(work, state["ms_rules"], design, platform, built)
+    files = dbsplit.migration_files(split)
+    written = fd.write_files(work, files)
+    trials: dict[str, Any] = {}
+    for rel in sorted(f for f in files if f.endswith(".up.sql")):
+        trials[rel] = await project.db_trial(rel, [])
+    if written:
+        _commit(work, written, "Microservices: schema per service, outbox, processed events, saga state (up and down)")
+        project.files_changed(written)
+    lines = [
+        "**Database split** (one migration per service that owns tables, events or sagas; apply in order, roll back in reverse):",
+        dbsplit.brief(split),
+        "",
+    ]
+    for rel, t in trials.items():
+        mark_ = (
+            "⚠️ not tried (no PostgreSQL sandbox for this project)"
+            if t.get("ok") is None
+            else ("✅ applied and rolled back cleanly" if t["ok"] else f"❌ {str(t.get('error') or t)[:200]}")
+        )
+        lines.append(f"- `{rel}`: {mark_}")
+    skipped = [n for n in schedule.order(design) if n not in built]
+    if skipped:
+        lines.append(f"⚠️ Not split because the service was not extracted: {', '.join(skipped)}.")
+    lines += ["", "Nothing was applied to any real database. Approve to keep the migration files on the branch."]
+    return await steps.finish(
+        services, state, plan, "db_split", "database_engineer", f"{len(files) // 2} migration(s) written",
+        db_split_stage=len(trials), db_split=split, db_split_brief="\n".join(lines),
+    )  # fmt: skip
+
+
+# ── frontend ─────────────────────────────────────────────────────────────────
+API_VARS = re.compile(r"\b(VITE_API_URL|NEXT_PUBLIC_API_URL|REACT_APP_API_URL|API_BASE_URL|VUE_APP_API_URL)\b")
+
+
+async def frontend(services: RunServices, state: Any) -> dict[str, Any]:
+    plan = await steps.start(services, state, "frontend", "frontend_developer")
+    project = project_of(services, state)
+    work = project.work
+    design = state["to_be"]["design"]
+    groups = [g for g in design["groups"] if g["kind"] == "frontend"]
+    used: dict[str, list[str]] = {}
+    for rel in b.code_files(work):
+        if rel.startswith("services/") or not any(
+            rel.startswith(m.rstrip("/") + "/") or rel == m for g in groups for m in g["modules"]
+        ):
+            continue
+        for var in set(API_VARS.findall((work / rel).read_text(encoding="utf-8", errors="replace"))):
+            used.setdefault(var, []).append(rel)
+    written: list[str] = []
+    if groups:
+        var = next(iter(used), "API_BASE_URL")
+        env = f"# Point the frontend at the gateway (Codewright, CODEWRIGHT.md 5.18 step 9)\n{var}=http://localhost:{fd.GATEWAY_PORT}\n"
+        written = fd.write_files(work, {"platform/frontend.env.example": env})
+        if written:
+            _commit(work, written, "Microservices: frontend environment pointing at the gateway")
+    status = {"groups": [g["name"] for g in groups], "api_vars": used, "written": written}
+    lines = (
+        [
+            f"**One frontend:** {', '.join(g['name'] for g in groups)}.",
+            "It talks to the gateway only; the gateway decides what answers. "
+            + (
+                f"API address variable found in {', '.join(sorted({f for fs in used.values() for f in fs})[:4])}: `platform/frontend.env.example` sets it to the gateway."
+                if used
+                else "No API address variable was found in the frontend's code; check how it chooses its API address."
+            ),
+            "The modern, accessible UI is the separate **Modernize UI** playbook; this step does not redesign anything.",
+        ]
+        if groups
+        else ["The design has no frontend group, so there is nothing to point at the gateway."]
+    )
+    return await steps.finish(
+        services, state, plan, "frontend", "frontend_developer", "frontend pointed at the gateway" if written else "no change",
+        frontend_status=status, frontend_brief="\n".join(lines),
+    )  # fmt: skip
+
+
+# ── report ───────────────────────────────────────────────────────────────────
+def report_lines(state: Any) -> list[str]:
+    """The conversion's part of the report: the service board, the catalogs, the database split, what was not done."""
+    results = state.get("service_results") or {}
+    platform = _platform(state)
+    lines = ["**Services**", "", "| Service | Language | Status | Tests | Replay |", "|---|---|---|---|---|"]
+    for name in schedule.order(state["to_be"]["design"]):
+        r = results.get(name) or {"status": "not built"}
+        behavior = r.get("behavior") or {}
+        replay = (
+            "—"
+            if not behavior.get("checked")
+            else ("0 regressions" if behavior.get("ok") else f"{behavior.get('regressions')} regression(s)")
+        )
+        lines.append(f"| {name} | {r.get('language', '—')} | {r['status']} | {r.get('tests', '—')} | {replay} |")
+    events = [f"- `{e['event']}`: {e['producer']} → {', '.join(e['consumers'])}" for e in platform.get("events", [])]
+    sagas = [
+        f"- {s['name']}: {' → '.join(s['steps'])} (undo: {', '.join(s['compensations'])})"
+        for s in platform.get("sagas", [])
+    ]
+    lines += ["", "**Event catalog**", *(events or ["- none"]), "", "**Saga catalog**", *(sagas or ["- none"])]
+    if state.get("db_split_brief"):
+        lines += ["", "**Database**", *state["db_split_brief"].splitlines()[1:-2]]
+    if state.get("frontend_brief"):
+        lines += ["", *state["frontend_brief"].splitlines()[:2]]
+    undone = [n for n, r in results.items() if r["status"] in ("blocked", "undone", "scaffolded", "skipped")]
+    lines += [
+        "",
+        "**Not done**",
+        *(f"- {n}: {results[n]['status']}: {results[n].get('reason', '')}" for n in undone),
+        "- No image was built and no service was started: the sandbox has no Docker daemon, by design.",
+        "- The canary (shadow → 10% → 50% → 100%) is configuration and a runbook per service (`docs/runbooks/`); it runs where the services run.",
+        "- Before and after dependency graphs: " + state.get("graph_change", "not compared"),
+    ]
+    return lines
+
+
+def comparison(state: Any) -> str:
+    return (
+        "# Before and after\n\n"
+        + "\n".join(report_lines(state))
+        + f"\n\nGenerated {time.strftime('%Y-%m-%d')} by Codewright.\n"
+    )
+
+
+async def graph_comparison(services: RunServices, state: Any) -> str:
+    """How the dependencies between the original modules changed (the Graphify graph before and after)."""
+    before = state.get("graph_before") or {}
+    if not before:
+        return "Dependencies between modules were not compared."
+    graph = await project_of(services, state).fresh_graph() or {"nodes": [], "edges": []}
+    return graph_change(before, edges_of(graph, set(before)))
+
+
+REAL = {
+    "foundation": foundation,
+    "build_service": build_service,
+    "db_split": db_split,
+    "frontend": frontend,
+}
