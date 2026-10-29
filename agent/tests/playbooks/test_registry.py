@@ -21,10 +21,17 @@ def test_unknown_playbook() -> None:
 
 def test_flow_and_initial_plan_follow_the_inputs() -> None:
     spec = get_playbook("architecture_change").spec
-    audit = spec.flow({"mode": "audit"})
-    conversion = spec.flow({"mode": "conversion"})
+    audit = spec.flow({"mode": "audit", "simulate": True})
+    conversion = spec.flow({"mode": "conversion", "simulate": True})
     assert "foundation" not in audit and "foundation" in conversion
-    assert [item[0] for item in spec.initial_plan({"mode": "audit"})] == [n for n in audit if not n.startswith("gate")]
+    plan = spec.initial_plan({"mode": "audit", "simulate": True})
+    assert [item[0] for item in plan] == [n for n in audit if not n.startswith("gate")]
+    # The real flows: service designs pick languages, in-app conversions restructure and verify.
+    real_audit = spec.flow({"mode": "audit", "target": "microservices"})
+    assert "languages" in real_audit and "restructure" not in real_audit and "audit_report" in real_audit
+    monolith = spec.flow({"mode": "conversion", "target": "modular_monolith"})
+    assert "languages" not in monolith
+    assert monolith[-6:] == ["restructure", "verify", "approve_result", "report", "gate8", "deliver"]
 
 
 def test_standard_gates_by_tier() -> None:

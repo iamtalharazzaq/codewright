@@ -20,7 +20,9 @@ async def test_run_survives_a_restart(pg_url: str, tmp_path: Path) -> None:
     async with AsyncPostgresSaver.from_conn_string(pg_url) as saver:
         await saver.setup()
         graph = compiled("architecture_change", FakeServices(), saver)
-        result = await graph.ainvoke(initial_state("architecture_change", tmp_path, mode="audit"), config)
+        result = await graph.ainvoke(
+            initial_state("architecture_change", tmp_path, mode="audit", simulate=True), config
+        )
         assert result["__interrupt__"][0].value["gate"] == "gate1"
 
     # "Restart": new connection, new graph object, same thread id.

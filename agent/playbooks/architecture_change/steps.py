@@ -1,7 +1,9 @@
-"""Architecture-change steps (CODEWRIGHT.md Section 5.18): the microservices target, stub implementations for now.
+"""Architecture-change inputs, state and steps (CODEWRIGHT.md Section 5.18).
 
-Each stub announces itself, waits `stub_delay_s` (so pause/kill/resume can be tested), writes a marker file into the
-workspace and returns placeholder state. Phases 15-17 replace one stub at a time with the real step.
+The real steps live in `design.py` (Phase 15: design for every target, conversion to clean modules and a modular
+monolith). What is left here are the stubs of the microservices conversion (`simulate`, Phases 16-17): each announces
+itself, waits `stub_delay_s` (so pause/kill/resume can be tested), writes a marker file into the workspace and returns
+placeholder state. Phases 16-17 replace them one at a time.
 """
 
 from __future__ import annotations
@@ -20,31 +22,67 @@ from agent.playbooks.registry import StepDef
 from agent.playbooks.services import RunServices
 from agent.playbooks.state import Node, RunState, merge
 
-Target = Literal["microservices", "modules", "modular_monolith", "merge", "serverless", "event_driven"]
-BUILT_TARGETS = ("microservices",)  # the others arrive in Phases 15-17
+Target = Literal["recommend", "microservices", "modules", "modular_monolith", "merge", "serverless", "event_driven"]
+DESIGN_TARGETS = ("recommend", "modules", "modular_monolith", "microservices", "merge", "serverless", "event_driven")
+CONVERT_TARGETS = ("modules", "modular_monolith")  # changed for real; the others arrive in Phases 16-17
 
 
 class MicroservicesInputs(BaseModel):
     target: Target = Field(
         title="Target architecture",
         default="microservices",
-        description="Clean modules, modular monolith, microservices, merge services, serverless or event-driven.",
-        json_schema_extra={"x-available": list(BUILT_TARGETS)},
+        description="Clean modules, modular monolith, microservices, merge services, serverless or event-driven; or "
+        "'recommend' to get the simplest architecture that fits.",
+        json_schema_extra={"x-available": list(DESIGN_TARGETS)},
     )
     mode: Literal["conversion", "audit"] = Field(
-        title="Mode", default="audit", description="Audit: analyse and report only. Conversion: all 10 steps."
+        title="Mode",
+        default="audit",
+        description="Audit: analyse and design, change nothing. Conversion: also change the code (clean modules and "
+        "modular monolith).",
     )
-    services: list[str] = Field(title="Services", default_factory=lambda: ["notification", "payment"], max_length=10)
-    # Test knob: how long each simulated step takes. Hidden in the UI (x-advanced).
+    request: str = Field(
+        default="",
+        title="Goals",
+        max_length=4000,
+        description="What you want from the change (scale, cost, cleaner code).",
+    )
+    allowed_languages: list[str] = Field(
+        default_factory=list, title="Languages allowed for services", description="Empty: the five supported languages."
+    )
+    services: list[str] = Field(
+        title="Services",
+        default_factory=lambda: ["notification", "payment"],
+        max_length=10,
+        json_schema_extra={"x-advanced": True},
+    )
+    # Test knobs. Hidden in the UI (x-advanced).
+    simulate: bool = Field(
+        default=False,
+        title="Simulate",
+        description="Run the stub steps of the microservices conversion (no project).",
+        json_schema_extra={"x-advanced": True},
+    )
     stub_delay_s: float = Field(default=2.0, ge=0, le=60, json_schema_extra={"x-advanced": True})
     use_llm: bool = Field(
-        default=False, title="Use the model", description="Make one real model call at intake; the rest is simulated."
+        default=False,
+        title="Use the model",
+        description="Let the model name the groups (simulate: one real call at intake).",
     )
 
     @model_validator(mode="after")
     def _target_is_built(self) -> MicroservicesInputs:
-        if self.target not in BUILT_TARGETS:
-            raise ValueError(f"The {self.target} target isn't available yet; only microservices is (stub steps).")
+        if self.simulate and self.target != "microservices":
+            raise ValueError("Only the microservices conversion has simulated steps.")
+        if self.mode == "conversion" and not self.simulate and self.target not in CONVERT_TARGETS:
+            wanted = (
+                "Pick a target to convert (clean modules or modular monolith)"
+                if self.target == "recommend"
+                else (f"The {self.target} conversion isn't available yet")
+            )
+            raise ValueError(
+                f"{wanted}; every target can be designed in audit mode. Conversion works for clean modules and modular monolith."  # noqa: E501
+            )
         return self
 
 
@@ -61,6 +99,22 @@ class MicroservicesState(RunState):
     db_split_stage: NotRequired[int]
     frontend_status: NotRequired[dict[str, Any]]
     report: NotRequired[dict[str, Any]]
+    # Phase 15: the real steps (design.py). The `*_brief` texts are what the approval cards show.
+    intake_brief: NotRequired[str]
+    as_is_brief: NotRequired[str]
+    to_be_brief: NotRequired[str]
+    language_brief: NotRequired[str]
+    result_brief: NotRequired[str]
+    report_brief: NotRequired[str]
+    graph_before: NotRequired[dict[str, list[str]]]
+    graph_change: NotRequired[str]
+    outcomes: NotRequired[list[dict[str, Any]]]
+    restructure_notes: NotRequired[list[str]]
+    rules: NotRequired[dict[str, Any]]
+    remaining_violations: NotRequired[list[dict[str, Any]]]
+    diff: NotRequired[str]
+    published: NotRequired[dict[str, Any]]
+    done_summary: NotRequired[str]
 
 
 STEPS: dict[str, StepDef] = {
@@ -75,6 +129,8 @@ STEPS: dict[str, StepDef] = {
         StepDef("foundation", "Foundation", "devops_engineer", 6),
         StepDef("build_service", "Build service", "backend_developer", 7),
         StepDef("db_split", "Database split", "database_engineer", 8),
+        StepDef("restructure", "Restructure in small tested moves", "backend_developer"),
+        StepDef("verify", "Prove behavior is unchanged", "qa_engineer"),
         StepDef("frontend", "One frontend + modern UI", "frontend_developer", 9),
         StepDef("report", "Report", "technical_writer", 10),
         StepDef("deliver", "Deliver", "release_manager"),

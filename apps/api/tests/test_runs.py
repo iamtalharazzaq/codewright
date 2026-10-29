@@ -5,7 +5,7 @@ from typing import Any
 
 from .conftest import AppFactory, wait_for, waiting
 
-FAST = {"stub_delay_s": 0}
+FAST = {"stub_delay_s": 0, "simulate": True}
 
 
 def ms(mode: str = "audit", **inputs: Any) -> dict[str, Any]:
@@ -200,8 +200,10 @@ def test_budget_choices_only_answer_a_budget_prompt(app_factory: AppFactory) -> 
 
 def test_architecture_change_needs_a_built_target_and_microservices_is_tier_3(app_factory: AppFactory) -> None:
     with app_factory() as client:
-        later = {"playbook": "architecture_change", "inputs": {"target": "serverless"}}
-        assert client.post("/api/runs", json=later).status_code == 422
+        later = {"playbook": "architecture_change", "inputs": {"target": "serverless", "mode": "conversion"}}
+        assert client.post("/api/runs", json=later).status_code == 422  # serverless can be designed, not converted yet
+        no_project = {"playbook": "architecture_change", "inputs": {"target": "modular_monolith"}}
+        assert client.post("/api/runs", json=no_project).status_code == 422  # a real design needs a project
         run = client.post("/api/runs", json=ms()).json()
         client.post(f"/api/runs/{run['id']}/cancel")
     assert run["tier"] == 3 and run["inputs"]["target"] == "microservices"

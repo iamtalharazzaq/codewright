@@ -1,7 +1,9 @@
-# CODEWRIGHT.md Section 5.18. Only the microservices target exists so far, with stub steps (Phases 15-17).
+# CODEWRIGHT.md Section 5.18. Design for every target; conversion for clean modules and modular monolith (Phase 15).
+# The microservices conversion has stub steps (Phases 16-17; run it with `simulate`).
 title: Architecture change
 description: >-
-  Restructure a project for a target architecture. Microservices target (stub steps): one frontend + N backend services behind a gateway: intake, baseline, As-Is, To-Be, languages, then (for a full
-  conversion) foundation, a per-service loop, database split, frontend and report. Audit mode stops after the design.
+  Restructure a project for a target architecture, or ask what it should be. Intake, baseline, As-Is, To-Be with
+  the reasons ("why this shape"), languages for service designs, then either a design report (audit) or small tested
+  moves behind import-boundary rules (clean modules, modular monolith). Microservices conversion is simulated so far.
 intent: change_architecture
 lead_role: solution_architect

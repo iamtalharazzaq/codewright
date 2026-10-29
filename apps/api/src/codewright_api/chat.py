@@ -841,6 +841,7 @@ class ChatService:
             "add_feature",
             "frontend_modernize",
             "devops_deploy",
+            "change_architecture",
         )
         if intent in needs_project and project_id is None:
             return await self._append(
@@ -968,8 +969,16 @@ def _same_request(text: str, request: str) -> bool:
 def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
     """Playbook inputs from the confirmed card, or None when the request needs something not built yet."""
     if intent == "change_architecture":
-        text = (data.get("request") or "").lower()
-        return {"target": "microservices", "mode": "audit"} if "microservice" in text else None
+        text = str(data.get("request") or "")
+        target = _architecture_target(text)
+        convert = target in ("modules", "modular_monolith") and bool(
+            re.search(
+                r"\b(convert|conversion|restructure|reorgani[sz]e|apply it|do it|make the change|change the code)\b",
+                text,
+                re.I,
+            )
+        )
+        return {"target": target, "mode": "conversion" if convert else "audit", "request": text, "use_llm": True}
     inputs: dict[str, Any] = {"request": data.get("request", "")}
     if intent in (
         "refactor",
@@ -995,8 +1004,26 @@ def _run_inputs(intent: str, data: dict[str, Any]) -> dict[str, Any] | None:
     return inputs
 
 
+ARCHITECTURE_TARGETS: tuple[tuple[str, str], ...] = (
+    (r"merge|consolidate|back into (a |one )?(single|one)|too many services|single app", "merge"),
+    (r"micro-?services?", "microservices"),
+    (r"serverless|lambda|cloud functions?", "serverless"),
+    (r"event[- ]driven|event bus|message queue|events?\b.*decouple", "event_driven"),
+    (r"modular[- ]monolith|monolith", "modular_monolith"),
+    (r"clean (modules|architecture)|layer(ed|s)|hexagonal|\bmodules\b|boundaries", "modules"),
+)
+
+
+def _architecture_target(text: str) -> str:
+    """The architecture the user names; 'recommend' when they ask what it should be (or name none)."""
+    lowered = text.lower()
+    if re.search(r"what (architecture|should)|which architecture|recommend", lowered):
+        return "recommend"
+    return next((target for pattern, target in ARCHITECTURE_TARGETS if re.search(pattern, lowered)), "recommend")
+
+
 SUGGESTIONS: dict[str, list[str]] = {
-    "architecture_change": ["Explain the To-Be design", "Run the full conversion", "Deliver the report"],
+    "architecture_change": ["Explain the To-Be design", "Apply it step by step", "Deliver the report"],
     "code_review": ["Explain the top finding", "Fix all critical and major findings", "Review another module"],
     "audit": ["Explain the biggest hotspot", "Review the riskiest module", "Write the architecture docs"],
     "write_code": ["Explain it step by step", "Add more edge-case tests", "Do it in another language"],
@@ -1031,6 +1058,11 @@ def _run_intro(intent: str, targets: list[str]) -> str:
     where = f"`{_path_arg(targets)}`" if _path_arg(targets) else "the whole project"
     if intent == "review_code":
         return f"Starting a code review of {where}: linters in the sandbox, then a review file by file."
+    if intent == "change_architecture":
+        return (
+            "Starting the architecture change: I confirm your goals, map how the project works today, design the "
+            "target with the reasons for it, and wait for your approval at each step before anything is changed."
+        )
     return "Starting the audit: As-Is architecture, security and quality, then a report. You'll confirm the As-Is."
 
 

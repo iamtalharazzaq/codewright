@@ -69,6 +69,8 @@ class PlaybookSpec:
     min_tier: Callable[[dict[str, Any]], int] = lambda _inputs: 0
     # Playbooks that read or change a project's code need one (the run's workspace is the project's).
     needs_project: bool = False
+    # The same, decided by the inputs (architecture change needs one unless its steps are simulated).
+    needs_project_for: Callable[[dict[str, Any]], bool] = lambda _inputs: False
 
 
 @dataclass(frozen=True)

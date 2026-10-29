@@ -67,7 +67,7 @@ function defaults(pb: Playbook): Record<string, unknown> {
 
 export function runTitle(run: Pick<Run, "playbook" | "inputs">): string {
   const request = run.inputs.request;
-  if (typeof request === "string") return request.length > 60 ? `${request.slice(0, 57)}…` : request;
+  if (typeof request === "string" && request) return request.length > 60 ? `${request.slice(0, 57)}…` : request;
   if (run.playbook === "architecture_change") {
     const target = humanize(String(run.inputs.target ?? "microservices"));
     return `${target}: ${run.inputs.mode === "conversion" ? "conversion" : "audit"}`;
