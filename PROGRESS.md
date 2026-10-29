@@ -4,9 +4,10 @@ Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.
 follow `CODEWRIGHT.md` Section 15.
 
 **Current phase:** Phases 11-18 built and live-verified to varying degrees (see below); Phase 8's 20-example eval ran
-2026-10-29. Phase 19 is next.
+2026-10-29; `make check` (ruff, mypy, pytest, eslint, tsc, prettier, vitest) passes clean as of 2026-10-29. Phase 19
+is next.
 Still open: Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table, Phase 11's
-price-alerts acceptance, Phase 13's TypeScript reliability.
+price-alerts acceptance, Phase 13's TypeScript reliability, Phase 16's Go-extraction gap (below).
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
 
@@ -45,8 +46,22 @@ and 18, fixed a real Reflection-loop bug it found live, and ran the Phase 8 eval
    gates walked through by hand: 27 modules, 93 dependencies, 0 cycles → recommended **"Clean modules / layers"**,
    explicitly declining microservices ("the modules are too entangled to split cleanly today"), with scored
    alternatives. Design-only, nothing in the project changed, report delivered. Matches the spec's acceptance wording.
-6. **Phase 16 (microservices build):** still not live-run; no acceptance attempt this session either (out of scope
-   for the time available — flagged for a future session).
+6. **Phase 16 (microservices build):** ⚠️ live-ran once, on `notes-api-python` (GoShop is Go, and real extraction is
+   Python-only, so it can't exercise this phase — explained up front, not asked). The run completed all 5 gates
+   (intake → as-is → design, 2 groups, score 15/100 → languages, both stay Python → delivered on a branch) but the
+   `foundation` step reported "Adding the foundation changed behavior (tests or replay failed), so it was undone."
+   Root-caused: not a real regression. The project's newest recording (made the day before, by an earlier
+   session) had gotten **503 on every single request** — the recorder had raced the app's own startup — and
+   `baseline_recording()` reused it unconditionally as "the baseline" without checking it was ever healthy. Today's
+   normal 200/401 replies against yesterday's all-503 baseline were flagged as 16 regressions across 6 exchanges,
+   and the undo-on-red logic (correctly, given that input) threw away a good foundation commit. This was a bug in
+   the shared Phase 7 behavior-check path (`agent/playbooks/change_core.py::baseline_recording`), not specific to
+   microservices — `refactor`, `performance` and any other `change_core` caller were equally exposed. Fixed: a
+   recording where `server_errors + unanswered` covers the whole thing is no longer reused; `baseline_recording`
+   falls back to an older usable recording, or records fresh. Commit `ef77fa0`, with `test_change_core.py` (3 tests).
+   Deployed to the live `api`. Not re-run live after the fix (would cost another full GPU pass for a now-understood,
+   already-fixed bug); the acceptance criterion itself ("all GoShop services extracted, 0 regressions, monolith
+   serves nothing") stays open regardless, since Go extraction doesn't exist yet.
 7. **Phases 17 and 18:** both finished, independently verified, and merged (commits `0810de7`, `b2f808b`; merges on
    `codewright-phase-0`). See their own sections below. ADRs 0032 and 0033.
 8. **A harness bug, found and worked around, not fixed:** the LangGraph checkpointer's Postgres connection has no
@@ -55,12 +70,24 @@ and 18, fixed a real Reflection-loop bug it found live, and ran the Phase 8 eval
    Health checks reported `ok` the whole time (they open a fresh connection per check), masking it. Worth a real fix
    in Phase 22 hardening (Phase 1 built exactly this resilience for the LLM client; the checkpointer connection has
    none). One live run (`fc9186c2`) was lost to this and had to be redone.
+9. **`make check` (Step 5), run clean 2026-10-29:** `check-api` (ruff, format, mypy, pytest) and `check-web`
+   (eslint, `tsc --noEmit`, prettier, vitest) both pass — 500 passed/16 sandbox-only-skip on the API side, 24 passed
+   on the web side. Along the way, fixed the 9 remaining ruff/mypy issues (down from the ~20 noted earlier; other
+   fixes this session had already cleared most). One was a real bug, not just lint: `new_app`'s `review_node` did
+   `f.file`/`f.title` on `secret_findings()` results, which are plain `dict`s — this would have raised
+   `AttributeError` any time a `new_app` build actually wrote a hard-coded secret, instead of reporting it. Fixed to
+   dict access (commit `6b0bf95`). Also fixed `evals/write_code.py`'s own docstring (`-m evals.write_code`, not
+   `evals/write_code.py`, the bug noted during the Phase 8 eval). The merged Phase 17/18 worktrees were removed
+   (`.claude/worktrees/agent-ac3e31265f6dacd46`, `-af860f2ce22f19a0a`, both confirmed `git branch --merged` first)
+   along with this session's throwaway tagged images (`:spotcheck`, `:p12`, `:p14`, `:p17`, `:p18`). **Caution for
+   next time:** running `pnpm` in a container with the whole `apps/web/` bind-mounted (instead of just the one file
+   needed) re-triggers a full `pnpm install` into the mount, writing root-owned `node_modules` onto the host and
+   briefly costing ~700MB on a disk that's already at 96% — happened once this session, caught and removed via a
+   throwaway `alpine` container (host `rm` can't touch root-owned files without sudo). For a one-file formatting fix,
+   bind-mount only that file into the already-built checks image; never mount all of `apps/web`.
 
-Next: Phase 19 (deepen the 5 Language Packs/templates), then 20 (evals), 21 (polish), 22 (hardening, v1.0). One
-`make check` pass before 19 starts (ruff's ~20 long-line errors, mypy on the web changes, full suite). Then clean up
-the now-merged Phase 17/18 worktrees and their tagged `codewright-api-checks:p17`/`:p18`/`:p12`/`:p14` images.
-Disk: 11GB free (96% used) as of this session, better than the 3.1GB it started at (something freed up during the
-other session's run sweep) — still don't prune Docker volumes or build cache without asking.
+Next: Phase 19 (deepen the 5 Language Packs/templates), then 20 (evals), 21 (polish), 22 (hardening, v1.0).
+Disk: 11GB free (96% used) — still don't prune Docker volumes or build cache without asking.
 
 ## Phase 8 eval (ADR 0023), run 2026-10-29
 
@@ -105,7 +132,7 @@ Open: the GoShop-service-rebuilt-in-Python acceptance item (needs a real project
 
 Open: the GoShop saga-paths-replay-0-regressions acceptance and the M4 demo (need a live run); `serverless` never wires a real caller or deploys; `event_driven` never rewrites a call site, only documents where one would go; the database-split stages/saga library/gateway rewrite are only exercised against a fake `project.db_trial`, never a real PostgreSQL sandbox.
 
-## Phase 16: Architecture change II, microservices build (ADR 0031; built, not yet run live)
+## Phase 16: Architecture change II, microservices build (ADR 0031; built, live-ran once on notes-api-python)
 
 | Task | Result |
 |---|---|
@@ -116,6 +143,19 @@ Open: the GoShop saga-paths-replay-0-regressions acceptance and the M4 demo (nee
 | Tests | Real generated code is executed in tests (JWT/event libraries, ACL shims, an HTTP round trip to an extracted service); two whole-run tests (Python project, Go design) with a fake sandbox and replay. 170 pass in the playbook, microservices and decomposition folders. |
 
 Not demonstrated: no image built or started (sandbox has no Docker daemon); the canary (shadow → 10% → 50% → 100%) is config and a runbook, not a run; shadow mode and replay against a running service; only Python is extracted (Go/TS/C++ services are scaffolded and their code stays in the monolith); the gateway doesn't verify the JWT; the frontend step only points the frontend at the gateway; arguments and results must be JSON-serializable. The web service board and the generated FastAPI router were not type-checked or run.
+
+**Live run, 2026-10-29 (`notes-api-python`, GoShop can't exercise this since it's Go):** all 5 gates walked through
+by hand (intake → as-is → design, 2 groups, score 15/100 → languages, both stay Python → delivered on a branch), but
+`foundation` reported "Adding the foundation changed behavior (tests or replay failed), so it was undone." Traced
+to a real bug in the *shared* Phase 7 behavior-check path, not this phase's own code: the project's newest
+recording (made the day before) had 503 on every exchange (the recorder had raced the app's startup), and
+`baseline_recording()` (`agent/playbooks/change_core.py`) reused it unconditionally. Replaying today's normal
+200/401 answers against yesterday's all-503 baseline was flagged as 16 regressions and undid a good foundation
+commit. Fixed (commit `ef77fa0`): a recording where `server_errors + unanswered` covers every exchange is skipped
+in favor of an older usable one, or a fresh recording. Deployed live, not yet re-verified with a second live run of
+this phase (the fix itself is unit-tested; re-running the full architecture_change pipeline again would cost
+another GPU pass to re-confirm an already-understood bug). The foundation generator's own code (gateway, platform
+compose, event envelope, JWT auth) was otherwise untouched by this bug and is still unverified end-to-end.
 
 ## Phase 15: Architecture change I (ADR 0029; built, not yet run on a real benchmark)
 
