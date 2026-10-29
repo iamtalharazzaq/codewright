@@ -229,8 +229,9 @@ Open: live runs on a real React + Vite app and on GoShop; the "page by page" spl
 | Build order | Types, model, migration, repository, service, handlers, tests, then wiring; each file sees the earlier files' declarations; up to 5 fix rounds under feature build rules. |
 | Cancel | A cancelled run's unfinished changes are stashed and the project goes back to its branch (all playbooks). |
 | Live (GoShop) | GoShop already has a wishlist, so "price alerts" (like the wishlist) was the test. One run went green: 12 files, 350 tests, replay 0 regressions/25, screenshot. Review found its migration lacked the `target_price` column, which led to the migration trial gate; it was not approved. Later runs vary with the 9B model (type mismatches between layers). |
+| Live session, 2026-10-29 | 3 more attempts, same request, each a distinct build-time type error, all auto-removed (never committed, nothing left in the project): `targetPrice` string→float64 conversion in the repository layer; a TypeScript frontend file importing a `PriceAlert` type never exported from `@/types`; `req.TargetPrice` referenced on a request struct whose field was named differently. No two attempts failed the same way. This is the same 9B cross-file-type-consistency limitation already on record, not a playbook bug — confirmed again rather than fixed. |
 
-Acceptance still open: a price-alerts run that passes the migration gate and is approved (re-run once the model is stable); acceptance-criteria tests are thin where the analog's tests need generated mocks.
+Acceptance still open: a price-alerts run that passes the migration gate and is approved (re-run once the model is stable); acceptance-criteria tests are thin where the analog's tests need generated mocks. 3 more live attempts this session (above) still didn't land one; not retrying further for now given the time already spent.
 
 ## Phase 10: Security, upgrade and database change (ADR 0025, Milestone M2)
 
