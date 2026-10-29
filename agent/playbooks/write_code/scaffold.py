@@ -38,7 +38,10 @@ py-modules = ["solution"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 """
-_TSCONFIG = '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true}}\n'
+_TSCONFIG = (
+    '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,'
+    '"skipLibCheck":true}}\n'
+)
 _CMAKE = """cmake_minimum_required(VERSION 3.16)
 project(snippet LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
