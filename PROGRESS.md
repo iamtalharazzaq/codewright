@@ -122,8 +122,8 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-29** — Phase 8, 9, 10, 11 and 17's `merge` target done; 7, 18, 12/14 and 4/6/13/15/16 not
-started. Resume when you ask.
+**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target and 18 (2 language pairs) done; 7, 12/14 and
+4/6/13/15/16 not started. Resume when you ask.
 
 - **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
   - `write_code` (`agent/tests/playbooks/test_write_code_sandbox.py`). Found and fixed a real bug in the
@@ -196,6 +196,10 @@ started. Resume when you ask.
     walk. While chasing this, also found `agent/language_packs/executor.py::GIT_EXCLUDES` never excluded
     `__pycache__/` at all — meaning any real Python playbook's `git add -A` could have staged compiled bytecode
     into a real commit; added it.
+- **Phase 18: a second real language pair added** (`test_translate_sandbox.py`). The existing Python→C++
+  real-sandbox test already proved the pipeline; added a Go→Python pair (the mirror image: a different source
+  pack, a different target language) to prove the inventory/target/builder machinery isn't accidentally
+  Python-or-C++-specific. Both pairs pass; no bugs found this time (unlike every phase above).
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 

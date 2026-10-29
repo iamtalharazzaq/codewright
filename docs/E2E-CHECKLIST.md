@@ -165,6 +165,8 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   **Expect:** survey → plan gate → unit-by-unit translation → the same black-box cases checked against the
   translated build → review → approval gate → a new commit under `translated/<package>-<pack>/`, original
   untouched.
+- **Real-sandbox retrofit:** real-verified on two language pairs (`make check-sandbox`,
+  `test_translate_sandbox.py`) — Python→C++ and Go→Python.
 
 ## Phase 19: Deepen the Language Packs (complete for this pass)
 - Create or open a C++ project with a `conanfile.txt` (e.g. requiring `nlohmann_json`). Run Build. **Expect:** an
