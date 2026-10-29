@@ -59,7 +59,7 @@ class FrontendState(RunState):
     stages: NotRequired[list[str]]
     plan_brief: NotRequired[str]
     outcomes: NotRequired[dict[str, Any]]
-    verification: NotRequired[dict[str, Any]]
+    checks: NotRequired[dict[str, Any]]
     result_brief: NotRequired[str]
     changed: NotRequired[list[str]]
     diff: NotRequired[str]
@@ -149,7 +149,7 @@ def survey_node(services: RunServices) -> Any:
             {"path": c.path, "pack": c.pack, "frameworks": c.frameworks, "migratable": migrate.can_migrate(c)}
             for c in found
         ]
-        target = frontends[0]["path"] if frontends else ""
+        target: str = str(frontends[0]["path"]) if frontends else ""
         git(project.work, "checkout", "-q", "-b", f"codewright/frontend-{time.strftime('%Y%m%d-%H%M%S')}", check=False)
         base = git(project.work, "rev-parse", "HEAD", check=False)
         baseline: dict[str, Any] = {}
@@ -158,8 +158,8 @@ def survey_node(services: RunServices) -> Any:
             baseline = {"green": green, "why": why, "screens": await screens(project, target, accept=True)}
         return await steps.finish(
             services, state, plan, "survey", "frontend_developer",
-            f"{len(frontends)} frontend(s)" + (f"; baseline {'green' if baseline.get('green') else 'not green'}" if target else ""),
-            branch=git(project.work, "branch", "--show-current"), base=base, frontends=frontends, target=target, baseline=baseline,
+            f"{len(frontends)} frontend(s)" + (f"; baseline {'green' if baseline.get('green') else 'not green'}" if target else ""),  # noqa: E501
+            branch=git(project.work, "branch", "--show-current"), base=base, frontends=frontends, target=target, baseline=baseline,  # noqa: E501
         )  # fmt: skip
 
     return node
@@ -214,7 +214,7 @@ def plan_node(services: RunServices) -> Any:
             lines += [
                 f"**{len(stages)}. Modern, accessible UI:** adds `{a11y.TOKENS_FILE}` (colors with dark mode, focus rings, reduced motion, responsive defaults, all low-specificity so your styles win) and fixes automatically what the source proves.",  # noqa: E501
                 "- Found now: "
-                + (", ".join(f"{n}× {r}" for r, n in sorted(by_rule.items())) or "nothing the scan can see"),
+                + (", ".join(f"{n}× {r}" for r, n in sorted(by_rule.items())) or "nothing the scan can see"),  # noqa: RUF001
             ]
         lines += [
             "",
@@ -313,11 +313,11 @@ def modernize_node(services: RunServices) -> Any:
             write_file(work, p, t)
         green, why = await build_and_test(project, target)
         if not green:
-            for p, t in before.items():
-                if t is None:
+            for p, old in before.items():
+                if old is None:
                     remove_new(work, p)
                 else:
-                    (work / p).write_text(t, encoding="utf-8")
+                    (work / p).write_text(old, encoding="utf-8")
             outcomes["modernize"] = {"done": False, "note": f"undone: {why}"}
             summary = "undone: " + why
         else:
@@ -350,7 +350,7 @@ def _after_imports(text: str, line: str) -> str:
 def screens_line(label: str, s: dict[str, Any] | None) -> str:
     if not s or not s.get("ran"):
         return f"⚠️ **{label}:** not compared ({(s or {}).get('why') or 'no page could be shown'})."
-    return f"{'✅' if not s['changed'] else 'ℹ️'} **{label}:** {s['changed']} of {s['pages']} page(s) look different. Open the Report tab for the screenshots."  # noqa: E501
+    return f"{'✅' if not s['changed'] else 'ℹ️'} **{label}:** {s['changed']} of {s['pages']} page(s) look different. Open the Report tab for the screenshots."  # noqa: E501, RUF001
 
 
 def verify_node(services: RunServices) -> Any:
@@ -380,12 +380,12 @@ def verify_node(services: RunServices) -> Any:
             o = outcomes["modernize"]
             lines.append(screens_line("Before / after the new look", o.get("screens")))
             lines.append(
-                f"{'✅' if not remaining else '⚠️'} **Accessibility (WCAG 2.2 AA, from source):** {o['fixed']} of {o['found']} finding(s) fixed automatically, {len(remaining)} left"
+                f"{'✅' if not remaining else '⚠️'} **Accessibility (WCAG 2.2 AA, from source):** {o['fixed']} of {o['found']} finding(s) fixed automatically, {len(remaining)} left"  # noqa: E501
             )
             lines += [f"- `{f['file']}:{f['line']}` {f['message']} (WCAG {f['wcag']})" for f in remaining[:12]]
             if remaining:
                 lines.append(
-                    "These need a person: the code cannot know what a label or an icon means. Contrast set outside a rule that also sets the background is not visible to this scan."
+                    "These need a person: the code cannot know what a label or an icon means. Contrast set outside a rule that also sets the background is not visible to this scan."  # noqa: E501
                 )
         lines += ["", f"{'✅' if ok else '❌'} **Final build and tests**" + ("" if ok else f": {why}")] if kept else []
         brief = "\n".join(lines) if lines else "Nothing was changed."
@@ -396,7 +396,7 @@ def verify_node(services: RunServices) -> Any:
         )
         return await steps.finish(
             services, state, plan, "verify", "qa_engineer", "green" if ok else "NOT green",
-            verification={"ok": ok, "remaining": remaining}, changed=files, diff=diff, result_brief=brief, artifacts=artifacts,
+            checks={"ok": ok, "remaining": remaining}, changed=files, diff=diff, result_brief=brief, artifacts=artifacts,  # noqa: E501
         )  # fmt: skip
 
     return node
@@ -407,7 +407,7 @@ def publish_node(services: RunServices) -> Any:
         plan = await steps.start(services, state, "publish", "release_manager")
         kept = [k for k, v in state.get("outcomes", {}).items() if v.get("done")]
         done = (
-            f"Kept {len(kept)} stage(s) as separate commits on branch `{state['branch']}`. Deliver it from the project home."
+            f"Kept {len(kept)} stage(s) as separate commits on branch `{state['branch']}`. Deliver it from the project home."  # noqa: E501
             if kept
             else "Nothing was changed."
         )

@@ -191,7 +191,7 @@ def brief_of(state: DevOpsState, diff: str) -> str:
         ]
     else:
         lines += [
-            "✅ **Security checks on the files:** pinned images, no root user, no secrets, no Docker socket, every COPY source exists, valid YAML."
+            "✅ **Security checks on the files:** pinned images, no root user, no secrets, no Docker socket, every COPY source exists, valid YAML."  # noqa: E501
         ]
     for c in ci:
         lines.append(f"{'✅' if c['ok'] else '❌'} **CI step** {c['what']}" + (f" ({c['note']})" if c["note"] else ""))
@@ -233,7 +233,7 @@ def publish_node(services: RunServices) -> Any:
         plan = await steps.start(services, state, "publish", "release_manager")
         written = state.get("written", [])
         done = (
-            f"Kept {len(written)} file(s) as one commit on branch `{state['branch']}`. Deliver it from the project home."
+            f"Kept {len(written)} file(s) as one commit on branch `{state['branch']}`. Deliver it from the project home."  # noqa: E501
             if written
             else "Nothing was added."
         )

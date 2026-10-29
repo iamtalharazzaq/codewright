@@ -70,7 +70,7 @@ def readable(fg: str, bg: str, need: float = 4.5) -> str:
         lightness = start
         for n in range(1, 51):
             lightness = min(1.0, max(0.0, lightness + step))
-            out = "#%02x%02x%02x" % tuple(round(v * 255) for v in colorsys.hls_to_rgb(h, lightness, s))
+            out = "#" + "".join(f"{round(v * 255):02x}" for v in colorsys.hls_to_rgb(h, lightness, s))
             if contrast(out, bg) >= need:
                 best = min(best, (n, out)) if best else (n, out)
                 break
@@ -130,10 +130,9 @@ def check_markup(path: str, text: str, fix: bool) -> tuple[str, list[Finding]]: 
         found.append(Finding(path, _line(text, m.start()), "img-alt", "1.1.1", "image has no alt text", fixed=fix))
     if fix:
         out = IMG.sub(lambda m: f'<img{m.group(1)} alt=""{m.group(2) and " /"}>', out)
-    if path.endswith((".html", "layout.tsx", "layout.jsx")) and HTML_TAG.search(text):
-        m = HTML_TAG.search(text)
-        assert m
-        found.append(Finding(path, _line(text, m.start()), "html-lang", "3.1.1", "<html> has no lang", fixed=fix))
+    html = HTML_TAG.search(text) if path.endswith((".html", "layout.tsx", "layout.jsx")) else None
+    if html:
+        found.append(Finding(path, _line(text, html.start()), "html-lang", "3.1.1", "<html> has no lang", fixed=fix))
         if fix:
             out = HTML_TAG.sub(lambda m: f'<html lang="en"{m.group(1)}>', out, count=1)
     if path.endswith(".html") and "<head" in text and 'name="viewport"' not in text:

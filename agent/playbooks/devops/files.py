@@ -155,7 +155,7 @@ def dockerfile(t: Target, work: Path) -> str:
                 f"FROM nginxinc/nginx-unprivileged:1.27-alpine\nCOPY --from=build /app/{out} /usr/share/nginx/html\n"
                 "EXPOSE 8080\n"
             )
-        if "build" in scripts:
+        if "build" in scripts:  # noqa: SIM108
             build = f"RUN {run} build\n"
         else:
             build = ""
@@ -265,7 +265,7 @@ def ci_workflow(work: Path, dockerfiles: list[str]) -> str:
         for block in [*SETUP.get(toolchain, []), *extra]:
             lines += [f"      {ln}" for ln in block.format(path=c.path).splitlines()]
         for s in steps:
-            if s.cmd[:1] == ["sh"] and s.cmd[1:2] == ["-c"]:
+            if s.cmd[:1] == ["sh"] and s.cmd[1:2] == ["-c"]:  # noqa: SIM108
                 run = s.cmd[2]
             else:
                 run = shlex.join(s.cmd)
@@ -372,7 +372,7 @@ def plan_files(work: Path, request: str) -> tuple[list[GeneratedFile], list[str]
 
 
 # ── checks on what was written ───────────────────────────────────────────────
-def check_files(work: Path, files: list[GeneratedFile]) -> list[dict[str, str]]:
+def check_files(work: Path, files: list[GeneratedFile]) -> list[dict[str, str]]:  # noqa: PLR0912
     """Static checks on the generated files. [{file, severity, problem}], empty when clean."""
     problems: list[dict[str, str]] = []
 

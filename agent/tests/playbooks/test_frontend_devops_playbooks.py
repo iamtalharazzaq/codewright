@@ -65,7 +65,7 @@ def test_scan_finds_and_fixes_what_source_proves(tmp_path: Path) -> None:
 
 # ── migration ────────────────────────────────────────────────────────────────
 def _component(work: Path) -> Any:
-    from agent.language_packs import detect_project
+    from agent.language_packs import detect_project  # noqa: PLC0415
 
     return next(c for c in detect_project(work) if c.kind == "web")
 
@@ -160,7 +160,7 @@ async def test_no_frontend_means_nothing_to_do(tmp_path: Path) -> None:
 
 # ── DevOps ───────────────────────────────────────────────────────────────────
 PY_FILES = {
-    "pyproject.toml": '[project]\nname = "api"\nversion = "0.1.0"\ndependencies = ["fastapi", "psycopg[binary]", "redis"]\n',
+    "pyproject.toml": '[project]\nname = "api"\nversion = "0.1.0"\ndependencies = ["fastapi", "psycopg[binary]", "redis"]\n',  # noqa: E501
     "uv.lock": "",
     "app/main.py": "from fastapi import FastAPI\napp = FastAPI()\n@app.get('/healthz')\ndef h():\n    return 1\n",
 }

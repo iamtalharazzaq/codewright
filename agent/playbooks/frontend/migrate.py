@@ -136,7 +136,7 @@ def migration(work: Path, c: Component) -> Migration:  # noqa: PLR0912, PLR0915
         except json.JSONDecodeError:
             ts_conf = None
             out.notes.append(
-                "`tsconfig.json` has comments, so it was not edited: set `jsx` to `preserve` and add the `next` plugin yourself."
+                "`tsconfig.json` has comments, so it was not edited: set `jsx` to `preserve` and add the `next` plugin yourself."  # noqa: E501
             )
         if ts_conf is not None and "references" not in ts_conf:
             opts = ts_conf.setdefault("compilerOptions", {})
@@ -159,7 +159,8 @@ def migration(work: Path, c: Component) -> Migration:  # noqa: PLR0912, PLR0915
         _rel_import(app_dir, posixpath.normpath(posixpath.join(posixpath.dirname(entry), spec))) for spec in css
     ]
     index = (root / "index.html").read_text(encoding="utf-8") if (root / "index.html").is_file() else ""
-    title = (re.search(r"<title>(.*?)</title>", index, re.S) or [None, "App"])[1].strip()
+    found_title = re.search(r"<title>(.*?)</title>", index, re.S)
+    title = found_title.group(1).strip() if found_title else "App"
     desc = re.search(r'<meta\s+name="description"\s+content="([^"]*)"', index)
     meta = f"  title: {json.dumps(title)},\n" + (f"  description: {json.dumps(desc.group(1))},\n" if desc else "")
     types = "import type { Metadata } from 'next'\nimport type { ReactNode } from 'react'\n" if ts else ""
