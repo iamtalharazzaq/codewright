@@ -10,15 +10,16 @@ Still open: Phase 8's 20-example eval, Phase 6's audit review and M1 demo (with 
 
 ## Resume here (written 2026-10-29, for a new session or account)
 
-Running when this was written (background agents of the previous session; they stop if that session ends, their
-files stay on disk in `.claude/worktrees/`):
-1. **Phase 16** is merged (ADR 0031).
-2. **Live runs of Phases 11 → 12 → 13 → 14 → 15**, one after another (Codewright allows one active run; one GPU). Fixes are committed straight on this branch; the report lists what ran, what broke, what is open.
+State when the previous session stopped (usage limit at 93%):
+1. **Phases 11-16**: built and merged on this branch (ADRs 0026-0031); 13 (templates + `new_app`), 15 and 16 are not run live.
+2. **Live runs** were in progress in the background (a fork driving the API, one run at a time): Phase 11 `feature` ran (completed), Phase 12 `frontend` ran 3 times (completed), with a small uncommitted fix in `agent/playbooks/frontend/migrate.py` (review it and commit it, or `git checkout` it). Phases 13, 14, 15 were not live-run yet; the fork's report may be lost: re-run them, then record results below.
+3. **Phase 17 was started, then stopped**: worktree `.claude/worktrees/agent-ac3e31265f6dacd46` (branch `worktree-agent-ac3e31265f6dacd46`), uncommitted: `agent/microservices/data.py` (new) and a change to `dbsplit.py`. Spec: CODEWRIGHT.md Phase 17 (DB split stages, outbox, sagas with compensation, rollback scripts, merge/serverless/event-driven targets, COMPARISON.md); ADR 0032 planned. Continue there, or restart from scratch.
+4. **Phase 18 was started, then stopped**: worktree `.claude/worktrees/agent-af860f2ce22f19a0a`, uncommitted: `agent/playbooks/translate/` (an inventory module so far). Spec: Phase 18; ADR 0033 planned. Not registered or tested.
 
 Then, in this order:
-- `python3 evals/write_code.py` (Phase 8: the 20 `EXAMPLES.md` section 2 requests, ~1-2 h on the GPU; run only after the live runs, same single run slot). Write the result into the Phase 8 section.
+- `python3 evals/write_code.py` (Phase 8: the 20 `EXAMPLES.md` section 2 requests, ~1-2 h on the GPU; needs the single run slot free, so not while another run is active). Write the result into the Phase 8 section. Never run two Codewright runs at once.
 - Phase 6 audit review and the M1 demo need **you** (see "Decisions waiting on you").
-- Next phases: 17 (architecture III), 18 (Translate), 19 (deepen Language Packs/templates), 20 (evals), 21 (polish), 22 (hardening, v1.0).
+- Next phases: finish 17 and 18, then 19 (deepen Language Packs/templates), 20 (evals), 21 (polish), 22 (hardening, v1.0).
 - One `make check` pass at the end of a batch (project rule: features first, one check pass). Known: `agent/tests/graph/test_graph.py::test_graphify_build_versions_and_queries` fails on the host venv only (Graphify not installed there); ruff reports ~20 long-line errors in `new_app`, `chat.py`, `runs.py` to fix; the web changes (Done card delivery panel, Drive folder/ZIP options) were never type-checked.
 - Disk was at 98% (5.6 GB free) after pruning the Docker build cache; old worktrees under `.claude/worktrees/` (about 600 MB) can go once their branches are merged or abandoned.
 
