@@ -136,6 +136,8 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   real failing tests shown.
 - On the Done card, try each delivery target (ZIP, local folder, GitHub PR, Drive folder/ZIP). **Expect:** each
   one-result-line confirms where it landed.
+- **Real-sandbox retrofit:** `scaffold` + `verify` on the `cli-python` template are real-verified
+  (`agent/tests/playbooks/test_new_app_sandbox.py`, `make check-sandbox`). The model-driven build is not.
 
 ## Phase 14: DevOps deploy
 - Covered by Phase 12 above (same playbook).

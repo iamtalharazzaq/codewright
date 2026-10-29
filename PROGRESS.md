@@ -244,6 +244,13 @@ deferred at your call rather than touching either.
   `libs/events`, which `foundation` created after `start_session`'s one-time chown, so they were not writable by
   the sandbox user. Fixed in the harness: `RealProject.files_changed` re-chowns the workspace. Full real-sandbox
   playbook suite after the fix: 38 passed.
+- **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
+  `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
+  state: the template is copied into the new project and committed, then its own tests and linters really run in the
+  sandbox (green, lint clean). No model call happens in either node. The sandbox session starts between the two
+  nodes because the workspace content does not exist until the scaffold writes it. No bugs found. Requirements,
+  design, build (model-driven, and the source of the TypeScript unreliability above), review, docs and publish are
+  not retrofitted; the other 16 templates are already built and tested by `make check-sandbox`'s template fixtures.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 
