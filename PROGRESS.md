@@ -123,8 +123,8 @@ real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`ma
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
 **Retrofit complete as scoped, 2026-10-30:** Phases 8, 9, 10, 11, 17 (`merge`), 18 (2 language pairs), 6, 13
-(`scaffold` + `verify`), 15 (one mechanical move) and 16 (`foundation`) are done. Left out on purpose: 7 (blocked,
-below), 12/14 (need live testing), 4 (not a LangGraph playbook), 16's `build_one` (harness is single-component).
+(`scaffold` + `verify`), 15 (one mechanical move) and 16 (`foundation` + `build_one`) are done. Left out on purpose:
+7 (blocked, below), 12/14 (need live testing), 4 (not a LangGraph playbook).
 
 **Phase 7 blocked, not a code gap:** real record/replay testing needs a running web app's HTTP port reachable
 from the test process. Confirmed empirically (`sandbox/runner/src/codewright_sandbox/gateway.py`'s own docstring
@@ -235,16 +235,19 @@ deferred at your call rather than touching either.
   toolchain's test step underneath them, which worked first try. `expose`/TypeScript moves, Go/C++ (design-only,
   no real moves), and the `recommend`/decomposition-engine side of this phase are not retrofitted - scope kept to
   proving one real move end to end, same reasoning as every single-example phase above.
-- **Phase 16: `ms.foundation()` real-verified, Python only** (`test_architecture_foundation_sandbox.py`). Called
-  `foundation` directly with a hand-built `to_be`/`language_plan` (no model call happens in it); gateway, compose,
-  event envelope, JWT check, CI and service specs are really written and committed, and the monolith's real tests
-  run after them (`foundation`'s own undo-on-red path). `build_one` is not retrofitted: a real per-service build
-  scaffolds a full API template that `detect_project` would then see as a second component, which the harness's
-  single-component `[component] = detect_project(...)` doesn't support. **Not a product bug:** the first run went
-  red because the pack's `build` step (`compileall`) could not write `__pycache__` into `libs/auth` and
-  `libs/events`, which `foundation` created after `start_session`'s one-time chown, so they were not writable by
-  the sandbox user. Fixed in the harness: `RealProject.files_changed` re-chowns the workspace. Full real-sandbox
-  playbook suite after the fix: 38 passed.
+- **Phase 16: `ms.foundation()` and `ms.build_one("payment")` real-verified, Python only**
+  (`test_architecture_foundation_sandbox.py`, two tests). Called directly with a hand-built `to_be`/`language_plan`
+  state; no model call happens in either (a model is only called to fix a red extraction attempt, and the fixture's
+  is green first try). `foundation`: gateway, compose, event envelope, JWT check, CI and service specs are really
+  written and committed, and the monolith's real tests run after them. `build_one`: the `payment` group is really
+  extracted behind an anti-corruption layer with a scaffolded FastAPI service in `services/payment`, committed, with
+  the real tests (the monolith's plus the generated ACL tests) green. The earlier note that `build_one` needed a
+  multi-component harness was wrong: `detect_project` sees one root component, so no harness change was needed. The
+  scaffolded service's own template tests are not run by this step (same in production), so they are not asserted
+  here. **Not a product bug in `foundation`:** its first run went red because the pack's `build` step
+  (`compileall`) could not write `__pycache__` into `libs/auth` and `libs/events`, created after `start_session`'s
+  one-time chown. Fixed in the harness: `RealProject.files_changed` re-chowns the workspace. Not covered: the red
+  paths (`undone`), finalize, non-Python services (scaffold-only), the DB split.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the
