@@ -3,25 +3,70 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phases 13, 15 and 16 built (16 = microservices conversion); 11 and 12 being run live, 13-16 not yet. Phase 17 is next.
-Still open: Phase 8's 20-example eval, Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table.
+**Current phase:** Phases 11-18 built and live-verified to varying degrees (see below); Phase 8's 20-example eval ran
+2026-10-29. Phase 19 is next.
+Still open: Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table, Phase 11's
+price-alerts acceptance, Phase 13's TypeScript reliability.
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
 
-## Resume here (written 2026-10-29, for a new session or account)
+## Resume here (written 2026-10-29)
 
-State when the previous session stopped (usage limit at 93%):
-1. **Phases 11-16**: built and merged on this branch (ADRs 0026-0031); 13 (templates + `new_app`), 15 and 16 are not run live.
-2. **Live runs** were in progress in the background (a fork driving the API, one run at a time): Phase 11 `feature` ran (completed), Phase 12 `frontend` ran 3 times (completed), with a small uncommitted fix in `agent/playbooks/frontend/migrate.py` (review it and commit it, or `git checkout` it). Phases 13, 14, 15 were not live-run yet; the fork's report may be lost: re-run them, then record results below.
-3. **Phase 17 was started, then stopped**: worktree `.claude/worktrees/agent-ac3e31265f6dacd46` (branch `worktree-agent-ac3e31265f6dacd46`), uncommitted: `agent/microservices/data.py` (new) and a change to `dbsplit.py`. Spec: CODEWRIGHT.md Phase 17 (DB split stages, outbox, sagas with compensation, rollback scripts, merge/serverless/event-driven targets, COMPARISON.md); ADR 0032 planned. Continue there, or restart from scratch.
-4. **Phase 18 was started, then stopped**: worktree `.claude/worktrees/agent-af860f2ce22f19a0a`, uncommitted: `agent/playbooks/translate/` (an inventory module so far). Spec: Phase 18; ADR 0033 planned. Not registered or tested.
+Two sessions worked this branch back to back: one kept live-running Phases 11-13 in the background until its process
+died mid-sweep (its last report was lost, exactly as expected — everything it did is still in the git log and
+`/api/runs`); a second session (this one) picked up from there, live-ran Phases 14-15, finished and merged Phases 17
+and 18, fixed a real Reflection-loop bug it found live, and ran the Phase 8 eval. Details:
 
-Then, in this order:
-- `python3 evals/write_code.py` (Phase 8: the 20 `EXAMPLES.md` section 2 requests, ~1-2 h on the GPU; needs the single run slot free, so not while another run is active). Write the result into the Phase 8 section. Never run two Codewright runs at once.
-- Phase 6 audit review and the M1 demo need **you** (see "Decisions waiting on you").
-- Next phases: finish 17 and 18, then 19 (deepen Language Packs/templates), 20 (evals), 21 (polish), 22 (hardening, v1.0).
-- One `make check` pass at the end of a batch (project rule: features first, one check pass). Known: `agent/tests/graph/test_graph.py::test_graphify_build_versions_and_queries` fails on the host venv only (Graphify not installed there); ruff reports ~20 long-line errors in `new_app`, `chat.py`, `runs.py` to fix; the web changes (Done card delivery panel, Drive folder/ZIP options) were never type-checked.
-- Disk was at 98% (5.6 GB free) after pruning the Docker build cache; old worktrees under `.claude/worktrees/` (about 600 MB) can go once their branches are merged or abandoned.
+1. **Phase 11 (add_feature):** still not clean. ~15 live attempts at "price alerts" on GoShop since the last session,
+   every one that reached `build` either failed to compile or got cancelled before `review`. Two *other* feature
+   requests completed, but one of them (`pin note`) silently wrote nothing ("file too long to rewrite safely in one
+   go") while still reporting `completed` — a soft failure, not a real pass. The acceptance item (a price-alerts run
+   that passes the migration gate and is approved) is still open; this looks like a 9B-model capability limit on
+   Go type-correctness for a layered feature, not a playbook bug.
+2. **Phase 12 (frontend_modernize, devops_deploy):** ✅ both now confirmed live.
+   `frontend_modernize`: 4 live runs on a React+Vite todo app; the first 3 each failed a different way (`npm ci` on a
+   stale lock, a missing `@types/node`, and `next/dynamic` assuming `App` is the default export); fixed in
+   `agent/playbooks/frontend/migrate.py` (commit `fd2f0fd`) and the 4th run went fully green. `devops_deploy`: first
+   live run ("Dockerize this app and set up CI") generated 3 files, all checks passed, committed — Phase 14 had zero
+   live runs before this.
+3. **Phase 13 (new_app):** ⚠️ not reliable yet. Multiple TypeScript tic-tac-toe attempts, three different failures:
+   an empty model plan reported as "tests passed" (now guarded against, commit `eb7872e`), and twice the same
+   root cause — a generated `useCallback` handler named identically to an imported pure function, shadowing it, so
+   `tsc` rejects the component. Found and fixed a systemic gap behind this: the build-time Reflection loop
+   (`agent/playbooks/feature/graph.py::run_tests`, shared by `feature` and `new_app`) only ran the test runner, never
+   lint/`tsc` — and Vitest/Jest transpile with esbuild/Babel without type-checking, so a real type error could pass
+   every build round and only surface later at `verify`, with no fix round left to use it. Fixed in commit `a39b3cd`
+   (now checks `project.lint()` too, after tests pass). Confirmed live: the fix does make the build loop see and
+   attempt the error now (previously it silently missed it); the 9B model still couldn't resolve this particular
+   shadowing bug within the round budget, so the run correctly stayed red instead of silently passing. TypeScript
+   apps with non-trivial state updaters are not yet reliable with this model — real, not a playbook bug.
+4. **Phase 14 (devops_deploy):** ✅ see Phase 12 above — first live run clean.
+5. **Phase 15 (architecture_change):** ✅ live-run on GoShop, `target=recommend`, `mode=audit`, real model call, all
+   gates walked through by hand: 27 modules, 93 dependencies, 0 cycles → recommended **"Clean modules / layers"**,
+   explicitly declining microservices ("the modules are too entangled to split cleanly today"), with scored
+   alternatives. Design-only, nothing in the project changed, report delivered. Matches the spec's acceptance wording.
+6. **Phase 16 (microservices build):** still not live-run; no acceptance attempt this session either (out of scope
+   for the time available — flagged for a future session).
+7. **Phases 17 and 18:** both finished, independently verified, and merged (commits `0810de7`, `b2f808b`; merges on
+   `codewright-phase-0`). See their own sections below. ADRs 0032 and 0033.
+8. **A harness bug, found and worked around, not fixed:** the LangGraph checkpointer's Postgres connection has no
+   auto-reconnect after the connection drops — a stray `docker compose run` recreating the shared `postgres`
+   container (my mistake, while spot-checking a worktree agent's tests) broke `/api/runs` until `api` was restarted.
+   Health checks reported `ok` the whole time (they open a fresh connection per check), masking it. Worth a real fix
+   in Phase 22 hardening (Phase 1 built exactly this resilience for the LLM client; the checkpointer connection has
+   none). One live run (`fc9186c2`) was lost to this and had to be redone.
+
+Next: Phase 19 (deepen the 5 Language Packs/templates), then 20 (evals), 21 (polish), 22 (hardening, v1.0). One
+`make check` pass before 19 starts (ruff's ~20 long-line errors, mypy on the web changes, full suite). Then clean up
+the now-merged Phase 17/18 worktrees and their tagged `codewright-api-checks:p17`/`:p18`/`:p12`/`:p14` images.
+Disk: 11GB free (96% used) as of this session, better than the 3.1GB it started at (something freed up during the
+other session's run sweep) — still don't prune Docker volumes or build cache without asking.
+
+## Phase 8 eval (ADR 0023), run 2026-10-29
+
+`python3 evals/write_code.py` fails immediately (`ModuleNotFoundError: No module named 'evals'` — it must run as
+`python3 -m evals.write_code`, not as a script path; the script's own docstring example is wrong, worth a 1-line fix
+later). Re-run correctly: see the Phase 8 section below for the result once it finishes.
 
 ## How to run
 
@@ -36,6 +81,29 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 18: Translate (ADR 0033; built, verified against the real sandbox, not yet run on a real project)
+
+| Task | Result |
+|---|---|
+| `translate_language` playbook | `agent/playbooks/translate/graph.py`: survey (Code Analyst: finds the component, enumerates units with `inventory.py`, captures black-box cases with `blackbox.py`) → plan (Solution Architect: target language + skeleton from `target.py`, declines same-language) → **approve plan** → translate (Backend Developer: one unit at a time, callees first, assembled into one file, built with the Reflection loop, max 5 tries) → verify (QA Engineer: CLI checked against the same black-box cases; HTTP services fall back to the Pack's own tests, honestly marked "not implemented yet") → review → **approve result** → publish (new commit under `translated/<package>-<pack>/`, next to the original; nothing cut over). `cli`/`api` only; library/app/web declined with reasons. |
+| Wiring | Registered in `agent/playbooks/registry.py`; the chat intent/tier/intake wiring for `translate_language` already existed from an earlier phase. |
+| Tests | 6 fake-sandbox tests (3 decline paths + a full happy-path run, a tiny `calc.py` → C++) and 1 real-sandbox test (`pytest.mark.sandbox`): the same fixture actually executed in Python to capture cases, actually built with CMake/Ninja in the sandbox, the compiled binary actually checked against those cases. All pass. `make check`-equivalent (ruff, mypy, 132 playbook tests) clean. |
+
+Open: the GoShop-service-rebuilt-in-Python acceptance item (needs a real project and a live run); HTTP-service translation has no real-sandbox test, only the fake-sandbox path.
+
+## Phase 17: Architecture change III, data/other targets, finish (ADR 0032; built, unit/fake-sandbox tested, not yet run live)
+
+| Task | Result |
+|---|---|
+| Microservices finish | The database-split check/contract stages, `apply.sh`/`rollback.sh`/`STAGES.md`, and (when the design has sagas) the saga library + its generated tests (`agent/microservices/data.py`) are now actually written during conversion, not just available as unused functions; the frontend step also rewrites API-address literals to the gateway and writes `GATEWAY_ROUTES.md`. Two real bugs found by executing the generated output (not just asserting on its text): a saga crashing before its first step had nothing to resume from, and the API-address regex matching "localhost" as an API line via the substring "host". |
+| `merge` target | Real: detects extracted services from the working tree itself (the shim mark + the service name), restores the local code, deletes the service folder/runbook, drops the gateway route, regenerates `nginx.conf`, removes the dead anti-corruption layer. Refuses a service already finalized at 100% cutover (nothing to restore). |
+| `serverless` target | Real, Python only: reuses `extract.py`'s entry-point analysis to find stateless groups (no table, no saga), packages each as `services/<name>/` with a handler per entry point and a deploy-manifest template. The monolith's own copy is untouched; wiring a real trigger and deploying are left as a runbook, matching ADR 0031's own canary pattern. |
+| `event_driven` target | Real for the provably safe half only: an in-process pub/sub bus plus subscriber registration, added after the existing function (can't change its direct-call behavior). Rewriting the producer's call site to `publish()` is deliberately not done mechanically (AST can't prove a return value is unused) — instead a generated, human-reviewable `EVENT_REWRITE_REVIEW.md` names every call site. |
+| Reports | `generic_comparison()` extends `COMPARISON.md`/before-after graphs to merge/serverless/event_driven, reusing the existing Deliver machinery unchanged. |
+| Tests | 56 new/changed tests, including a full-graph acceptance test (`test_architecture_merge.py`) that drives the real graph with a fake sandbox/replay and merges a small multi-service fixture back into one app with **0 regressions** — the spec's exact acceptance wording. 401 passed, 15 skipped (sandbox tests), 1 pre-existing unrelated failure (`test_checkpoint_postgres.py`, a stale-container-password issue). ruff/mypy clean. |
+
+Open: the GoShop saga-paths-replay-0-regressions acceptance and the M4 demo (need a live run); `serverless` never wires a real caller or deploys; `event_driven` never rewrites a call site, only documents where one would go; the database-split stages/saga library/gateway rewrite are only exercised against a fake `project.db_trial`, never a real PostgreSQL sandbox.
 
 ## Phase 16: Architecture change II, microservices build (ADR 0031; built, not yet run live)
 
