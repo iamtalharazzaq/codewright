@@ -248,18 +248,32 @@ def behavior_line(check: dict[str, Any]) -> str:
     return f"❌ **Replay found {check['regressions']} regression(s)** in {check['exchanges']} recorded requests."
 
 
+def _usable(recording: dict[str, Any]) -> bool:
+    """False for a recording where nothing came back but errors or silence -- the recorder reaching an app that
+    was not actually up yet, not a real baseline. Replaying it later would call every one of today's normal
+    answers a "regression" against yesterday's downtime. A recording with no exchange count (older summary
+    shape, or a test double) has no health signal to doubt, so it passes."""
+    exchanges = recording.get("exchanges")
+    if not exchanges:
+        return True
+    errors = int(recording.get("server_errors", 0)) + int(recording.get("unanswered", 0))
+    return errors < int(exchanges)
+
+
 async def baseline_recording(project: ProjectTools) -> tuple[str | None, str]:
-    """The newest recording of the running app, recording one now if there is none. (id or None, a note.)"""
+    """The newest usable recording of the running app, recording one now if there is none. (id or None, a note.)"""
     listed = project.recordings()
-    if listed:
-        return str(listed[0]["id"]), f"Using recording `{listed[0]['id']}`"
+    usable = next((r for r in listed if _usable(r)), None)
+    if usable:
+        return str(usable["id"]), f"Using recording `{usable['id']}`"
     made = await project.verify("record", {"self_check": False})
     if made["ok"] is None:
         return None, f"No traffic recorded: {made['error']}"
     listed = project.recordings()
+    usable = next((r for r in listed if _usable(r)), None)
     return (
-        (str(listed[0]["id"]), "Recorded the app's traffic before changing anything")
-        if listed
+        (str(usable["id"]), "Recorded the app's traffic before changing anything")
+        if usable
         else (None, "Nothing was recorded")
     )
 
