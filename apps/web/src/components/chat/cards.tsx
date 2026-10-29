@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
+import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -246,14 +246,18 @@ export function RunCard({ runId, tick }: { runId: string; tick: number }) {
 
 /** Done card (Section 3.5): what was done, what changed, the guide and next steps. */
 export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (text: string) => void }) {
-  const { summary, changed = [], proof = [], guide, suggestions = [] } = message.data;
+  const { summary, changed = [], proof = [], guide, suggestions = [], passed = true } = message.data;
   // The first line is the headline; a run's own summary (score, top findings, risks) follows as Markdown.
   const [headline, ...rest] = (summary ?? message.content).split("\n\n");
   const details = rest.join("\n\n");
   return (
-    <div className={CARD}>
-      <p className="flex items-center gap-2 font-medium">
-        <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
+    <div className={cn(CARD, !passed && "border-destructive/30")}>
+      <p className={cn("flex items-center gap-2 font-medium", !passed && "text-destructive")}>
+        {passed ? (
+          <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
+        ) : (
+          <XCircle className="size-4 text-destructive" aria-hidden="true" />
+        )}
         {headline}
       </p>
       {details && (

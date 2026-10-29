@@ -914,7 +914,12 @@ class ChatService:
         if workspace and (Path(workspace) / "GUIDE.md").is_file():
             guide = (Path(workspace) / "GUIDE.md").read_text(encoding="utf-8")[:20000]
         steps = [s for s in state.get("plan", []) if isinstance(s, dict)]
-        summary = f"{title} finished: {sum(1 for s in steps if s.get('status') == 'done')} of {len(steps)} steps done."
+        done = sum(1 for s in steps if s.get("status") == "done")
+        failed = sum(1 for s in steps if s.get("status") == "failed")
+        passed = failed == 0
+        summary = f"{title} finished: {done} of {len(steps)} steps done." + (
+            f" {failed} step(s) did not pass." if failed else ""
+        )
         skill = (run.inputs or {}).get("skill")
         if skill:
             summary += f" Skill used: {skill.get('title') or skill.get('name')}."
@@ -924,6 +929,7 @@ class ChatService:
             "content": summary,
             "data": {
                 "summary": summary,
+                "passed": passed,
                 # Files written into the project (Docs publishes on a branch); reports stay in the run folder.
                 "changed": list((state.get("published") or {}).get("files", []))
                 if run.playbook in READ_MOSTLY

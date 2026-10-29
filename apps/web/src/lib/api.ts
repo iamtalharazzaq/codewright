@@ -466,6 +466,8 @@ export interface ChatMessage {
     guide?: string | null;
     suggestions?: string[];
     playbook?: string;
+    /** A "done" message's own honest pass/fail (a step may have failed even though the run reached "completed"). */
+    passed?: boolean;
     [key: string]: unknown;
   };
   status: "complete" | "streaming" | "stopped" | "error";

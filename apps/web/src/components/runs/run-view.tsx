@@ -3,8 +3,10 @@
 import {
   Ban,
   CheckCircle2,
+  ChevronDown,
   Circle,
   CircleDot,
+  Download,
   FileText,
   Loader2,
   PauseCircle,
@@ -15,6 +17,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Markdown } from "@/components/chat/markdown";
+import { DeliverPanel } from "@/components/projects/deliver-panel";
 import { BudgetCard, GateCard, LLMUnavailableCard } from "@/components/runs/pending-card";
 import { runTitle } from "@/components/runs/runs-view";
 import { useRunEvents } from "@/components/runs/use-run-events";
@@ -23,9 +27,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  type ArtifactRef,
   cancelRun,
   getPlaybook,
   getRun,
+  getRunArtifact,
   listTraces,
   PROFILE_LABEL,
   type Playbook,
@@ -50,6 +56,8 @@ const ROLE_LABEL: Record<string, string> = {
 
 type ItemState = "done" | "failed" | "running" | "waiting" | "todo";
 
+const CODE_KINDS = new Set<ArtifactRef["kind"]>(["diff", "file", "report", "diagram"]);
+
 function unknownPlaybook(name: string): Playbook {
   return {
     name,
@@ -62,6 +70,112 @@ function unknownPlaybook(name: string): Playbook {
     gates: [],
     inputs_schema: {},
   };
+}
+
+/** The headline card for a settled run: honest pass/fail first, then the code it produced, then a way to act on
+ *  it (download/deliver). The full agent-by-agent Timeline stays available below, but demoted — see RunView. */
+function ResultCard({ run, hasFailedStep }: { run: RunDetail; hasFailedStep: boolean }) {
+  const codeArtifacts = useMemo(() => run.artifacts.filter((a) => CODE_KINDS.has(a.kind)), [run.artifacts]);
+  const [pickedPath, setPickedPath] = useState<string | null>(null);
+  const chosen =
+    pickedPath && codeArtifacts.some((a) => a.path === pickedPath) ? pickedPath : (codeArtifacts.at(-1)?.path ?? null);
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!chosen) return;
+    const ctrl = new AbortController();
+    getRunArtifact(run.id, chosen, ctrl.signal)
+      .then((t) => {
+        setText(t);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        if (!ctrl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
+      });
+    return () => ctrl.abort();
+  }, [run.id, chosen]);
+
+  const kind = codeArtifacts.find((a) => a.path === chosen)?.kind;
+  const rendered =
+    kind === "diff"
+      ? "```diff\n" + text + "\n```"
+      : kind === "file"
+        ? "```" + (chosen?.split(".").at(-1) ?? "") + "\n" + text + "\n```"
+        : text;
+
+  const failing = Object.entries(run.steps).filter(([, s]) => s.status === "failed");
+  const title =
+    hasFailedStep || run.status === "failed" ? "Failed" : run.status === "cancelled" ? "Cancelled" : "Passed";
+  const Icon = title === "Passed" ? CheckCircle2 : XCircle;
+  const tone = title === "Passed" ? "text-success" : "text-destructive";
+
+  return (
+    <Card className={cn(title !== "Passed" && "ring-2 ring-destructive/40")}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Icon className={cn("size-5", tone)} aria-hidden="true" />
+          <span className={tone}>{title}</span>
+        </CardTitle>
+        <CardDescription>
+          {failing.length > 0
+            ? failing.map(([id, s]) => `${id}: ${s.summary ?? "did not pass"}`).join(" · ")
+            : run.status === "failed"
+              ? (run.error ?? "The run could not finish.")
+              : run.status === "cancelled"
+                ? "Cancelled before it finished."
+                : "Every verify step passed."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {codeArtifacts.length > 0 ? (
+          <div className="flex min-h-0 flex-col rounded-md border">
+            <div className="flex flex-wrap items-center gap-1 border-b p-2" role="tablist" aria-label="Code">
+              {codeArtifacts.map((a) => (
+                <button
+                  key={a.path}
+                  type="button"
+                  role="tab"
+                  aria-selected={a.path === chosen}
+                  onClick={() => setPickedPath(a.path)}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-xs",
+                    a.path === chosen
+                      ? "bg-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60",
+                  )}
+                >
+                  {a.title}
+                </button>
+              ))}
+              {chosen && (
+                <a
+                  href={`/api/runs/${run.id}/artifact?path=${encodeURIComponent(chosen)}`}
+                  download={chosen.split("/").at(-1)}
+                  className="ml-auto flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+                >
+                  <Download className="size-3.5" aria-hidden="true" />
+                  Download
+                </a>
+              )}
+            </div>
+            <div className="max-h-96 overflow-y-auto p-3 text-sm">
+              {error ? (
+                <p role="alert" className="text-destructive">
+                  {error}
+                </p>
+              ) : (
+                <Markdown>{rendered}</Markdown>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">This run wrote no code artifacts to show here.</p>
+        )}
+        {run.project_id && <DeliverPanel projectId={run.project_id} runId={run.id} />}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function RunView({ runId }: { runId: string }) {
@@ -107,6 +221,7 @@ export function RunView({ runId }: { runId: string }) {
   }
 
   const active = run.status === "running" || run.status === "waiting" || run.status === "created";
+  const settled = run.status === "completed" || run.status === "failed" || run.status === "cancelled";
   // A step's own "failed" status always outranks the run-level status badge: a run that reached "completed" or
   // "waiting" (at the approval gate) must still read as broken if a verify/test/lint step did not pass.
   const hasFailedStep = Object.values(run.steps).some((s) => s.status === "failed");
@@ -174,9 +289,19 @@ export function RunView({ runId }: { runId: string }) {
         <BudgetCard runId={run.id} prompt={run.pending} onAnswered={refresh} />
       )}
 
+      {settled && <ResultCard run={run} hasFailedStep={hasFailedStep} />}
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-6">
-          <Timeline run={run} playbook={playbook} events={events} />
+          {/* The full agent-by-agent Timeline is secondary once the result above is in view: open while the run
+           *  is still active (there's nothing else to watch yet), collapsed once it's settled. */}
+          <details className="group" open={!settled}>
+            <summary className="mb-2 flex cursor-pointer items-center gap-1.5 text-sm font-medium text-muted-foreground [&::-webkit-details-marker]:hidden">
+              <ChevronDown className="size-4 -rotate-90 transition-transform group-open:rotate-0" aria-hidden="true" />
+              Agent activity
+            </summary>
+            <Timeline run={run} playbook={playbook} events={events} />
+          </details>
           <ServiceBoard run={run} />
           <PlanCard run={run} />
           {run.artifacts.length > 0 && <ArtifactsCard run={run} />}
