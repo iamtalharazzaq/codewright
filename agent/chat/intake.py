@@ -26,6 +26,7 @@ from agent.playbooks.new_app.stacks import (
     additions_default,
     answer_to,
     default_platform,
+    deliver_text,
     frontend_default,
     frontend_open,
     platform_stated,
@@ -151,6 +152,8 @@ async def check(
         questions = _new_app_questions(
             questions, request, answers, asked_language, frontend=frontend_default(out.recommended_language)
         )
+    if intent == "new_app":  # from the ticked boxes, not the model's guess or the intent's fixed wording
+        out.card.deliver = deliver_text({"request": request, "answers": [list(a) for a in answers]})
     if language and cfg.new and language.lower() not in out.card.stack.lower():
         out.card.stack = f"{language} · {out.card.stack}"
     limit = router_settings()["max_questions_per_round"]

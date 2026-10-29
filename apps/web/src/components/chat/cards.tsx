@@ -9,8 +9,8 @@ import { DeliverPanel } from "@/components/projects/deliver-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { FormSelect } from "@/components/form-select";
+import { MultiSelect } from "@/components/multi-select";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { answerConfirm, answerRun, getRun, type ChatMessage, type Question, type RunDetail } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -23,14 +23,6 @@ function splitTicks(answer: string): string[] {
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean);
-}
-
-/** The answer after (un)ticking one option, in the options' order. */
-function toggleTick(answer: string, option: string, on: boolean, options: string[]): string {
-  const ticked = new Set(splitTicks(answer));
-  if (on) ticked.add(option);
-  else ticked.delete(option);
-  return options.filter((o) => ticked.has(o)).join(", ");
 }
 
 /** The option a question's default points at ("Python" for "Python (recommended)"), if any. */
@@ -81,22 +73,13 @@ export function QuestionsCard({
                 <span className="text-muted-foreground">{i + 1}.</span> {q.question}
               </p>
               {q.multi && q.options.length > 0 ? (
-                <div role="group" aria-label={q.question} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {q.options.map((o) => {
-                    const ticked = splitTicks(answers[i]).includes(o);
-                    return (
-                      <label key={o} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={ticked}
-                          disabled={!canAnswer}
-                          aria-label={o}
-                          onCheckedChange={(on) => set(i, toggleTick(answers[i], o, on, q.options))}
-                        />
-                        {o}
-                      </label>
-                    );
-                  })}
-                </div>
+                <MultiSelect
+                  id={`question-${i}`}
+                  values={splitTicks(answers[i])}
+                  options={q.options}
+                  disabled={!canAnswer}
+                  onChange={(v) => set(i, v.join(", "))}
+                />
               ) : q.options.length > 0 ? (
                 <FormSelect
                   id={`question-${i}`}

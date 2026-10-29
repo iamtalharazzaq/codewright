@@ -63,7 +63,7 @@ describe("QuestionsCard", () => {
     expect(screen.getByText("Who is it for?").closest("li")).toHaveClass("sm:col-span-2");
   });
 
-  it("shows a tick-box question as checkboxes, the default ticked, and sends the ticked ones", () => {
+  it("shows a tick-box question as a dropdown of checkboxes, the default ticked, and sends the ticked ones", async () => {
     const onSend = vi.fn();
     const questions = [
       {
@@ -74,10 +74,14 @@ describe("QuestionsCard", () => {
       },
     ];
     render(<QuestionsCard message={message({ questions })} canAnswer onSend={onSend} />);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
-    expect(screen.getByRole("checkbox", { name: "Test cases (backend)" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "README file" })).not.toBeChecked();
-    fireEvent.click(screen.getByRole("checkbox", { name: "README file" }));
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument(); // closed: only the trigger shows
+    const trigger = screen.getByRole("button", { name: /Test cases \(backend\)/ });
+    fireEvent.click(trigger);
+    const readme = await screen.findByRole("menuitemcheckbox", { name: "README file" });
+    expect(screen.getByRole("menuitemcheckbox", { name: "Test cases (backend)" })).toBeChecked();
+    expect(readme).not.toBeChecked();
+    fireEvent.click(readme);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Send answers" }));
     expect(onSend).toHaveBeenCalledWith("Additional things to be added README file, Test cases (backend)");
   });

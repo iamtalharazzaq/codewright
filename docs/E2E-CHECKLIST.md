@@ -140,9 +140,9 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
 - On the Done card, try each delivery target (ZIP, local folder, GitHub PR, Drive folder/ZIP). **Expect:** each
   one-result-line confirms where it landed.
 - Ask for a small app ("Make a simple calculator"). **Expect:** dropdowns for Which language?, Which platform? and
-  Which frontend? (not for a terminal/API app), two to a row, then tick-boxes under "Additional things to be added":
+  Which frontend? (not for a terminal/API app), two to a row, then one dropdown with checkboxes, "Additional things to be added":
   CI workflow, README file, Graphify, Test cases (backend), Test cases (frontend); only backend tests ticked. No
-  explanatory text under any field. Untick everything extra and run: the new project has no `.github/`, no
+  explanatory text under any field, and the "You get" line of the confirm card lists only what was ticked. Untick everything extra and run: the new project has no `.github/`, no
   `GRAPHIFY.md`/`mcp.example.json`, no `README.md` and no browser-code tests. Tick them: they come back.
 - **Real-sandbox retrofit:** `scaffold` + `verify` on the `cli-python` template are real-verified
   (`agent/tests/playbooks/test_new_app_sandbox.py`, `make check-sandbox`). The model-driven build is not.

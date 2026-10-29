@@ -281,10 +281,12 @@ again (flagged as a regression).
   The intake now asks, as dropdowns, **Which language?**, **Which platform?** (Browser app / Terminal / API) and
   **Which frontend?** (React + TypeScript/JavaScript, Next.js TypeScript/JavaScript, None; not asked for a
   terminal/API app; it picks the browser template and the card says when it changes the language), then one tick-box
-  group, **Additional things to be added**: CI workflow, README file, Graphify, Test cases (backend), Test cases
+  group, shown as a **dropdown with a checkbox per option** (`MultiSelect`; the trigger lists what is ticked),
+  **Additional things to be added**: CI workflow, README file, Graphify, Test cases (backend), Test cases
   (frontend). Backend tests are ticked at first, plus whatever the request already names. Nothing is explained under
   a field. Yes/no choices are boxes, not dropdowns. Answers arrive as one reply, a line per question, so
-  `stacks.answer_to` reads them by question text; a "Which language?" answer beats language words elsewhere. The
+  `stacks.answer_to` reads them by question text; the confirm card's "You get" line is built from the ticked boxes
+  (`stacks.deliver_text`), so it no longer promises tests, CI or a README that were declined; a "Which language?" answer beats language words elsewhere. The
   README is the template's `README.md` (left out unless ticked; when ticked, the generated guide). Unticking the
   backend's tests tells the model to write none and accepts 0 tests, but the template's sample tests stay. A
   browser request in a language with no browser template says so in the card note. Questions sit two to a row.

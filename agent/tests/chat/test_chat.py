@@ -174,3 +174,16 @@ async def test_intake_asks_for_the_frontend_once_and_not_for_a_terminal_app() ->
         answers=[("x", "Which frontend? None\nAdditional things to be added README file")],
     )
     assert "Which frontend?" not in _names(answered) and "Additional things to be added" not in _names(answered)
+
+
+async def test_the_card_promises_only_what_was_ticked() -> None:
+    reply = {"recommended_language": "Python", "language_reason": "x", "questions": [], "card": CARD}
+    reply_text = "Which language? Python\nAdditional things to be added README file, Test cases (backend)"
+    client, _ = client_returning(json.dumps(reply))
+    some = await intake.check(client, "new_app", "A calculator", answers=[("x", reply_text)], round_no=2)
+    assert some.card.deliver == "A working app in Preview, tests, GUIDE.md, a README and a Done card"
+    client, _ = client_returning(json.dumps(reply))
+    none = await intake.check(
+        client, "new_app", "A calculator", answers=[("x", "Additional things to be added ")], round_no=2
+    )
+    assert none.card.deliver == "A working app in Preview, GUIDE.md and a Done card"

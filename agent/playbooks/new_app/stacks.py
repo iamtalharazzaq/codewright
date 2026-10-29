@@ -269,6 +269,23 @@ def extras(inputs: dict[str, Any]) -> Extras:
     )
 
 
+def deliver_text(inputs: dict[str, Any]) -> str:
+    """What the user gets, from what was ticked: the confirm card must not promise tests, CI or a README they declined."""
+    wanted = extras(inputs)
+    parts = ["a working app in Preview"]
+    if wanted.backend_tests or wanted.frontend_tests:
+        parts.append("tests")
+    parts.append("GUIDE.md")
+    if wanted.readme:
+        parts.append("a README")
+    if wanted.ci:
+        parts.append("a CI workflow")
+    if wanted.graphify:
+        parts.append("the Graphify setup")
+    text = ", ".join(parts[:-1]) + f", {parts[-1]} and a Done card" if len(parts) > 1 else parts[0]
+    return text[0].upper() + text[1:]
+
+
 def additions_default(request: str) -> str:
     """The boxes ticked at first: the backend's tests, plus whatever the request already asks for."""
     wanted = extras({"request": request})
