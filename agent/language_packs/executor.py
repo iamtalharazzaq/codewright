@@ -21,7 +21,7 @@ from agent.tools.sandbox import SandboxClient
 
 Action = Literal["build", "test", "lint", "audit", "run"]
 Emit = Callable[[dict[str, Any]], Awaitable[None]]
-GIT_EXCLUDES = (".codewright/", "graphify-out/", "node_modules/", ".venv/")
+GIT_EXCLUDES = (".codewright/", "graphify-out/", "node_modules/", ".venv/", "__pycache__/")
 TAIL_CHARS = 20_000
 
 

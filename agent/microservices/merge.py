@@ -77,9 +77,18 @@ def plan(work: Path, names: list[str] | None = None) -> tuple[list[Move], list[s
     return moves, notes
 
 
+def _acl_test_path(work: Path, service: str) -> Path:
+    """Where `extract.apply_extraction` scaffolds this service's shim acceptance test (CODEWRIGHT.md 5.17's
+    cutover-percentage check) - the same `tests/` detection it uses, so a real merge finds the real file."""
+    tests = "tests" if (work / "tests").is_dir() else ""
+    return work / f"{tests}/test_acl_{fd.safe_name(service)}.py".lstrip("/")
+
+
 def apply_merge(work: Path, move: Move) -> dict[str, str | None]:
-    """Restore each shim's local code, then delete the service's own copy and its runbook. Returns every touched
-    file's text before (None = did not exist), so `restore` undoes it exactly."""
+    """Restore each shim's local code, then delete the service's own copy, its runbook, and the shim's own
+    acceptance test (it only makes sense while the shim is live - once merged back there is no cutover percentage
+    to check and the test fails on the restored, unwrapped function). Returns every touched file's text before
+    (None = did not exist), so `restore` undoes it exactly."""
     before: dict[str, str | None] = {}
     for rel in move.shims:
         path = Path(rel)
@@ -96,7 +105,7 @@ def apply_merge(work: Path, move: Move) -> dict[str, str | None]:
         local_path.unlink()
     svc_dir = work / move.service_dir
     for p in sorted(svc_dir.rglob("*")):
-        if p.is_file():
+        if p.is_file() and not any(part in b.SKIP for part in p.relative_to(svc_dir).parts):
             rel = p.relative_to(work).as_posix()
             before.setdefault(rel, p.read_text(encoding="utf-8", errors="replace"))
     if svc_dir.is_dir():
@@ -106,6 +115,11 @@ def apply_merge(work: Path, move: Move) -> dict[str, str | None]:
         rel = runbook.relative_to(work).as_posix()
         before.setdefault(rel, runbook.read_text(encoding="utf-8"))
         runbook.unlink()
+    acl_test = _acl_test_path(work, move.service)
+    if acl_test.is_file():
+        rel = acl_test.relative_to(work).as_posix()
+        before.setdefault(rel, acl_test.read_text(encoding="utf-8"))
+        acl_test.unlink()
     return before
 
 
