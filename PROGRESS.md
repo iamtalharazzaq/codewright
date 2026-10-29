@@ -122,18 +122,40 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Retrofit complete as scoped, 2026-10-30:** Phases 8, 9, 10, 11, 17 (`merge`), 18 (2 language pairs), 6, 13
-(`scaffold` + `verify`), 15 (one mechanical move) and 16 (`foundation` + `build_one`) are done. Left out on purpose:
-7 (blocked, below), 12/14 (need live testing), 4 (not a LangGraph playbook).
+**Retrofit complete as scoped, 2026-10-30.** Last gate: full `make check-sandbox` **62 passed, 0 failed** (about 10
+minutes); `make check-sandbox-host` (Phase 7) 1 passed.
 
-**Phase 7 blocked, not a code gap:** real record/replay testing needs a running web app's HTTP port reachable
-from the test process. Confirmed empirically (`sandbox/runner/src/codewright_sandbox/gateway.py`'s own docstring
-says so, then verified with a throwaway preview + curl) that a sandbox preview's forwarded port is published on
-the real Docker **host's** `127.0.0.1` only — unreachable from inside the `api-checks` checks container by any
-hostname, reachable fine via `curl` from the actual host. This is the sandbox's own network isolation, not a bug:
-fixing it for testability means either widening the gateway's port binding (touches sandbox security/isolation
-code) or running that one test outside the checks container (breaks "verify via Docker, not host"). Left
-deferred at your call rather than touching either.
+| Phase | Final status |
+|---|---|
+| 6 `code_review` | ✅ real sandbox, Python |
+| 7 verification replay | ✅ real preview + replay, `make check-sandbox-host` (see below) |
+| 8 `write_code`, `bug_fix`, `tests` | ✅ all 5 languages |
+| 9 `refactor`, `performance` | ✅ all 5 languages |
+| 10 `security` | ✅ all 5 languages |
+| 10 `upgrade` | ✅ TypeScript only |
+| 11 | ✅ done |
+| 13 `new_app` | ✅ `scaffold` + `verify` on `cli-python` |
+| 15 modular monolith | ✅ one mechanical move, Python |
+| 16 microservices | ✅ `foundation` + `build_one` (one Python extraction) |
+| 17 `merge` | ✅ done |
+| 18 `translate` | ✅ 2 language pairs |
+
+**Explicitly deferred or out of scope (known gaps, not silently dropped):**
+- **Phases 12 and 14** (DevOps deploy): need live testing, not an automated retrofit.
+- **Phase 4:** out of scope, not a LangGraph playbook.
+- **Phase 16:** the red/undo path, `finalize`, non-Python services (scaffold-only) and the DB split are not covered.
+- **Phase 10:** `upgrade` for Python, Go and C++ (TypeScript only) and `db_change`.
+- **Phase 15:** TypeScript moves and `expose`; Go/C++ are design-only.
+- **Phase 13:** the model-driven nodes (requirements, design, build, review, docs, publish).
+- **Phase 7:** the mitmproxy recorder, bench and screens are not covered; only replay is.
+
+**Phase 7, resolved without touching the gateway:** a sandbox preview's port is published on the Docker host's
+`127.0.0.1` only (`gateway.py`), unreachable from inside the checks container. The gateway binding is **left as it
+is**. The test (`test_replay_sandbox.py`) instead runs via `make check-sandbox-host`: the same checks image on the
+host network (`docker run --network host`, reaching the runner by its container IP), so no host Python environment
+is needed. It is skipped in the normal `make check-sandbox` run. It starts a tiny Python app as a real preview,
+replays a hand-built recording against its published port (0 regressions), changes the app's answer and replays
+again (flagged as a regression).
 
 - **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
   - `write_code` (`agent/tests/playbooks/test_write_code_sandbox.py`). Found and fixed a real bug in the

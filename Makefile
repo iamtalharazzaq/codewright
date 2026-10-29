@@ -3,7 +3,7 @@ PNPM ?= corepack pnpm
 WEB := apps/web
 CHECKS := docker compose --profile checks
 
-.PHONY: up down logs check check-api check-web check-host check-sandbox sandbox-images
+.PHONY: up down logs check check-api check-web check-host check-sandbox check-sandbox-host sandbox-images
 
 up: sandbox-images  ## Build and start Codewright (http://localhost:3000)
 	docker compose up -d --build --wait
@@ -26,6 +26,12 @@ check-api:     ## ruff, mypy and pytest (incl. the Postgres tests, on a throwawa
 check-sandbox: ## Every template and pack fixture built, tested, linted and run in the real sandbox (needs `make up`)
 	$(CHECKS) build api-checks
 	$(CHECKS) run --rm -e SANDBOX_TESTS=1 api-checks pytest -m sandbox -v
+
+check-sandbox-host: ## Preview-port tests (Phase 7 replay): the checks image on the host network, since previews publish on 127.0.0.1 only
+	$(CHECKS) build api-checks
+	docker run --rm --network host -e SANDBOX_TESTS=1 -e SANDBOX_HOST_LOOPBACK=1 -e SANDBOX_TEST_WORKSPACES=/app/workspaces \
+		-e SANDBOX_URL=http://$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' codewright-sandbox-runner-1):8200 \
+		-v codewright_workspaces:/app/workspaces codewright-api-checks:dev pytest -m sandbox agent/tests/playbooks/test_replay_sandbox.py -v
 
 check-web:     ## ESLint, tsc, Prettier and Vitest
 	$(CHECKS) build web-checks

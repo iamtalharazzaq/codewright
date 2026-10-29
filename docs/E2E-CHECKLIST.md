@@ -79,6 +79,9 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   diff overlays and an "accept as baseline" button.
 - **Record-live** then browse the running app. **Expect:** a live-recorder banner with a Stop button, then a usable
   recording.
+- **Real-sandbox retrofit:** replay against a really running preview is verified by `make check-sandbox-host`
+  (`agent/tests/playbooks/test_replay_sandbox.py`; previews publish on the host's `127.0.0.1` only, so it runs on the
+  host network). The recorder, bench and screens are not covered.
 
 ## Phase 8: Write code, fix and test
 - Ask to write a small function from scratch (no project). **Expect:** code + tests run in a throwaway sandbox,
@@ -214,3 +217,9 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   actually build until vcpkg lands in `sandbox/images/cpp.Dockerfile`.
 - Entries added here as each further piece of framework/template/linter coverage lands — see PROGRESS.md's Phase
   19 section for what's done so far.
+
+## Known gaps of the real-sandbox retrofit (deferred or out of scope, on purpose)
+- Phases 12 and 14 (DevOps deploy): need live testing. Phase 4: not a LangGraph playbook.
+- Phase 16: red/undo path, `finalize`, non-Python services, DB split.
+- Phase 10: `upgrade` for Python, Go and C++; `db_change`. Phase 15: TypeScript moves. Phase 13: model-driven nodes.
+- Phase 7: recorder, bench and screens.
