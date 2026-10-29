@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from langgraph.types import Command
+
 from .conftest import AppFactory, wait_for, waiting
 
 FAST = {"stub_delay_s": 0, "simulate": True}
@@ -44,6 +46,33 @@ def test_conversion_run_has_a_gate5_per_service(app_factory: AppFactory) -> None
         run, gates = _approve_until_done(client, run_id)
     assert run["status"] == "completed"
     assert gates[4:6] == ["gate5:notification", "gate5:payment"]
+
+
+def test_answering_a_gate_resumes_only_its_own_interrupt(app_factory: AppFactory) -> None:
+    """A parallel step (e.g. two services built at once) can leave more than one interrupt pending at once;
+    resuming must target the one being answered (`Command(resume={id: answer})`), not apply the answer to every
+    pending interrupt with a bare `Command(resume=answer)` -- that crashed a real Phase 16 run when a model-choice
+    string reached a different, simultaneously-pending gate that expected a decision dict."""
+    with app_factory() as client:
+        run_id = client.post("/api/runs", json=ms()).json()["id"]
+        run = wait_for(client, run_id, waiting)
+        interrupt_id = run["pending"]["_interrupt_id"]
+        assert interrupt_id
+
+        manager = client.app.state.run_manager  # type: ignore[attr-defined]
+        captured: dict[str, Any] = {}
+        real_spawn = manager._spawn
+
+        def spy(run_id: Any, playbook: Any, graph_input: Any) -> None:
+            captured["graph_input"] = graph_input
+            real_spawn(run_id, playbook, graph_input)
+
+        manager._spawn = spy
+        assert client.post(f"/api/runs/{run_id}/answer", json={"decision": "approve"}).status_code == 202
+
+    resume = captured["graph_input"]
+    assert isinstance(resume, Command)
+    assert resume.resume == {interrupt_id: {"decision": "approve", "comment": "", "edits": {}}}
 
 
 def test_reject_needs_a_comment_and_reworks_the_step(app_factory: AppFactory) -> None:

@@ -379,7 +379,10 @@ class RunManager:
         await self.record_event(
             run_id, "answered", step=pending.get("step"), data={"prompt": pending, "answer": answer}
         )
-        self._spawn(run_id, playbook, Command(resume=answer))
+        # Target the resume at this one interrupt, not every interrupt a parallel step left pending (see `_drive`).
+        interrupt_id = pending.get("_interrupt_id")
+        resume = {interrupt_id: answer} if interrupt_id else answer
+        self._spawn(run_id, playbook, Command(resume=resume))
 
     async def cancel(self, run_id: uuid.UUID) -> None:
         task = self._tasks.pop(run_id, None)
@@ -433,7 +436,12 @@ class RunManager:
             return
 
         if stream.interrupts:
-            pending = stream.interrupts[0].value
+            first = stream.interrupts[0]
+            # `_interrupt_id` targets the resume at this one interrupt (Command(resume={id: answer})). A parallel
+            # step (e.g. architecture_change building two services at once) can leave more than one interrupt
+            # pending at once; resuming with a bare scalar answer (no id) applies it to *every* pending interrupt,
+            # not just this one, and crashes any gate that gets a model-choice string instead of a decision dict.
+            pending = {**first.value, "_interrupt_id": first.id}
             await self._set_status(run_id, "waiting", pending=pending)
             await self.record_event(run_id, "waiting", step=pending.get("step") or pending.get("gate"), data=pending)
         else:
