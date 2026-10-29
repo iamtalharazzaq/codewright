@@ -122,7 +122,7 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-29 at your request** (pace/token use) — Phase 8, 9 and 10 done; 11, 17 and the rest of the
+**Paused here 2026-10-29 at your request** (pace/token use) — Phase 8, 9, 10 and 11 done; 17 and the rest of the
 order above not started. Resume when you ask.
 
 - **Phase 8: real-verified on all 5 languages, all three playbooks** (commits `6e0bdcd`, `f00cd45`, `b630d0d`).
@@ -169,6 +169,14 @@ order above not started. Resume when you ask.
   `db_change` is not retrofitted: `RealProject.db_trial()` is an honest "not available in the real-sandbox
   retrofit harness" stub (no scratch Postgres wired into this harness) — a real test would need that harness
   extension, left for later rather than silently skipped.
+- **Phase 11: real-verified on Python only** (`test_feature_sandbox.py`). `add_feature`'s full graph — survey
+  (real search + real baseline tests), design (the tiny fixture has no existing layered feature for the model to
+  copy, so `choose_analog` returns early with no model call and the plain file-plan path is used), build (the
+  Reflection loop really writes a new `shout.py` + its own test file and runs real tests), verify and publish all
+  run for real; only the model (stories + plan + the two files' content) is scripted. Scoped to one language,
+  not all 5: feature's build step is a bigger lift to script per language than write_code/bug_fix/tests were
+  (each language's own new-file/test-naming convention), and one language already proves the whole pipeline and
+  the real toolchain end to end, same reasoning as `upgrade`'s single-language scope above.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 

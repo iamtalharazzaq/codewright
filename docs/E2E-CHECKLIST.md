@@ -114,6 +114,8 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   replay regressions before it's offered for approval.
 - Cancel a run partway through. **Expect:** unfinished changes are stashed, the project returns to its branch
   cleanly.
+- **Real-sandbox retrofit:** real-verified on Python (`make check-sandbox`, `test_feature_sandbox.py`) — survey,
+  design, build (real Reflection loop), verify and publish all run for real against the shared mini-app fixture.
 
 ## Phase 12: Frontend modernize & DevOps deploy
 - `/frontend-modernize` on a React+Vite app. **Expect:** survey → plan gate → a Next.js App Router migration with
