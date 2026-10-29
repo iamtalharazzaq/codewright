@@ -15,7 +15,9 @@ build-backend = "hatchling.build"
 packages = ["src/miniapp"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# "." (not just "tests"): Codewright's own test file for a source file lands next to it (own_test_file,
+# agent/playbooks/code_edit.py), e.g. src/miniapp/test_core_codewright.py, not under tests/.
+testpaths = ["."]
 pythonpath = ["src"]
 
 [tool.ruff]
