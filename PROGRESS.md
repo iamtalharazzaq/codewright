@@ -7,7 +7,9 @@ follow `CODEWRIGHT.md` Section 15.
 2026-10-29; `make check` (ruff, mypy, pytest, eslint, tsc, prettier, vitest) passes clean as of 2026-10-29. Phase 19
 is next.
 Still open: Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table, Phase 11's
-price-alerts acceptance, Phase 13's TypeScript reliability, Phase 16's Go-extraction gap (below).
+price-alerts acceptance, Phase 13's TypeScript reliability, Phase 16's Go-extraction gap (out of scope, by your
+call). **Blocked right now:** the remote GPU's ngrok tunnel is down (confirmed with a direct `curl`: ngrok's own 502
+page, not the model), so further live verification of 11/13/16 is paused until it's back.
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
 
@@ -144,18 +146,38 @@ Open: the GoShop saga-paths-replay-0-regressions acceptance and the M4 demo (nee
 
 Not demonstrated: no image built or started (sandbox has no Docker daemon); the canary (shadow → 10% → 50% → 100%) is config and a runbook, not a run; shadow mode and replay against a running service; only Python is extracted (Go/TS/C++ services are scaffolded and their code stays in the monolith); the gateway doesn't verify the JWT; the frontend step only points the frontend at the gateway; arguments and results must be JSON-serializable. The web service board and the generated FastAPI router were not type-checked or run.
 
-**Live run, 2026-10-29 (`notes-api-python`, GoShop can't exercise this since it's Go):** all 5 gates walked through
-by hand (intake → as-is → design, 2 groups, score 15/100 → languages, both stay Python → delivered on a branch), but
-`foundation` reported "Adding the foundation changed behavior (tests or replay failed), so it was undone." Traced
-to a real bug in the *shared* Phase 7 behavior-check path, not this phase's own code: the project's newest
-recording (made the day before) had 503 on every exchange (the recorder had raced the app's startup), and
-`baseline_recording()` (`agent/playbooks/change_core.py`) reused it unconditionally. Replaying today's normal
-200/401 answers against yesterday's all-503 baseline was flagged as 16 regressions and undid a good foundation
-commit. Fixed (commit `ef77fa0`): a recording where `server_errors + unanswered` covers every exchange is skipped
-in favor of an older usable one, or a fresh recording. Deployed live, not yet re-verified with a second live run of
-this phase (the fix itself is unit-tested; re-running the full architecture_change pipeline again would cost
-another GPU pass to re-confirm an already-understood bug). The foundation generator's own code (gateway, platform
-compose, event envelope, JWT auth) was otherwise untouched by this bug and is still unverified end-to-end.
+**Live-run session, 2026-10-29 (`notes-api-python`; GoShop can't exercise this since it's Go, and extracting Go is
+out of scope by your call):** three real bugs found and fixed by actually driving this live, repeatedly, to green:
+
+1. **A stale baseline falsely undid the foundation.** The project's newest recording (made the day before) had 503
+   on every exchange (the recorder had raced the app's startup), and `baseline_recording()`
+   (`agent/playbooks/change_core.py`) reused it unconditionally; replaying today's normal 200/401 answers against
+   yesterday's all-503 baseline was flagged as 16 regressions and undid a good foundation commit. Fixed (`ef77fa0`):
+   a recording where `server_errors + unanswered` covers every exchange is skipped for an older usable one, or a
+   fresh recording.
+2. **A parallel step crashed on a second, simultaneous interrupt.** With two services building at once
+   (`max_parallel`), one hit "model server unavailable" while another reached `gate5` in the same tick. Resuming
+   with a bare `Command(resume=answer)` applied that one answer to *every* pending interrupt — the retry string
+   reached `gates.py` expecting a decision dict and crashed (`AttributeError: 'str' object has no attribute
+   'get'`). Fixed (`ca2d37e`): each pending prompt now carries its own interrupt id, and `answer()` resumes with
+   `Command(resume={id: answer})`, targeted. Confirmed live afterwards: two `gate5` prompts fired in the same
+   superstep (`eventing`, `root-configuration`) and both answered cleanly with no crash.
+3. **A scaffolded service's own tests broke the monolith's test run.** Once `foundation` succeeded, every one of
+   3 per-service build attempts came back "undone: ... collection failure" — not a real regression: `detect()`
+   folds a nested Python manifest into its outer root component, so the just-scaffolded `services/<name>/` was
+   never tested as its own component, yet the root's own `pytest` still recursed into it by default and failed to
+   collect a package that was never installed into the root's venv. Fixed (`6496c22`,
+   `agent/language_packs/python.py`): a component's own test run now `--ignore`s any nested directory with its own
+   Python manifest.
+
+All three are confirmed fixed by the live run itself reaching further each time (foundation stopped being undone;
+two simultaneous gates no longer crash) and by unit tests added alongside each fix. **Not yet confirmed end to
+end**: the run that would prove a full clean pass (foundation → all services extracted or honestly
+scaffolded/blocked → db_split → frontend → report) kept hitting a *fourth*, unrelated problem — the remote GPU's
+ngrok tunnel going down mid-run (confirmed independently with a direct `curl` to the tunnel URL: ngrok's own 502
+page, not the model) — twice in a row at the `to_be` step. This is your GPU/ngrok setup, not a Codewright bug; retry
+once the tunnel's back up. One service group in this project's design (`root-configuration`) has no Python files to
+extract (config/docs only) and will always come back "blocked" — that's correct, not a bug.
 
 ## Phase 15: Architecture change I (ADR 0029; built, not yet run on a real benchmark)
 
