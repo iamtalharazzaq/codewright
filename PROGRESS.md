@@ -3,7 +3,7 @@
 Spec: **`CODEWRIGHT.md`** (v2, single source of truth since 2026-10-27; `README.md` is kept as history). Phase numbers
 follow `CODEWRIGHT.md` Section 15.
 
-**Current phase:** Phases 13 (New app) and 15 (Architecture change I) built, not yet run live (nor 11, 12, 14). Phase 16 is next.
+**Current phase:** Phases 13, 15 and 16 built (16 = microservices conversion); 11 and 12 being run live, 13-16 not yet. Phase 17 is next.
 Still open: Phase 8's 20-example eval, Phase 6's audit review and M1 demo (with you, deferred to the end), Phase 1 VRAM table.
 **Last updated:** 2026-10-29
 **Branch:** `codewright-phase-0`
@@ -12,7 +12,7 @@ Still open: Phase 8's 20-example eval, Phase 6's audit review and M1 demo (with 
 
 Running when this was written (background agents of the previous session; they stop if that session ends, their
 files stay on disk in `.claude/worktrees/`):
-1. **Phase 16** (microservices build): branch `worktree-agent-a41c939c87c60e480`. When done: merge it into this branch, then update this file.
+1. **Phase 16** is merged (ADR 0031).
 2. **Live runs of Phases 11 → 12 → 13 → 14 → 15**, one after another (Codewright allows one active run; one GPU). Fixes are committed straight on this branch; the report lists what ran, what broke, what is open.
 
 Then, in this order:
@@ -35,6 +35,18 @@ make check               # every lint/type/test check, inside Docker
 
 Optional compose profiles: `host-llm-bridge` (reach a llama-server bound to the host's 127.0.0.1; on in `.env`),
 `llamacpp-cpu`, `ollama-cpu`, `langfuse`, `checks` (used by `make check`).
+
+## Phase 16: Architecture change II, microservices build (ADR 0031; built, not yet run live)
+
+| Task | Result |
+|---|---|
+| Foundation | `agent/microservices/foundation.py`: gateway (nginx), broker, JWT auth and event libraries, Compose and CI, generated for the chosen design. A failed foundation skips to the report. |
+| Per-service loop | spec → scaffold from the template library → extract (Python) → ACL shim (0/50/100% and loopback) → tests → replay → undo on red (tests or replay regression) → commit → cut-over (`finalize` removes the local code, flips the gateway route). Specs are written in parallel (`max_parallel`); monolith changes are sequential. |
+| Database split | Schema ownership per service, outbox/saga notes; trial on a real PostgreSQL when a database sandbox exists, else reported "not tried". |
+| UI | A service board card in the run view. |
+| Tests | Real generated code is executed in tests (JWT/event libraries, ACL shims, an HTTP round trip to an extracted service); two whole-run tests (Python project, Go design) with a fake sandbox and replay. 170 pass in the playbook, microservices and decomposition folders. |
+
+Not demonstrated: no image built or started (sandbox has no Docker daemon); the canary (shadow → 10% → 50% → 100%) is config and a runbook, not a run; shadow mode and replay against a running service; only Python is extracted (Go/TS/C++ services are scaffolded and their code stays in the monolith); the gateway doesn't verify the JWT; the frontend step only points the frontend at the gateway; arguments and results must be JSON-serializable. The web service board and the generated FastAPI router were not type-checked or run.
 
 ## Phase 15: Architecture change I (ADR 0029; built, not yet run on a real benchmark)
 
