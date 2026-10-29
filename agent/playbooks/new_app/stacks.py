@@ -236,12 +236,27 @@ def extras(inputs: dict[str, Any]) -> Extras:
     text = _asked(inputs)
     ci_answer = answer_to(inputs, CI_QUESTION)
     ci = ci_answer.lower().startswith("y") if ci_answer else _has(text.replace(CI_QUESTION.lower(), " "), _CI_WORDS)
-    return Extras(ci=ci, graphify=_has(text, ("graphify",)), frontend_tests=_has(text, _TEST_WORDS))
+    ui_answer = answer_to(inputs, TEST_QUESTION)
+    ui_tests = (
+        ui_answer.lower().startswith("y") if ui_answer else _has(text.replace(TEST_QUESTION.lower(), " "), _TEST_WORDS)
+    )
+    return Extras(ci=ci, graphify=_has(text, ("graphify",)), frontend_tests=ui_tests)
 
 
 def expects_tests(template: str, wanted: Extras) -> bool:
     """A browser-only app has no tests unless they were asked for; everything else ships with some."""
     return not (templates.frontend_root(template) == "" and not wanted.frontend_tests)
+
+
+TEST_QUESTION = "Add test cases for the user interface?"
+_NO_UI_WORDS = ("terminal", "cli", "command line", "console", "api", "rest api")
+
+
+def ui_tests_open(inputs: dict[str, Any]) -> bool:
+    """Whether to ask about UI tests: not once answered or asked for, nor for a stated terminal/API app."""
+    if answer_to(inputs, TEST_QUESTION) is not None or extras(inputs).frontend_tests:
+        return False
+    return not _has(_asked(inputs), _NO_UI_WORDS)
 
 
 PLATFORM_QUESTION = "Which platform?"

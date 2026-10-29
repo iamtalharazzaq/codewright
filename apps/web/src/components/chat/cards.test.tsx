@@ -57,5 +57,8 @@ describe("QuestionsCard", () => {
     expect(screen.getByText("Web (Recommended)")).toBeInTheDocument();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Who is it for?" })).toBeInTheDocument();
+    // two dropdowns to a row; the free-text question takes the whole row
+    expect(screen.getByRole("list")).toHaveClass("sm:grid-cols-2");
+    expect(screen.getByText("Who is it for?").closest("li")).toHaveClass("sm:col-span-2");
   });
 });

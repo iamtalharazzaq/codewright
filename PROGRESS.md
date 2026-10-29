@@ -282,7 +282,9 @@ again (flagged as a regression).
   rules, skipped when the request names one) and the chat renders every pick-one question as a **dropdown**
   (default marked "Recommended") instead of chips. A browser request in a language with no browser template
   (e.g. Python) says so in the card's note instead of silently becoming a terminal app. Answers arrive as one
-  reply, a line per question, so `stacks.answer_to` reads them by question text.
+  reply, a line per question, so `stacks.answer_to` reads them by question text. A fourth dropdown, **Add test cases
+  for the user interface?** (default No; skipped when the request says tests or names a terminal/API app), decides
+  `frontend_tests`; the questions sit two to a row in the card.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the

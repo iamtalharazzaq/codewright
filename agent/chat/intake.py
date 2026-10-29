@@ -20,10 +20,12 @@ from agent.playbooks.new_app.stacks import (
     CI_QUESTION,
     PLATFORM_QUESTION,
     PLATFORMS,
+    TEST_QUESTION,
     answer_to,
     default_platform,
     extras,
     platform_stated,
+    ui_tests_open,
 )
 
 Language = Literal["Python", "TypeScript", "JavaScript", "Go", "C++"]
@@ -144,12 +146,21 @@ async def check(
     if intent == "new_app" and not last_round:
         at = 1 if asked_language else 0
         inputs = {"request": request, "answers": [list(a) for a in answers]}
-        questions = [q for q in questions if "platform" not in q.question.lower() and q.question != CI_QUESTION]
+        questions = [
+            q
+            for q in questions
+            if "platform" not in q.question.lower() and q.question not in (CI_QUESTION, TEST_QUESTION)
+        ]
         if not platform_stated(inputs):
             questions.insert(at, _platform_question(default_platform(inputs)))
             at += 1
         if not _ci_decided(request, answers):
             questions.insert(at, _ci_question())
+            at += 1
+        if ui_tests_open(inputs):
+            questions.insert(
+                at, _yes_no(TEST_QUESTION, "the browser code's own tests; terminal and API apps always have tests")
+            )
     if language and cfg.new and language.lower() not in out.card.stack.lower():
         out.card.stack = f"{language} · {out.card.stack}"
     limit = router_settings()["max_questions_per_round"]
@@ -173,12 +184,11 @@ def _ci_decided(request: str, answers: Sequence[tuple[str, str]]) -> bool:
 
 
 def _ci_question() -> Question:
-    return Question(
-        question=CI_QUESTION,
-        default="No",
-        options=["No", "Yes"],
-        hint="a workflow that runs the tests on every push",
-    )
+    return _yes_no(CI_QUESTION, "a workflow that runs the tests on every push")
+
+
+def _yes_no(question: str, hint: str) -> Question:
+    return Question(question=question, default="No", options=["No", "Yes"], hint=hint)
 
 
 def _platform_question(default: str) -> Question:

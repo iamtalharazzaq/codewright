@@ -241,6 +241,9 @@ def test_ci_graphify_and_frontend_tests_are_off_unless_the_user_asks() -> None:
     assert _extras("Make it, and set up Graphify").graphify is True
     assert _extras("Make a todo app with unit tests").frontend_tests is True
     assert _extras("Make a todo app", (CI, "No")).frontend_tests is False
+    ui = "Add test cases for the user interface?"
+    assert _extras("Make a todo app", ("x", "Which platform? Browser app\n" + ui + " Yes")).frontend_tests is True
+    assert _extras("Make a todo app", ("x", ui + " No")).frontend_tests is False
 
 
 def _scaffolded(

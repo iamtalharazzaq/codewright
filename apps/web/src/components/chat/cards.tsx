@@ -45,11 +45,11 @@ export function QuestionsCard({
   return (
     <div className={CARD}>
       <p className="text-sm font-medium">Before I start, a few quick questions</p>
-      <ol className="flex flex-col gap-4">
+      <ol className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
         {questions.map((q, i) => {
           const recommended = defaultOption(q);
           return (
-            <li key={q.question} className="flex flex-col gap-2">
+            <li key={q.question} className={cn("flex flex-col gap-2", q.options.length === 0 && "sm:col-span-2")}>
               <p className="text-sm">
                 <span className="text-muted-foreground">{i + 1}.</span> {q.question}
               </p>

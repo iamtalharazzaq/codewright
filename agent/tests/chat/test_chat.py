@@ -100,6 +100,7 @@ async def test_intake_always_asks_the_language_for_new_work() -> None:
         "Which language?",
         "Which platform?",
         "Add a CI workflow (GitHub Actions)?",
+        "Add test cases for the user interface?",
     ]
     assert result.questions[0].options[0] == "TypeScript" and result.questions[2].default == "No"
     assert result.questions[1].options == ["Browser app", "Terminal (command line)", "API (REST)"]
@@ -109,7 +110,7 @@ async def test_intake_asks_about_ci_once_and_not_when_the_request_already_says()
     reply = {"recommended_language": "Python", "language_reason": "x", "questions": [], "card": CARD}
     client, _ = client_returning(json.dumps(reply))
     asked = await intake.check(client, "new_app", "Make a terminal calculator in Python")
-    assert [q.question for q in asked.questions] == ["Add a CI workflow (GitHub Actions)?"]
+    assert [q.question for q in asked.questions] == ["Add a CI workflow (GitHub Actions)?"]  # terminal: no UI tests
     client, _ = client_returning(json.dumps(reply))
     said = await intake.check(client, "new_app", "Make a terminal calculator in Python with CI")
     assert said.questions == []
@@ -146,3 +147,17 @@ async def test_intake_asks_the_platform_with_the_rules_default_and_not_when_it_i
     client, _ = client_returning(json.dumps(reply))
     stated = await intake.check(client, "new_app", "A website for my bakery in TypeScript")
     assert all(q.question != "Which platform?" for q in stated.questions)
+
+
+async def test_intake_asks_about_ui_tests_once_and_not_when_the_request_says() -> None:
+    reply = {"recommended_language": "TypeScript", "language_reason": "x", "questions": [], "card": CARD}
+    ui = "Add test cases for the user interface?"
+    client, _ = client_returning(json.dumps(reply))
+    asked = await intake.check(client, "new_app", "A todo website in TypeScript, no CI please")
+    assert ui in [q.question for q in asked.questions]
+    client, _ = client_returning(json.dumps(reply))
+    said = await intake.check(client, "new_app", "A todo website in TypeScript with unit tests")
+    assert ui not in [q.question for q in said.questions]
+    client, _ = client_returning(json.dumps(reply))
+    answered = await intake.check(client, "new_app", "A todo website in TypeScript", answers=[("x", ui + " No")])
+    assert ui not in [q.question for q in answered.questions]

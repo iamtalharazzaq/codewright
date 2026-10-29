@@ -140,7 +140,8 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
 - On the Done card, try each delivery target (ZIP, local folder, GitHub PR, Drive folder/ZIP). **Expect:** each
   one-result-line confirms where it landed.
 - Ask for a small app ("Make a simple calculator"). **Expect:** the clarifying questions are dropdowns: Which
-  language?, Which platform? (Browser app / Terminal / API) and "Add a CI workflow (GitHub Actions)?" (default No). Answer No: the new project has no `.github/`, no `GRAPHIFY.md`/`mcp.example.json`, and (browser apps) no test
+  language?, Which platform? (Browser app / Terminal / API) "Add a CI workflow (GitHub Actions)?" and "Add test cases for the user interface?" (both default No), two
+  dropdowns to a row. Answer No: the new project has no `.github/`, no `GRAPHIFY.md`/`mcp.example.json`, and (browser apps) no test
   files. Say "with CI", "with Graphify" or "with tests" in the request: those come back.
 - **Real-sandbox retrofit:** `scaffold` + `verify` on the `cli-python` template are real-verified
   (`agent/tests/playbooks/test_new_app_sandbox.py`, `make check-sandbox`). The model-driven build is not.
