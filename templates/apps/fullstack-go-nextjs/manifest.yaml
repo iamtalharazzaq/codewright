@@ -1,0 +1,12 @@
+name: fullstack-go-nextjs
+language: Go
+pack: go
+description: "A web app with data, for higher traffic: Go + PostgreSQL backend and a Next.js (TypeScript) frontend, with auth, CRUD, Docker and CI."
+stack: [Go 1.26, net/http, pgx, PostgreSQL 17, Next.js 16, TypeScript, Vitest]
+features: [sign-up and sign-in, per-user CRUD, admin area, PostgreSQL, Docker Compose, tests for backend and frontend, Graphify setup, CI]
+extension_points:
+  - backend — the API (routes, store, auth)
+  - frontend/src/lib/api.ts — the client for the API
+  - frontend/src/components/App.tsx — the screens
+  - docker-compose.yml — services and their settings
+run: { kind: web, port: 3000 }

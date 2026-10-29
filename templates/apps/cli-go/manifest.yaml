@@ -1,0 +1,10 @@
+name: cli-go
+language: Go
+pack: go
+description: A terminal app or CLI tool in Go, with subcommands, an interactive mode and tests.
+stack: [Go 1.26, flag, testing]
+features: [subcommands, interactive prompt, tests, Graphify setup, CI]
+extension_points:
+  - internal/core/core.go — the program's logic (pure functions, easy to test)
+  - cmd/{{name}}/main.go — commands and arguments (keep it thin)
+run: { kind: terminal, cmd: ["go", "run", "./cmd/{{name}}"] }

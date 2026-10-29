@@ -215,24 +215,59 @@ def test_tests_run_offline() -> None:
 
 
 # ── templates ────────────────────────────────────────────────────────────────
-TEMPLATE_PACK = {
-    "cli-python": ("python", "cli"),
-    "api-go": ("go", "api"),
-    "web-react-ts": ("typescript", "web"),
-    "web-react-js": ("javascript", "web"),
-    "cli-cpp": ("cpp", "cli"),
+# Section 8.4: every template, with the components detection must find in a freshly scaffolded project
+TEMPLATE_COMPONENTS = {
+    "web-react-ts": [("typescript", "web", ".")],
+    "web-react-js": [("javascript", "web", ".")],
+    "site-nextjs-ts": [("typescript", "web", ".")],
+    "site-nextjs-js": [("javascript", "web", ".")],
+    "fullstack-fastapi-nextjs": [("python", "api", "backend"), ("typescript", "web", "frontend")],
+    "fullstack-go-nextjs": [("go", "api", "backend"), ("typescript", "web", "frontend")],
+    "fullstack-node-nextjs": [("typescript", "api", "backend"), ("typescript", "web", "frontend")],
+    "cli-python": [("python", "cli", ".")],
+    "cli-go": [("go", "cli", ".")],
+    "cli-cpp": [("cpp", "cli", ".")],
+    "api-fastapi": [("python", "api", ".")],
+    "api-go": [("go", "api", ".")],
+    "api-node": [("typescript", "api", ".")],
+    "library-python": [("python", "library", ".")],
+    "library-ts": [("typescript", "library", ".")],
+    "library-go": [("go", "library", ".")],
+    "library-cpp": [("cpp", "library", ".")],
 }
 
 
-def test_one_template_per_language() -> None:
-    found = {t.name: t.pack for t in templates.available()}
-    assert found == {name: p for name, (p, _) in TEMPLATE_PACK.items()}
+def test_the_whole_template_library_is_there() -> None:
+    found = {t.name: t for t in templates.available()}
+    assert sorted(found) == sorted(TEMPLATE_COMPONENTS)
+    assert {t.pack for t in found.values()} == {"python", "go", "typescript", "javascript", "cpp"}  # all 5 languages
+    for name, t in found.items():
+        assert t.path.name == name, "the folder is named after the template"
+        assert t.description and t.stack and t.features and t.extension_points, name
+        assert t.run.get("kind") in {"web", "terminal", "library"}, name
 
 
-@pytest.mark.parametrize("name", sorted(TEMPLATE_PACK))
+@pytest.mark.parametrize("name", sorted(TEMPLATE_COMPONENTS))
+def test_template_ships_tests(name: str) -> None:
+    files = [p.name for p in templates.get(name).path.rglob("*") if p.is_file()]
+    assert any(re.search(r"(^test_|_test\.|\.test\.|Test\.)", f) for f in files), f"{name} has no tests"
+
+
+@pytest.mark.parametrize("name", ["fullstack-fastapi-nextjs", "fullstack-go-nextjs", "fullstack-node-nextjs"])
+def test_fullstack_templates_have_database_auth_and_compose(name: str) -> None:
+    root = templates.get(name).path
+    compose = (root / "docker-compose.yml").read_text()
+    assert "postgres:17" in compose and "service_healthy" in compose
+    assert (root / ".env.example").is_file() and (root / "backend/Dockerfile").is_file()
+    assert (root / "frontend/Dockerfile").is_file() and (root / "frontend/src/lib/api.test.ts").is_file()
+    backend = "\n".join(p.read_text() for p in (root / "backend").rglob("*") if p.is_file())
+    assert "/api/auth/register" in backend and "/api/admin/users" in backend and "CREATE TABLE" in backend
+
+
+@pytest.mark.parametrize("name", sorted(TEMPLATE_COMPONENTS))
 def test_scaffold(name: str, tmp_path: Path) -> None:
     out = tmp_path / "out"
-    pack(TEMPLATE_PACK[name][0]).scaffold_service(ServiceSpec("Todo Keeper", name, "Keeps todos", 8099), out)
+    pack(templates.get(name).pack).scaffold_service(ServiceSpec("Todo Keeper", name, "Keeps todos", 8099), out)
     files = [p for p in out.rglob("*") if p.is_file()]
     leftovers = [str(p.relative_to(out)) for p in files if re.search(r"\{\{\w+\}\}", p.read_text(encoding="utf-8"))]
     leftovers += [str(p.relative_to(out)) for p in files if "{{" in str(p)]
@@ -241,9 +276,11 @@ def test_scaffold(name: str, tmp_path: Path) -> None:
         assert (out / required).is_file(), required
     assert "graphify update" in (out / ".github/workflows/ci.yml").read_text()
     assert not (out / "manifest.yaml").exists()
-    [component] = detect_project(out)
-    assert (component.pack, component.kind) == TEMPLATE_PACK[name]
-    assert pack(component.pack).run_spec(out, component) is not None
+    found = [(c.pack, c.kind, c.path) for c in detect_project(out)]
+    assert found == TEMPLATE_COMPONENTS[name]
+    for component in detect_project(out):
+        spec = pack(component.pack).run_spec(out, component)
+        assert (spec is None) == (component.kind == "library"), f"{name}: {component.path}"
     assert "Todo Keeper" in (out / "GUIDE.md").read_text()
 
 

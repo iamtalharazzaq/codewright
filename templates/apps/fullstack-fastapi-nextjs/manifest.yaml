@@ -1,0 +1,12 @@
+name: fullstack-fastapi-nextjs
+language: Python
+pack: python
+description: "A web app with data: FastAPI + PostgreSQL backend and a Next.js (TypeScript) frontend, with auth, CRUD, an admin area, Docker and CI."
+stack: [Python 3.12, FastAPI, PostgreSQL 17, Next.js 16, TypeScript, pytest, Vitest]
+features: [sign-up and sign-in, per-user CRUD, admin area, PostgreSQL, Docker Compose, tests for backend and frontend, Graphify setup, CI]
+extension_points:
+  - backend — the API (routes, store, auth)
+  - frontend/src/lib/api.ts — the client for the API
+  - frontend/src/components/App.tsx — the screens
+  - docker-compose.yml — services and their settings
+run: { kind: web, port: 3000 }

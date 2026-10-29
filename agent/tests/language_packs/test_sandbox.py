@@ -26,7 +26,22 @@ pytestmark = [
     pytest.mark.skipif(os.environ.get("SANDBOX_TESTS") != "1", reason="needs the sandbox runner: make check-sandbox"),
 ]
 UID = 10001
-MIN_TESTS = {"cli-python": 3, "api-go": 3, "web-react-ts": 2, "web-react-js": 2, "cli-cpp": 3}
+MIN_TESTS = {
+    "cli-python": 3,
+    "api-go": 3,
+    "web-react-ts": 2,
+    "web-react-js": 2,
+    "cli-cpp": 3,
+    "cli-go": 4,
+    "api-fastapi": 3,
+    "api-node": 3,
+    "library-python": 3,
+    "library-ts": 5,
+    "library-go": 3,
+    "library-cpp": 4,
+    "site-nextjs-ts": 3,
+    "site-nextjs-js": 3,
+}
 
 
 def _workspaces() -> Path:

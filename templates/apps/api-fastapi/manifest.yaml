@@ -1,0 +1,11 @@
+name: api-fastapi
+language: Python
+pack: python
+description: A REST API in Python (FastAPI), with health, a CRUD resource, request logging and tests.
+stack: [Python 3.12, FastAPI, Uvicorn, pytest, httpx]
+features: [REST CRUD, health endpoint, request logging, JSON errors, OpenAPI docs, tests, Dockerfile, Graphify setup, CI]
+extension_points:
+  - src/{{name_snake}}/items.py — copy it for a new resource
+  - src/{{name_snake}}/main.py — routes and middleware
+  - src/{{name_snake}}/store.py — swap the in-memory store for a database
+run: { kind: web, port: "{{port}}" }

@@ -1,0 +1,12 @@
+name: site-nextjs-js
+language: JavaScript
+pack: javascript
+description: A website or landing page in Next.js (JavaScript), with SEO metadata, sitemap, responsive layout and tests.
+stack: [Next.js 16, React 19, JavaScript, Vitest]
+features: [App Router, metadata + Open Graph, sitemap.xml, robots.txt, responsive layout, light/dark theme, skip link, tests, Graphify setup, CI]
+extension_points:
+  - src/site.js — the site's name, description, URL and navigation (one place)
+  - src/app/page.jsx — the home page
+  - src/app/about/page.jsx — copy it for a new page, then add it to the navigation in src/site.js
+  - src/app/globals.css — colors and spacing (CSS variables, light and dark)
+run: { kind: web, port: 3000 }

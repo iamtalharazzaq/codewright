@@ -1,0 +1,12 @@
+name: site-nextjs-ts
+language: TypeScript
+pack: typescript
+description: A website or landing page in Next.js (TypeScript), with SEO metadata, sitemap, responsive layout and tests.
+stack: [Next.js 16, React 19, TypeScript, Vitest]
+features: [App Router, metadata + Open Graph, sitemap.xml, robots.txt, responsive layout, light/dark theme, skip link, tests, Graphify setup, CI]
+extension_points:
+  - src/site.ts — the site's name, description, URL and navigation (one place)
+  - src/app/page.tsx — the home page
+  - src/app/about/page.tsx — copy it for a new page, then add it to the navigation in src/site.ts
+  - src/app/globals.css — colors and spacing (CSS variables, light and dark)
+run: { kind: web, port: 3000 }

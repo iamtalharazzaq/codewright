@@ -1,0 +1,10 @@
+name: library-ts
+language: TypeScript
+pack: typescript
+description: A reusable TypeScript package with types, ESM output, tests and build config ready to publish.
+stack: [TypeScript, tsc, Vitest]
+features: [typed public API, ESM build with declarations, tests, publish config, Graphify setup, CI]
+extension_points:
+  - src/index.ts — the public API (what users import)
+  - src/text.ts — example module; add yours beside it
+run: { kind: library }
