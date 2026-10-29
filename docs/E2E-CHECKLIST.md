@@ -145,6 +145,9 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   scored, and (if it recommends microservices) a clear justification rather than a default.
 - Ask for a typed edit ("move payment to order"). **Expect:** the design updates and re-validates against the
   rules (one DB owner per table, no sync cycles, etc.).
+- Real-sandbox-verified (`agent/tests/playbooks/test_architecture_modular_sandbox.py`, `make check-sandbox`): a
+  `target=modular_monolith` move on a tiny real Python app, real tests run after it, a real commit lands. Python
+  only, one mechanical `move` only (not `expose`, not TypeScript, not the `recommend`/decomposition-engine side).
 
 ## Phase 16: Architecture change II (microservices build)
 - `/architecture-change target=microservices` on a **Python** project (Go/TS/C++ services are scaffolded only,

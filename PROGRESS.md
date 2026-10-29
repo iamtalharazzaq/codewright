@@ -122,8 +122,8 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target, 18 (2 language pairs) and 6 done; 12/14 and
-4/13/15/16 not started. Resume when you ask.
+**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target, 18 (2 language pairs), 6 and 15's one mechanical
+move done; 12/14 and 4/13/16 not started. Resume when you ask.
 
 **Phase 7 blocked, not a code gap:** real record/replay testing needs a running web app's HTTP port reachable
 from the test process. Confirmed empirically (`sandbox/runner/src/codewright_sandbox/gateway.py`'s own docstring
@@ -222,6 +222,18 @@ deferred at your call rather than touching either.
   per component) and a new `_run_steps` (used by `.lint()`/`.sandbox()`). Verified with the full real-sandbox
   suite (58 passed) after the fix, not just the new test, since this touches a method every other phase's test
   also calls.
+- **Phase 15: real-verified on one mechanical move, Python only** (`test_architecture_modular_sandbox.py`). Called
+  `design.restructure` directly for `target="modular_monolith"` with a hand-built `to_be.design`, the same way
+  `test_architecture_other_targets.py`'s fake-mocked tests already call it for `serverless`/`event_driven` — no
+  model call happens anywhere for this target ("no model rewrites a file here", `agent/decomposition/moves.py`).
+  A tiny real Python app has one file (`shop/util/money.py`) that only one other module imports; the planner finds
+  exactly that move (the same fixture shape `test_boundaries_moves.py`'s fake unit test already proves the planner
+  picks correctly), `make_edit`/`apply_edit` really rewrite the importing file's import, real tests run after it,
+  and a real commit lands, followed by the real `architecture/boundaries.json` + checker write. No bugs found:
+  `moves.py`'s mechanics (proven by its own thorough fake-mocked unit tests already) just needed the real
+  toolchain's test step underneath them, which worked first try. `expose`/TypeScript moves, Go/C++ (design-only,
+  no real moves), and the `recommend`/decomposition-engine side of this phase are not retrofitted - scope kept to
+  proving one real move end to end, same reasoning as every single-example phase above.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 
