@@ -122,8 +122,9 @@ pipeline and the sandbox for real while staying fast and repeatable. Fast tests 
 real-sandbox ones are `pytest.mark.sandbox`, gated behind `SANDBOX_TESTS=1` (`make check-sandbox`). Order agreed:
 Phases 8, 9, 10, 11, 17 (real sandbox, all 5 languages) → 7 and 18 (repeatability, more language pairs) →
 12/14 (live) → 4, 6, 13, 15, 16.
-**Paused here 2026-10-30** — Phase 8, 9, 10, 11, 17's `merge` target, 18 (2 language pairs), 6 and 15's one mechanical
-move done; 12/14 and 4/13/16 not started. Resume when you ask.
+**Retrofit complete as scoped, 2026-10-30:** Phases 8, 9, 10, 11, 17 (`merge`), 18 (2 language pairs), 6, 13
+(`scaffold` + `verify`), 15 (one mechanical move) and 16 (`foundation`) are done. Left out on purpose: 7 (blocked,
+below), 12/14 (need live testing), 4 (not a LangGraph playbook), 16's `build_one` (harness is single-component).
 
 **Phase 7 blocked, not a code gap:** real record/replay testing needs a running web app's HTTP port reachable
 from the test process. Confirmed empirically (`sandbox/runner/src/codewright_sandbox/gateway.py`'s own docstring
