@@ -54,6 +54,7 @@ from agent.playbooks.write_code.scaffold import slug
 from agent.tools.workspace import git
 
 MAX_FILES = 8
+FILES_BY_SIZE = {"small": 4, "medium": 6, "large": MAX_FILES}  # a 9B model builds a small app in few files
 GUIDE = "GUIDE.md"
 BLOCKED = ("node_modules/", ".git/", "vendor/", ".venv/", "dist/", "build/")
 
@@ -81,7 +82,8 @@ class Requirements(BaseModel):
 
 
 class AppPlan(ChangePlan):
-    steps: list[PlannedStep] = Field(default_factory=list, max_length=MAX_FILES)  # type: ignore[assignment]
+    # required: a plan without files is invalid output (the model is asked again), not a plan to do nothing
+    steps: list[PlannedStep] = Field(min_length=1, max_length=MAX_FILES)  # type: ignore[assignment]
     architecture: str = Field(default="", description="How the app is put together, two or three sentences.")
     data_model: list[str] = Field(default_factory=list, max_length=8, description="'Entity: its fields'.")
 
@@ -206,7 +208,8 @@ def requirements_node(services: RunServices) -> Any:
 
 # ── design ───────────────────────────────────────────────────────────────────
 DESIGN_SYSTEM = """You are the Solution Architect of Codewright. The app starts from the template below, which already
-works and has tests. Plan at most {limit} files for the first version: for each its path and what goes in it (one short
+works and has tests. Plan at most {limit} files for the first version (fewer is better: put the logic in few files, and replace the template's
+sample feature and its test rather than keeping both): for each its path and what goes in it (one short
 sentence). Change the template's own files (new=false) where that is where the feature belongs, create files (new=true)
 next to similar ones, named like them, and include exactly one new test file that checks the acceptance criteria. Use
 the template's extension points. Keep the architecture as simple as the need: no services, queues or layers the
@@ -233,14 +236,14 @@ def safe_path(path: str) -> bool:
     )
 
 
-def validate_plan(plan: AppPlan, existing: list[str]) -> AppPlan:
+def validate_plan(plan: AppPlan, existing: list[str], limit: int = MAX_FILES) -> AppPlan:
     """Drop paths that leave the project; a 'changed' file that isn't in the template is a new file."""
     kept: list[PlannedStep] = []
     for s in plan.steps:
         path = s.file.strip().removeprefix("./")
         if safe_path(path) and path not in {k.file for k in kept}:
             kept.append(PlannedStep(file=path, change=s.change, new=path not in existing))
-    return plan.model_copy(update={"steps": kept[:MAX_FILES]})
+    return plan.model_copy(update={"steps": kept[:limit]})
 
 
 def design_node(services: RunServices) -> Any:
@@ -251,7 +254,9 @@ def design_node(services: RunServices) -> Any:
         existing = template_files(template)
         reqs = state["requirements"]
         comment = state.get("feedback", {}).get("design", "")
-        app_plan = AppPlan(goal=reqs["summary"][:200])
+        app_plan = AppPlan.model_construct(  # no model: the template's sample app stays as it is
+            goal=reqs["summary"][:200], steps=[], risks="", architecture="", data_model=[]
+        )
         if state["inputs"].get("use_llm", True):
 
             async def task(profile: ProfileName) -> TaskResult:
@@ -269,7 +274,7 @@ def design_node(services: RunServices) -> Any:
                     client,
                     AppPlan,
                     [
-                        {"role": "system", "content": DESIGN_SYSTEM.format(limit=MAX_FILES)},
+                        {"role": "system", "content": DESIGN_SYSTEM.format(limit=FILES_BY_SIZE[choice.size])},
                         {"role": "user", "content": ask[:4200]},
                     ],
                     task="new_app_design",
@@ -280,7 +285,7 @@ def design_node(services: RunServices) -> Any:
                 )
 
             app_plan = AppPlan.model_validate((await llm_step(state, services, step="design", task=task))["app_plan"])
-        app_plan = validate_plan(app_plan, existing)
+        app_plan = validate_plan(app_plan, existing, FILES_BY_SIZE[choice.size])
         summary = f"{choice.label} ({choice.template}); {len(app_plan.steps)} file(s) planned"
         return await steps.finish(
             services, state, plan, "design", "solution_architect", summary, app_plan=app_plan.model_dump()
@@ -359,7 +364,21 @@ def scaffold_node(services: RunServices) -> Any:
 
 
 # ── build ────────────────────────────────────────────────────────────────────
-def build_context(state: NewAppState, template: templates.Template) -> str:
+def stack_rules(work: Path) -> str:
+    """What the code may use: the packages already in package.json (nothing is installed during the build) and, for
+    Vitest, that its functions are imported (globals are off), so the tests compile."""
+    try:
+        pkg = json.loads((work / "package.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    names = sorted({*pkg.get("dependencies", {}), *pkg.get("devDependencies", {})})
+    rules = f"Packages you may import (no others are installed): {', '.join(names)[:600]}."
+    if "vitest" in names:
+        rules += " Tests: `import { describe, it, expect } from 'vitest'` in every test file; globals are not enabled."
+    return rules
+
+
+def build_context(state: NewAppState, template: templates.Template, work: Path) -> str:
     reqs, plan = state["requirements"], state["app_plan"]
     parts = [
         f"App: {reqs['title']}: {reqs['summary']}",
@@ -368,11 +387,19 @@ def build_context(state: NewAppState, template: templates.Template) -> str:
         + "\n".join(f"- {'new ' if s['new'] else ''}{s['file']}: {s['change'][:90]}" for s in plan["steps"]),
         "Template extension points:\n" + "\n".join(f"- {e}" for e in template.extension_points),
     ]
+    if rules := stack_rules(work):
+        parts.append(rules)
     if state.get("look"):
         parts.append(f"Look: {state['look']}")
     if plan.get("data_model"):
         parts.append("Data model:\n" + "\n".join(f"- {d}" for d in plan["data_model"]))
     return "\n\n".join(parts)[:2400]
+
+
+def plan_of(state: NewAppState) -> AppPlan:
+    """The approved plan (`model_construct`: a run without a model has no files to plan, which validation refuses)."""
+    data = state["app_plan"]
+    return AppPlan.model_construct(**{**data, "steps": [PlannedStep(**s) for s in data["steps"]]})
 
 
 def build_order(plan: AppPlan) -> list[PlannedStep]:
@@ -386,9 +413,9 @@ def build_node(services: RunServices) -> Any:
         plan = await steps.start(services, state, "build", "backend_developer")
         project = services.project(str(state["project_id"]))
         template = templates.get(_choice(state).template)
-        app_plan = AppPlan.model_validate(state["app_plan"])
+        app_plan = plan_of(state)
         comment = state.get("feedback", {}).get("build", "")
-        context = build_context(state, template)
+        context = build_context(state, template, project.work)
         outcomes: list[StepOutcome] = []
         calls = tokens = 0
         made: list[str] = []
@@ -575,6 +602,8 @@ def _brief(state: NewAppState) -> str:
         if state.get("passed")
         else f"⚠️ **Tests still fail:**\n```\n{state.get('failure', '')[:600]}\n```"
     )
+    if not state.get("written"):
+        lines.append("⚠️ **Nothing of this app was written:** the project is still the template's sample app.")
     missing = [o for o in state.get("outcomes", []) if not o["done"]]
     if missing:
         lines.append("Not written: " + ", ".join(f"`{o['file']}`" for o in missing))
