@@ -89,4 +89,21 @@ describe("RunView", () => {
     await screen.findByText("2. Run the tests");
     expect(screen.queryByText(/a step failed/)).not.toBeInTheDocument();
   });
+
+  it("shows a role without underscores, even one with no hand-written label", async () => {
+    const run: RunDetail = {
+      ...BASE_RUN,
+      plan: [
+        { id: "scaffold", title: "Scaffold", role: "product_manager", status: "done" },
+        { id: "verify", title: "Run the tests", role: "security_engineer", status: "done" },
+      ],
+    };
+    mockApi(run);
+    render(<RunView runId="r1" />);
+    await screen.findByText("2. Run the tests");
+    expect(screen.getAllByText("Product Manager").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Security Engineer").length).toBeGreaterThan(0);
+    expect(screen.queryByText("product_manager")).not.toBeInTheDocument();
+    expect(screen.queryByText("security_engineer")).not.toBeInTheDocument();
+  });
 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 
+import { MultiSelect } from "@/components/multi-select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,12 @@ export function DeliverPanel({
     return null;
   }
 
+  /** The dropdown's entry for a target: its label, plus why it can't be used yet. */
+  function optionOf(target: DeliverTarget): string {
+    const why = unavailable(target);
+    return TARGETS.find((t) => t.target === target)!.label + (why ? ` (${why})` : "");
+  }
+
   async function run() {
     setBusy(true);
     setError(null);
@@ -76,24 +83,13 @@ export function DeliverPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="flex flex-col gap-2">
-        {TARGETS.map(({ target, label }) => {
-          const why = unavailable(target);
-          return (
-            <li key={target} className="flex items-center gap-2">
-              <Checkbox
-                id={`${id}-${target}`}
-                checked={picked.includes(target)}
-                onCheckedChange={(c) => setPicked((p) => (c ? [...p, target] : p.filter((t) => t !== target)))}
-              />
-              <Label htmlFor={`${id}-${target}`} className="font-normal">
-                {label}
-                {why && <span className="text-xs text-muted-foreground">({why})</span>}
-              </Label>
-            </li>
-          );
-        })}
-      </ul>
+      <MultiSelect
+        id={id}
+        values={picked.map(optionOf)}
+        options={TARGETS.map(({ target }) => optionOf(target))}
+        placeholder="Choose where to keep it"
+        onChange={(v) => setPicked(TARGETS.filter(({ target }) => v.includes(optionOf(target))).map((t) => t.target))}
+      />
       {picked.includes("github") && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={`${id}-repo`}>Repository</Label>

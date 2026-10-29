@@ -54,6 +54,18 @@ const ROLE_LABEL: Record<string, string> = {
   release_manager: "Release Manager",
 };
 
+/** "product_manager" → "Product Manager": a role without a hand-written label is still shown without underscores. */
+function roleLabel(role: string): string {
+  return (
+    ROLE_LABEL[role] ??
+    role
+      .split("_")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ")
+  );
+}
+
 type ItemState = "done" | "failed" | "running" | "waiting" | "todo";
 
 const CODE_KINDS = new Set<ArtifactRef["kind"]>(["diff", "file", "report", "diagram"]);
@@ -435,7 +447,7 @@ function Timeline({ run, playbook, events }: { run: RunDetail; playbook: Playboo
                   </span>
                   {step && state !== "todo" && (
                     <span className="text-xs text-muted-foreground">
-                      {ROLE_LABEL[step.role] ?? step.role}
+                      {roleLabel(step.role)}
                       {run.steps[id]?.summary ? ` · ${run.steps[id].summary}` : ""}
                     </span>
                   )}
@@ -491,7 +503,7 @@ function PlanCard({ run }: { run: RunDetail }) {
               >
                 {item.title}
               </span>
-              <span className="ml-auto text-xs text-muted-foreground">{ROLE_LABEL[item.role] ?? item.role}</span>
+              <span className="ml-auto text-xs text-muted-foreground">{roleLabel(item.role)}</span>
             </li>
           ))}
         </ul>
@@ -608,7 +620,7 @@ function UsageCard({ run }: { run: RunDetail }) {
 
 function describe(event: RunEvent, playbook: Playbook): string {
   const step = playbook.steps.find((s) => s.id === event.step);
-  const role = ROLE_LABEL[String(event.data.role ?? step?.role ?? "")] ?? "";
+  const role = roleLabel(String(event.data.role ?? step?.role ?? ""));
   const subject = event.data.subject ? ` (${String(event.data.subject)})` : "";
   switch (event.type) {
     case "step_started":
@@ -696,7 +708,7 @@ function TraceList({ runId, refreshKey }: { runId: string; refreshKey: number })
               <StatusBadge status={t.status} />
               <span className="font-medium">{t.name}</span>
               <span className="text-xs text-muted-foreground">
-                {t.role} · {t.profile} · {t.prompt_tokens}+{t.completion_tokens} tokens ·{" "}
+                {t.role ? roleLabel(t.role) : "—"} · {t.profile} · {t.prompt_tokens}+{t.completion_tokens} tokens ·{" "}
                 {(t.latency_ms / 1000).toFixed(1)}s
               </span>
             </summary>

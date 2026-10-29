@@ -297,12 +297,10 @@ export function DoneCard({ message, onSend }: { message: ChatMessage; onSend: (t
         </details>
       )}
       {message.data.playbook === "new_app" && message.run_id && (
-        <details open className="text-sm">
-          <summary className="cursor-pointer text-muted-foreground">Where should I keep it?</summary>
-          <div className="pt-2">
-            <DeliverPanel runId={message.run_id} />
-          </div>
-        </details>
+        <div className="flex flex-col gap-2 text-sm">
+          <p className="font-medium">Where should I keep it?</p>
+          <DeliverPanel runId={message.run_id} />
+        </div>
       )}
       {suggestions.length > 0 && (
         <div className="flex flex-wrap gap-2">

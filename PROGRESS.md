@@ -290,6 +290,8 @@ again (flagged as a regression).
   README is the template's `README.md` (left out unless ticked; when ticked, the generated guide). Unticking the
   backend's tests tells the model to write none and accepts 0 tests, but the template's sample tests stay. A
   browser request in a language with no browser template says so in the card note. Questions sit two to a row.
+  The Done card's "Where should I keep it?" is a dropdown of checkboxes (`DeliverPanel`, ZIP / folder / GitHub / Drive),
+  not a collapsed list, and the run view shows a role as "Product Manager", never `product_manager` (`roleLabel`).
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the
