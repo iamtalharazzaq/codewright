@@ -151,7 +151,9 @@ class RealProject:
         return {"ok": None, "error": "verify is not available in the real-sandbox retrofit harness", "report": None}
 
     def files_changed(self, paths: list[str]) -> None:
-        pass
+        # Files a playbook just wrote are owned by the test process; the sandbox user must be able to write beside
+        # them (e.g. `__pycache__` in a newly created directory).
+        _chown(self._work.parent)
 
     def facts(self) -> list[dict[str, Any]]:
         return []

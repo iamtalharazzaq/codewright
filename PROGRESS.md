@@ -234,6 +234,16 @@ deferred at your call rather than touching either.
   toolchain's test step underneath them, which worked first try. `expose`/TypeScript moves, Go/C++ (design-only,
   no real moves), and the `recommend`/decomposition-engine side of this phase are not retrofitted - scope kept to
   proving one real move end to end, same reasoning as every single-example phase above.
+- **Phase 16: `ms.foundation()` real-verified, Python only** (`test_architecture_foundation_sandbox.py`). Called
+  `foundation` directly with a hand-built `to_be`/`language_plan` (no model call happens in it); gateway, compose,
+  event envelope, JWT check, CI and service specs are really written and committed, and the monolith's real tests
+  run after them (`foundation`'s own undo-on-red path). `build_one` is not retrofitted: a real per-service build
+  scaffolds a full API template that `detect_project` would then see as a second component, which the harness's
+  single-component `[component] = detect_project(...)` doesn't support. **Not a product bug:** the first run went
+  red because the pack's `build` step (`compileall`) could not write `__pycache__` into `libs/auth` and
+  `libs/events`, which `foundation` created after `start_session`'s one-time chown, so they were not writable by
+  the sandbox user. Fixed in the harness: `RealProject.files_changed` re-chowns the workspace. Full real-sandbox
+  playbook suite after the fix: 38 passed.
 
 ## Bugs found by live testing, fixed on `fix/run-status-and-project-dedup` (2026-10-29)
 

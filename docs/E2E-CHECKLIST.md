@@ -155,6 +155,9 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   built, tested and replay-checked before cut-over; a failing service is undone, not left half-migrated.
 - Check the service board card on the run view. **Expect:** each service's state (scaffolded/extracted/cut over)
   is visible.
+- **Real-sandbox retrofit:** `foundation` only is real-verified on Python
+  (`agent/tests/playbooks/test_architecture_foundation_sandbox.py`, `make check-sandbox`): files written and committed,
+  real monolith tests still pass. `build_one` (per-service build) is not covered by the real-sandbox suite.
 
 ## Phase 17: Architecture change III (merge / serverless / event-driven)
 - `target=merge` on a project with an already-extracted service. **Expect:** the service's code is restored into
