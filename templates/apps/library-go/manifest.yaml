@@ -1,0 +1,10 @@
+name: library-go
+language: Go
+pack: go
+description: A reusable Go module with a documented public API, tests and an example.
+stack: [Go 1.26, testing]
+features: [documented package, table tests, runnable example, Graphify setup, CI]
+extension_points:
+  - "{{name_snake}}.go — the public API (what users import)"
+  - "{{name_snake}}_test.go — table tests and an Example function that shows up in the docs"
+run: { kind: library }

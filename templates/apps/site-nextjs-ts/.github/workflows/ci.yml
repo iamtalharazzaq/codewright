@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+  graph:
+    # Keeps graphify-out/ in step with the code (CODEWRIGHT.md Section 8.2).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install graphifyy
+      - run: GRAPHIFY_BACKEND=none graphify update . --no-cluster
+      - uses: actions/upload-artifact@v4
+        with: { name: graphify-out, path: graphify-out/ }

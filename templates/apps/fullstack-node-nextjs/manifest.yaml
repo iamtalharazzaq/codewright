@@ -1,0 +1,12 @@
+name: fullstack-node-nextjs
+language: TypeScript
+pack: typescript
+description: "A web app with data, all TypeScript: Node (Express) + PostgreSQL backend and a Next.js frontend, with auth, CRUD, Docker and CI."
+stack: [Node 22, Express, TypeScript, PostgreSQL 17, Next.js 16, Vitest, Supertest]
+features: [sign-up and sign-in, per-user CRUD, admin area, PostgreSQL, Docker Compose, tests for backend and frontend, Graphify setup, CI]
+extension_points:
+  - backend — the API (routes, store, auth)
+  - frontend/src/lib/api.ts — the client for the API
+  - frontend/src/components/App.tsx — the screens
+  - docker-compose.yml — services and their settings
+run: { kind: web, port: 3000 }

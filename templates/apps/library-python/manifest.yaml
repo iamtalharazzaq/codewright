@@ -1,0 +1,10 @@
+name: library-python
+language: Python
+pack: python
+description: A reusable Python package with a typed public API, tests and build config ready to publish.
+stack: [Python 3.12, hatchling, pytest, ruff]
+features: [src layout, typed (py.typed), public API in __init__, tests, build and publish config, Graphify setup, CI]
+extension_points:
+  - src/{{name_snake}}/__init__.py — the public API (what users import)
+  - src/{{name_snake}}/text.py — example module; add yours beside it
+run: { kind: library }

@@ -1,0 +1,10 @@
+name: library-cpp
+language: C++
+pack: cpp
+description: A C++20 library with CMake, installable headers and GoogleTest tests.
+stack: [C++20, CMake, Ninja, GoogleTest]
+features: [library target with an alias, public headers, install rules, tests, Graphify setup, CI]
+extension_points:
+  - include/{{name_snake}}/{{name_snake}}.hpp — the public API
+  - src/{{name_snake}}.cpp — the implementation
+run: { kind: library }

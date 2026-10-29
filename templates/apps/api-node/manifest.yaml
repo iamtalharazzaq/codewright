@@ -1,0 +1,11 @@
+name: api-node
+language: TypeScript
+pack: typescript
+description: A REST API in TypeScript (Node + Express), with health, a CRUD resource, request logging and tests.
+stack: [Node 22, Express, TypeScript, Vitest, Supertest]
+features: [REST CRUD, health endpoint, request logging, JSON errors, tests, Dockerfile, Graphify setup, CI]
+extension_points:
+  - src/items.ts — copy it for a new resource
+  - src/app.ts — routes and middleware
+  - src/store.ts — swap the in-memory store for a database
+run: { kind: web, port: "{{port}}" }
