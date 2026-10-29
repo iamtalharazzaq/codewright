@@ -186,6 +186,16 @@ def test_junit_refuses_entities(tmp_path: Path) -> None:
     assert not reports.junit([xml], "pytest").found
 
 
+def test_go_staticcheck_lint_step() -> None:
+    """Phase 19: the spec's own table names "go vet, staticcheck" (CODEWRIGHT.md 8.3) — only vet was wired until
+    now. staticcheck is optional (like C++'s clang-tidy): a real static-analysis pass, not a hard gate."""
+    component = detect_project(FIXTURES / "go_gin")[0]
+    steps = plan(FIXTURES / "go_gin", component, "lint")
+    assert [s.name for s in steps] == ["install", "vet", "staticcheck", "gofmt"]
+    sc = steps[2]
+    assert sc.cmd == ["staticcheck", "./..."] and sc.network == "none" and sc.optional
+
+
 def test_go_json_report() -> None:
     lines = [
         {"Action": "run", "Package": "p/a", "Test": "TestOK"},

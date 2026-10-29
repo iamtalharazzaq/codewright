@@ -1,4 +1,4 @@
-"""Go pack: net/http, Gin, Echo, chi, gRPC, GORM, cobra. go build · go test · go vet + gofmt."""
+"""Go pack: net/http, Gin, Echo, chi, gRPC, GORM, cobra. go build · go test · go vet, staticcheck + gofmt."""
 
 from __future__ import annotations
 
@@ -171,8 +171,12 @@ class GoPack:
 
     def lint_steps(self, repo: Path, component: Component) -> list[Step]:
         wd = component.path
+        offline = {"GOFLAGS": "-buildvcs=false", "GOPROXY": "off"}
         return [
             Step("vet", "go", ["go", "vet", "./..."], wd, "none", env={"GOPROXY": "off"}),
+            # Offline once modules are cached (same build-cache volume vet/build already rely on); a component with
+            # no type-checkable packages (e.g. a stub) can legitimately find nothing to report, so this is optional.
+            Step("staticcheck", "go", ["staticcheck", "./..."], wd, "none", env=offline, optional=True),
             Step(
                 "gofmt", "go", ["sh", "-c", 'out=$(gofmt -l .); [ -z "$out" ] || { echo "$out"; exit 1; }'], wd, "none"
             ),
