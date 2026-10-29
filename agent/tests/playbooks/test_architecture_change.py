@@ -15,7 +15,7 @@ from .helpers import approve_all, cfg, compiled, drive, gates_of, initial_state,
 async def test_audit_mode_runs_steps_1_to_5_then_report_and_delivery(services: FakeServices, tmp_path: Path) -> None:
     graph = compiled("architecture_change", services)
     state, prompts = await drive(
-        graph, cfg(), initial_state("architecture_change", tmp_path, mode="audit"), approve_all
+        graph, cfg(), initial_state("architecture_change", tmp_path, simulate=True, mode="audit"), approve_all
     )
 
     assert gates_of(prompts) == ["gate1", "gate2", "gate3", "gate4", "gate8"]
@@ -30,7 +30,9 @@ async def test_conversion_mode_builds_each_service_with_its_own_gate5(services: 
     state, prompts = await drive(
         graph,
         cfg(),
-        initial_state("architecture_change", tmp_path, mode="conversion", services=["notification", "payment"]),
+        initial_state(
+            "architecture_change", tmp_path, simulate=True, mode="conversion", services=["notification", "payment"]
+        ),
         approve_all,
     )
 
@@ -64,7 +66,9 @@ async def test_reject_and_edit_send_the_step_back_for_rework(services: FakeServi
         return next(answers, {"decision": "approve"})
 
     graph = compiled("architecture_change", services)
-    state, prompts = await drive(graph, cfg(), initial_state("architecture_change", tmp_path, mode="audit"), answer)
+    state, prompts = await drive(
+        graph, cfg(), initial_state("architecture_change", tmp_path, simulate=True, mode="audit"), answer
+    )
 
     assert gates_of(prompts)[:4] == ["gate1", "gate1", "gate2", "gate2"]
     assert started(services.events)[:4] == ["intake", "intake", "baseline", "as_is"]
@@ -85,7 +89,7 @@ async def test_gate5_reject_rebuilds_the_same_service(services: FakeServices, tm
     _, prompts = await drive(
         graph,
         cfg(),
-        initial_state("architecture_change", tmp_path, mode="conversion", services=["notification"]),
+        initial_state("architecture_change", tmp_path, simulate=True, mode="conversion", services=["notification"]),
         answer,
     )
     assert gates_of(prompts)[4:6] == ["gate5:notification", "gate5:notification"]
@@ -93,7 +97,7 @@ async def test_gate5_reject_rebuilds_the_same_service(services: FakeServices, tm
 
 async def test_events_are_emitted_per_step(services: FakeServices, tmp_path: Path) -> None:
     graph = compiled("architecture_change", services)
-    await drive(graph, cfg(), initial_state("architecture_change", tmp_path, mode="audit"), approve_all)
+    await drive(graph, cfg(), initial_state("architecture_change", tmp_path, simulate=True, mode="audit"), approve_all)
     assert started(services.events)[:3] == ["intake", "baseline", "as_is"]
 
 
@@ -120,7 +124,7 @@ async def test_gpu_lost_pauses_and_switching_to_cpu_continues(tmp_path: Path) ->
         return {"decision": "approve"}
 
     state, prompts = await drive(
-        graph, cfg(), initial_state("architecture_change", tmp_path, mode="audit", use_llm=True), answer
+        graph, cfg(), initial_state("architecture_change", tmp_path, simulate=True, mode="audit", use_llm=True), answer
     )
     assert prompts[0]["kind"] == "llm_unavailable"
     assert state["llm_profile"] == "local_cpu"

@@ -313,7 +313,7 @@ class RunManager:
             active = await session.scalar(select(Run.id).where(Run.status.in_(ACTIVE_STATUSES)).limit(1))
             if active:
                 raise RunConflict(f"Run {active} is still active. Codewright runs one job at a time.")
-            if pb.spec.needs_project and project_id is None:
+            if (pb.spec.needs_project or pb.spec.needs_project_for(validated)) and project_id is None:
                 raise ValueError(f"The {pb.title} playbook works on a project: start it from a project chat.")
             if project_name and project_id is None:
                 project = Project(name=project_name, status="active")

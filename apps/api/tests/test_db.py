@@ -34,7 +34,11 @@ def test_ready_when_database_is_migrated(app_factory: AppFactory) -> None:
 def test_projects_empty_then_created_by_a_run(app_factory: AppFactory) -> None:
     with app_factory() as client:
         assert client.get("/api/projects").json() == []
-        body = {"playbook": "architecture_change", "project_name": "goshop", "inputs": {"stub_delay_s": 0}}
+        body = {
+            "playbook": "architecture_change",
+            "project_name": "goshop",
+            "inputs": {"stub_delay_s": 0, "simulate": True},
+        }
         run = client.post("/api/runs", json=body).json()
         projects = client.get("/api/projects").json()
         client.post(f"/api/runs/{run['id']}/cancel")
