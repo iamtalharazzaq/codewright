@@ -3,7 +3,7 @@ interventions (approval gates) and model use.
 
     python3 -m evals.run_metrics [--api http://localhost:8000/api] [--limit 500]
 
-Retries are not recorded per run, so they are not reported here.
+Retries are the steps that started again (from the run's events); minutes are also split by model profile.
 """
 
 from __future__ import annotations
@@ -46,8 +46,18 @@ def summarize(runs: list[dict[str, Any]], details: dict[str, dict[str, Any]]) ->
             "minutes": sum(_minutes(r) for r in done) / len(done) if done else None,
             "approvals": sum(len(d["approvals"]) for d in extra) / len(extra) if extra else None,
             "llm_calls": sum(d["usage"]["llm_calls"] for d in extra) / len(extra) if extra else None,
+            "retries": sum(d.get("retries", 0) for d in extra) / len(extra) if extra else None,
+            "by_profile": _by_profile(done, details),
         }
     return out
+
+
+def _by_profile(done: list[dict[str, Any]], details: dict[str, dict[str, Any]]) -> dict[str, float]:
+    """Average minutes of the completed runs per model profile (GPU or CPU)."""
+    minutes: dict[str, list[float]] = defaultdict(list)
+    for r in done:
+        minutes[r.get("llm_profile") or "?"].append(_minutes(r))
+    return {k: round(sum(v) / len(v), 1) for k, v in sorted(minutes.items())}
 
 
 def render(table: dict[str, dict[str, Any]]) -> str:
@@ -62,7 +72,10 @@ def render(table: dict[str, dict[str, Any]]) -> str:
         lines.append(
             f"{name:<22}{m['runs']:>5}{m['completed']:>5}{m['failed']:>5}{m['cancelled']:>7}{success:>8}"
             f"{num(m['minutes'], '.1f'):>7}{num(m['approvals'], '.1f'):>6}{num(m['llm_calls'], '.0f'):>7}"
+            f"{num(m['retries'], '.1f'):>6}"
         )
+        if len(m["by_profile"]) > 1 or any(k != "?" for k in m["by_profile"]):
+            lines.append(f"{'':<22}minutes by model: " + ", ".join(f"{k} {v}" for k, v in m["by_profile"].items()))
     return "\n".join(lines)
 
 

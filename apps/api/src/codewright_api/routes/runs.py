@@ -64,6 +64,7 @@ class RunDetail(RunOut):
     steps: dict[str, Any]
     artifacts: list[dict[str, Any]]
     budget: dict[str, Any] | None
+    retries: int = 0  # steps that started again (fix rounds, a re-run after a rejection)
 
 
 @router.post("", status_code=201)
@@ -109,6 +110,13 @@ async def get_run(run_id: uuid.UUID, session: SessionDep, manager: ManagerDep) -
             ).where(Trace.run_id == run_id, Trace.kind == "llm")
         )
     ).one()
+    started = (
+        await session.execute(
+            select(func.count(RunEvent.id), func.count(func.distinct(RunEvent.step))).where(
+                RunEvent.run_id == run_id, RunEvent.type == "step_started"
+            )
+        )
+    ).one()
     approvals = await session.scalars(select(Approval).where(Approval.run_id == run_id).order_by(Approval.id))
     try:
         spec = get_playbook(run.playbook).spec
@@ -129,6 +137,7 @@ async def get_run(run_id: uuid.UUID, session: SessionDep, manager: ManagerDep) -
         steps=dict(values.get("steps", {})),
         artifacts=list(values.get("artifacts", [])),
         budget=values.get("budget"),
+        retries=started[0] - started[1],
     )
 
 

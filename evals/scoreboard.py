@@ -31,23 +31,24 @@ def _seconds(rows: list[dict[str, Any]]) -> float | None:
 
 def score(suite: str, data: Any) -> dict[str, Any]:
     """{passed, total, seconds, by} for one suite's result file."""
-    if suite == "router":
-        return {"passed": sum(bool(r["ok"]) for r in data), "total": len(data), "seconds": None, "by": "intent"}
-    if suite == "write_code":
-        return {"passed": sum(bool(r["passed"]) for r in data), "total": len(data), "seconds": _seconds(data),
-                "by": "language", "languages": _by_language(data)}  # fmt: skip
-    if suite.startswith("explain"):
-        return {
-            "passed": sum(bool(r["ok"]) for r in data),
-            "total": len(data),
-            "seconds": _seconds(data),
-            "by": "question",
-        }
     if suite.startswith("review"):
         found = sum(bool(i["found"]) for i in data["issues"])
         return {"passed": found, "total": len(data["issues"]), "seconds": data.get("seconds") or None,
                 "by": "seeded issue", "false_alarms": len(data["false_alarms"])}  # fmt: skip
-    return {"passed": 0, "total": 0, "seconds": None, "by": "unknown suite"}
+    flag = {"router": "ok", "explain": "ok", "examples": "ok", "new_app": "ok", "write_code": "passed"}.get(
+        suite.split("-", maxsplit=1)[0]
+    )
+    if flag is None:
+        return {"passed": 0, "total": 0, "seconds": None, "by": "unknown suite"}
+    out: dict[str, Any] = {
+        "passed": sum(bool(r[flag]) for r in data),
+        "total": len(data),
+        "seconds": _seconds(data),
+        "by": "case",
+    }
+    if suite == "write_code":
+        out["languages"] = _by_language(data)
+    return out
 
 
 def _by_language(rows: list[dict[str, Any]]) -> dict[str, str]:

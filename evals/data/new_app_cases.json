@@ -1,0 +1,16 @@
+[
+  {"id": "calculator-python-function", "request": "A simple calculator, a pure function without any library", "language": "Python",
+   "template": "function-python", "must": ["def \\w+\\(", "[-+*/]"], "behavior": ["add|sub|mul|div|calc"]},
+  {"id": "calculator-react", "request": "Make a calculator", "language": "JavaScript", "platform": "Browser app",
+   "template": "web-react-js", "must": ["divide|/", "clear|\\bC\\b", "<button"], "behavior": ["zero|Error|Infinity|isFinite"]},
+  {"id": "tic-tac-toe-react", "request": "Make a tic-tac-toe game for two players", "language": "JavaScript", "platform": "Browser app",
+   "template": "web-react-js", "must": ["winner|win", "\\bX\\b", "\\bO\\b"], "behavior": ["draw|tie|reset|restart"]},
+  {"id": "todo-react", "request": "Make a to-do list app", "language": "JavaScript", "platform": "Browser app",
+   "template": "web-react-js", "must": ["add", "delete|remove", "done|complete|checked"], "behavior": []},
+  {"id": "bmi-react", "request": "Make a BMI calculator", "language": "JavaScript", "platform": "Browser app",
+   "template": "web-react-js", "must": ["weight", "height", "underweight|overweight|normal"], "behavior": []},
+  {"id": "guess-number-python", "request": "Make a number guessing game in the terminal", "language": "Python",
+   "platform": "Terminal (command line)", "template": "cli-python", "must": ["random", "input\\(", "too (high|low)|higher|lower"], "behavior": []},
+  {"id": "password-generator-python", "request": "Make a password generator", "language": "Python",
+   "platform": "Terminal (command line)", "template": "cli-python", "must": ["secrets|random", "length", "symbol|punctuation"], "behavior": []}
+]

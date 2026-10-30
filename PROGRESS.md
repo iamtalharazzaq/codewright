@@ -458,15 +458,20 @@ summary), **Sent to** (the next step, and the files this step produced) and **Ho
 calls, tokens and time, files; "No model call: done by code" for code steps). The "Confirm what to make / You" row is
 gone: confirming is not an agent's step.
 
-## Phase 20: Evals (first slice, 2026-10-30)
+## Phase 20: Evals (built 2026-10-30; the live runs of the two new suites are still to do)
 
-`python3 -m evals.scoreboard` (or `make eval-scoreboard`) prints the newest result of each suite (router, write_code,
-explain, review-*) as one table: passed/total, rate, average seconds, per-language split and false alarms. The model-free
-part runs in CI as `agent/tests/evals`: the scoreboard on canned and recorded result files, and the review grader scoring
-the seeded repos from canned findings. `python3 -m evals.run_metrics` adds success per playbook, minutes per task, approvals (human interventions) and
-model calls from the runs already in the system (retries are not recorded per run). **Not built yet:** new-app prompts with acceptance tests, all `EXAMPLES.md`
-requests scored against Section 7, replay equivalence, retries and human-intervention counts, GPU/CPU timing, the
-nightly full-repo run. Recorded numbers today: router 118/121, write_code 10/20, review 7/9 (Go) and 9/9 (Python).
+| Piece | How | State |
+|---|---|---|
+| Scoreboard | `python3 -m evals.scoreboard` / `make eval-scoreboard`: newest result of each suite, rate, seconds, per-language | built, runs on the recorded results |
+| Run metrics | `python3 -m evals.run_metrics`: per playbook success, minutes (and by GPU/CPU profile), approvals (human interventions), model calls, **retries** | built; retries are new (`retries` in `GET /runs/{id}`: steps that started again) |
+| New-app prompts with acceptance tests | `python3 -m evals.new_app`: 7 `EXAMPLES.md` §3 apps built end to end; passes when the run completed, tests passed, the source matches every `must` pattern and holds no test code | built, grader tested offline; **not run live**: the GPU tunnel answered 404 (ngrok offline) |
+| All EXAMPLES.md requests vs §8 | `python3 -m evals.examples`: every quoted request (66) in a real chat; checks 2-4 (language asked or declined, at most 5 questions each with a default, confirm card and no run before Start) | built, grader tested offline; **not run live** (same tunnel) |
+| Fixtures in CI, nightly | `agent/tests/evals` runs with the normal tests; `.github/workflows/nightly-evals.yml` (fixtures, no remote yet); `make eval-nightly` runs the live suites | built |
+| Replay equivalence | covered by the Phase 7 replay (`test_replay_sandbox.py`); no separate eval | not built |
+| §8 checks 1, 5-9 | need a full build per request; `evals.new_app` covers 5 (works) and 7 (tests) for its 7 apps | partial |
+
+Recorded numbers today: router 118/121, explain 11/11, write_code 10/20, review 7/9 (Go) and 9/9 (Python).
+**To finish:** bring the model up, then `make eval-nightly` and record the numbers here.
 
 ## Phase 19: Deepen the Language Packs (complete for this pass, 2026-10-29 — more framework coverage can land later)
 

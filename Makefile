@@ -3,7 +3,7 @@ PNPM ?= corepack pnpm
 WEB := apps/web
 CHECKS := docker compose --profile checks
 
-.PHONY: up down logs check check-api check-web check-host check-sandbox check-sandbox-host sandbox-images eval-scoreboard
+.PHONY: up down logs check check-api check-web check-host check-sandbox check-sandbox-host sandbox-images eval-scoreboard eval-nightly
 
 up: sandbox-images  ## Build and start Codewright (http://localhost:3000)
 	docker compose up -d --build --wait
@@ -45,3 +45,10 @@ check-host:    ## The same checks on the host (needs uv and pnpm; DB tests need 
 
 eval-scoreboard:  ## The newest result of each eval suite as one table (no model needed)
 	docker compose --profile checks run --rm --no-deps api-checks python3 -m evals.scoreboard
+
+eval-nightly:  ## The live suites in turn (needs the stack up and the model reachable), then the scoreboard
+	python3 -m evals.router
+	python3 -m evals.examples
+	python3 -m evals.new_app
+	python3 -m evals.write_code
+	$(MAKE) eval-scoreboard

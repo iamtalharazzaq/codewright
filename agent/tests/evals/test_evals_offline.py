@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evals import review, run_metrics, scoreboard
+from evals import examples, new_app, review, run_metrics, scoreboard
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -63,10 +63,44 @@ def test_run_metrics_count_success_without_cancelled_runs() -> None:
         run("d", "completed", "2026-01-01T00:20:00+00:00"),
     ]
     details: dict[str, dict[str, Any]] = {
-        "a": {"approvals": [1, 2], "usage": {"llm_calls": 10}},
+        "a": {"approvals": [1, 2], "retries": 2, "usage": {"llm_calls": 10}},
         "d": {"approvals": [], "usage": {"llm_calls": 20}},
     }
     m = run_metrics.summarize(runs, details)["feature"]
     assert (m["runs"], m["completed"], m["failed"], m["cancelled"]) == (4, 2, 1, 1)
-    assert round(m["success"], 2) == 0.67 and m["minutes"] == 15 and m["approvals"] == 1 and m["llm_calls"] == 15
+    assert (
+        round(m["success"], 2) == 0.67
+        and m["minutes"] == 15
+        and m["approvals"] == 1
+        and m["llm_calls"] == 15
+        and m["retries"] == 1
+    )
     assert "feature" in run_metrics.render({"feature": m})
+
+
+def test_new_app_acceptance_finds_a_missing_feature_and_test_code_in_source() -> None:
+    case = {"must": ["divide", "<button"], "behavior": ["zero"]}
+    good = {"src/App.jsx": "<button>divide</button> // zero", "src/App.test.jsx": "import { it } from 'vitest'"}
+    assert new_app.grade(case, good, tests_passed=True)["ok"]
+    bad = {"src/App.jsx": "<button>add</button>", "src/lib/calc.js": "import { describe } from 'vitest'"}
+    graded = new_app.grade(case, bad, tests_passed=True)
+    assert not graded["ok"] and graded["missing"] == ["divide"] and graded["tests_in_source"] == ["src/lib/calc.js"]
+    assert not new_app.grade(case, good, tests_passed=False)["ok"]
+    assert new_app.source_of({"a.py": "x", "tests/test_a.py": "y", "node_modules/x.js": "z"}) == {"a.py": "x"}
+
+
+def test_examples_md_requests_are_found_and_graded_on_checks_2_to_4() -> None:
+    rows = examples.requests_in((ROOT / "EXAMPLES.md").read_text(encoding="utf-8"))
+    assert len(rows) >= 60 and any(r[1] == "Make a calculator" for r in rows)
+
+    def msg(role: str, kind: str, content: str = "", **data: Any) -> dict[str, Any]:
+        return {"role": role, "kind": kind, "content": content, "data": data, "run_id": None}
+
+    ask = {"question": "Which language?", "default": "Python"}
+    good = [msg("user", "text"), msg("assistant", "questions", questions=[ask]), msg("assistant", "confirm")]
+    assert examples.passed(examples.grade(good, started_run=False))
+    assert not examples.passed(examples.grade(good, started_run=True))  # a run began without Start
+    no_language = [msg("assistant", "questions", questions=[{"question": "Which style?", "default": "x"}])]
+    assert not examples.grade([*no_language, msg("assistant", "confirm")], False)["language_asked_or_declined"]
+    declined = [msg("assistant", "text", "PHP isn't supported. I can build it in Python.")]
+    assert examples.passed(examples.grade(declined, started_run=False))
