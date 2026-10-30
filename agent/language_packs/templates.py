@@ -8,6 +8,7 @@ tests (`scaffold`'s `ci`, `graphify` and `frontend_tests`); everything is includ
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from dataclasses import dataclass, field
@@ -106,7 +107,27 @@ def scaffold(
         else:
             target.write_text(fill(src.read_text(encoding="utf-8"), values), encoding="utf-8")
         target.chmod(src.stat().st_mode & 0o777)
+    top = frontend_root(template.name)
+    if not frontend_tests and top is not None:
+        _drop_vitest(out / top)
     return template
+
+
+def _drop_vitest(root: Path) -> None:
+    """A browser app with no tests ticked has no test runner either: no `vitest` dependency, `test` script, config."""
+    for config in [*root.glob("vitest.config.*")]:
+        config.unlink()
+    package = root / "package.json"
+    if package.is_file():
+        data = json.loads(package.read_text(encoding="utf-8"))
+        data.get("scripts", {}).pop("test", None)
+        data.get("devDependencies", {}).pop("vitest", None)
+        package.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    for vite in root.glob("vite.config.*"):
+        text = vite.read_text(encoding="utf-8")
+        text = text.replace('"vitest/config"', '"vite"')
+        text = re.sub(r"\n\s*test: \{[^}]*\},?", "", text)
+        vite.write_text(text, encoding="utf-8")
 
 
 def _left_out(name: str, relative: Path, *, ci: bool, graphify: bool, frontend_tests: bool, readme: bool) -> bool:

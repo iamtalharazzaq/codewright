@@ -16,9 +16,12 @@ from pathlib import Path
 
 import httpx
 
-from agent.tools.secrets import SKIP_DIRS
+from agent.tools.secrets import SKIP_DIRS as _SECRET_SKIP
 from agent.tools.workspace import git
 from connectors.inputs import auth_header, parse_github
+
+# Codewright's own working folders (the knowledge graph, test reports) are not part of what the user gets.
+SKIP_DIRS = _SECRET_SKIP | {"graphify-out", ".codewright"}
 
 
 class DeliveryError(Exception):
@@ -48,7 +51,11 @@ def to_local(src: Path, allowed: list[Path], name: str) -> Path:
         raise DeliveryError("No output folder is allowed. Set ALLOWED_OUTPUT_DIRS in .env and restart.")
     safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in name)[:60] or "codewright"
     target = roots[0] / f"{safe}-{_stamp()}"
-    shutil.copytree(src, target, ignore=shutil.ignore_patterns(".git", "node_modules", ".venv", "__pycache__"))
+    shutil.copytree(
+        src,
+        target,
+        ignore=shutil.ignore_patterns(".git", "node_modules", ".venv", "__pycache__", "graphify-out", ".codewright"),
+    )
     return target
 
 

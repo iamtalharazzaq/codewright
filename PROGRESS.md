@@ -303,7 +303,10 @@ again (flagged as a regression).
   carries a `path` (runner `PreviewSpec.path`, default `/`; the API sends `/docs` for uvicorn apps). A blank preview
   page came from the model writing `describe(...)` and `import ... from 'vitest'` into an app source file (a browser
   cannot load vitest): `verify` now flags test code inside non-test source files (`misplaced_tests`) as a failing
-  check, so the run reads red instead of green.
+  check, so the run reads red instead of green. A delivery (ZIP, folder, Drive) no longer carries Codewright's own
+  `graphify-out/` and `.codewright/` folders (Graphify is only added when ticked in *Additional things to be added*).
+  A browser app with frontend tests unticked also loses `vitest` (dependency, `test` script, config) and verify does
+  not fail for having no test runner.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the

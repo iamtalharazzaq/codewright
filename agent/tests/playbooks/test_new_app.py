@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -346,3 +347,16 @@ def test_test_code_inside_app_source_is_found_but_test_files_are_not(tmp_path: P
         (tmp_path / rel).write_text(text, encoding="utf-8")
     found = na.misplaced_tests(tmp_path, list(files))
     assert [f.split(":")[0] for f in found] == ["src/lib/calc.js", "src/app.py"]
+
+
+def test_a_browser_app_without_tests_ticked_has_no_vitest_and_still_passes_verify(tmp_path: Path) -> None:
+    for template in ("web-react-js", "web-react-ts"):
+        _scaffolded(tmp_path / template, template, frontend_tests=False)
+        out = tmp_path / template / "out"
+        package = json.loads((out / "package.json").read_text())
+        assert "vitest" not in package["devDependencies"] and "test" not in package["scripts"]
+        assert not any("vitest" in p.read_text() for p in out.glob("vite.config.*"))
+    assert na.tests_green(
+        [{"component": ".", "steps": [], "report": None, "error": "no test runner"}], need_tests=False
+    )[0]
+    assert not na.tests_green([{"component": ".", "steps": [], "report": None}], need_tests=True)[0]
