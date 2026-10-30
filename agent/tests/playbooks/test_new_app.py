@@ -362,11 +362,21 @@ def test_a_browser_app_without_tests_ticked_has_no_vitest_and_still_passes_verif
     assert not na.tests_green([{"component": ".", "steps": [], "report": None}], need_tests=True)[0]
 
 
-def test_a_function_only_calculator_is_a_library_with_no_frontend_question() -> None:
-    assert "Library (functions only)" in stacks.PLATFORMS
-    asked = {"request": "I need a simple calculator, just a function is fine", "answers": []}
-    assert stacks.platform_stated(asked) and stacks.app_kind(asked) == "library"
-    assert stacks.default_platform(asked) == "Library (functions only)" and not stacks.frontend_open(asked)
-    picked = {"request": "A simple calculator", "answers": [["Which platform?", "Library (functions only)"]]}
-    assert stacks.app_kind(picked) == "library" and not stacks.frontend_open(picked)
-    assert stacks.choose({**picked, "language": "Python"}).template == "library-python"
+def test_a_pure_function_is_one_file_with_no_library_and_no_frontend_question() -> None:
+    assert "Just a function (one file, no library)" in stacks.PLATFORMS
+    asked = {"request": "I need a simple calculator, a pure function without any library", "answers": []}
+    assert stacks.platform_stated(asked) and stacks.app_kind(asked) == "function"
+    assert stacks.default_platform(asked).startswith("Just a function") and not stacks.frontend_open(asked)
+    picked = {
+        "request": "A simple calculator",
+        "answers": [["Which platform?", "Just a function (one file, no library)"], ["Which language?", "Python"]],
+    }
+    assert stacks.app_kind(picked) == "function" and not stacks.frontend_open(picked)
+    assert stacks.choose(picked).template == "function-python"
+
+
+@pytest.mark.parametrize("template", ["function-python", "function-ts", "function-go"])
+def test_a_function_template_is_one_source_file_and_its_test(tmp_path: Path, template: str) -> None:
+    files = _scaffolded(tmp_path, template, ci=False, graphify=False, frontend_tests=False, readme=False)
+    assert len([f for f in files if "calc" in f or "demo" in f]) == 2  # the function and its test
+    assert not any(f.startswith((".github", "src/index")) or f in ("README.md", "GRAPHIFY.md") for f in files)

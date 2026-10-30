@@ -57,6 +57,9 @@ KINDS: dict[str, AppKind] = {k.name: k for k in (
         Option("Python", "library-python"), Option("TypeScript", "library-ts"), Option("Go", "library-go"),
         Option("C++", "library-cpp"),
     )),
+    AppKind("function", "A single file is the simplest thing to copy into your own code", (
+        Option("Python", "function-python"), Option("TypeScript", "function-ts"), Option("Go", "function-go"),
+    )),
     AppKind("script", "Python has a library for almost every task", (Option("Python", "cli-python"),)),
 )}  # fmt: skip
 
@@ -64,8 +67,10 @@ KINDS: dict[str, AppKind] = {k.name: k for k in (
 # Not "users": the requirements Q&A text almost always contains it (e.g. the model's own answer to "who is the
 # main user?"), so it drowned out a real signal like "terminal" below. "multi-user" still counts.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("library", ("library", "package", "sdk", "module for", "functions only", "just a function", "only a function",
-                 "just functions")),
+    ("function", ("pure function", "single function", "just a function", "only a function", "just functions",
+                  "functions only", "one function", "no library", "without any library", "without a library",
+                  "without library")),
+    ("library", ("library", "package", "sdk", "module for")),
     ("systems", ("algorithm", "performance-critical", "systems-level", "high-performance", "low-level")),
     ("script", ("script", "automation", "automate", "scrape", "csv", "data processing", "rename files")),
     ("api", ("rest api", " api", "backend service", "microservice", "endpoint", "webhook")),
@@ -347,9 +352,11 @@ def frontend_default(language: str) -> str:
 
 
 PLATFORM_QUESTION = "Which platform?"
-PLATFORMS = ("Browser app", "Terminal (command line)", "API (REST)", "Library (functions only)")
+PLATFORMS = ("Browser app", "Terminal (command line)", "API (REST)", "Just a function (one file, no library)")
 _PLATFORM_WORDS = ("browser", "web", "website", "terminal", "cli", "command line", "console", "api", "rest api",
-                   "library", "functions only", "just a function", "only a function", "just functions")  # fmt: skip
+                   "library", "functions only", "no library", "without any library", "without a library",
+                   "just a function", "only a function", "just functions", "pure function",
+                   "single function")  # fmt: skip
 
 
 def platform_stated(inputs: dict[str, Any]) -> bool:
@@ -367,5 +374,5 @@ def default_platform(inputs: dict[str, Any]) -> str:
         "script": PLATFORMS[1],
         "systems": PLATFORMS[1],
         "api": PLATFORMS[2],
-        "library": PLATFORMS[3],
+        "function": PLATFORMS[3],
     }.get(kind, PLATFORMS[0])

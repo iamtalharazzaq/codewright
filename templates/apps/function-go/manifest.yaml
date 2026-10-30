@@ -1,0 +1,10 @@
+name: function-go
+language: Go
+pack: go
+description: One Go function in one file, with its test. No package to publish.
+stack: [Go 1.26]
+features: [one function in one file, a test file]
+extension_points:
+  - "{{name_snake}}.go — the function (and any small helpers)"
+  - "{{name_snake}}_test.go — its tests"
+run: { kind: library }

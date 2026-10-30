@@ -106,7 +106,7 @@ async def test_intake_always_asks_the_language_for_new_work() -> None:
         "Browser app",
         "Terminal (command line)",
         "API (REST)",
-        "Library (functions only)",
+        "Just a function (one file, no library)",
     ]
     assert result.questions[2].options[0] == "React + TypeScript" and result.questions[2].options[-1] == "None"
     extra = result.questions[3]

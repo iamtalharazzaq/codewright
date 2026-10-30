@@ -1,0 +1,10 @@
+name: function-ts
+language: TypeScript
+pack: typescript
+description: One TypeScript function in one file, with its test. No package, no build step.
+stack: [TypeScript, Vitest]
+features: [one function in one file, a test file]
+extension_points:
+  - "src/{{name_snake}}.ts — the function (and any small helpers)"
+  - "src/{{name_snake}}.test.ts — its tests"
+run: { kind: library }

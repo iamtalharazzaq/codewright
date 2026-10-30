@@ -320,6 +320,9 @@ TEMPLATE_COMPONENTS = {
     "library-ts": [("typescript", "library", ".")],
     "library-go": [("go", "library", ".")],
     "library-cpp": [("cpp", "library", ".")],
+    "function-python": [("python", "library", ".")],
+    "function-ts": [("typescript", "library", ".")],
+    "function-go": [("go", "library", ".")],
 }
 
 
@@ -358,9 +361,15 @@ def test_scaffold(name: str, tmp_path: Path) -> None:
     leftovers = [str(p.relative_to(out)) for p in files if re.search(r"\{\{\w+\}\}", p.read_text(encoding="utf-8"))]
     leftovers += [str(p.relative_to(out)) for p in files if "{{" in str(p)]
     assert not leftovers, f"unfilled placeholders in {leftovers}"
-    for required in ("GUIDE.md", "GRAPHIFY.md", "mcp.example.json", ".github/workflows/ci.yml"):
+    # a single function ships only its file, its test and a guide: no Graphify setup, CI or README
+    for required in (
+        ("GUIDE.md",)
+        if name.startswith("function-")
+        else ("GUIDE.md", "GRAPHIFY.md", "mcp.example.json", ".github/workflows/ci.yml")
+    ):
         assert (out / required).is_file(), required
-    assert "graphify update" in (out / ".github/workflows/ci.yml").read_text()
+    if not name.startswith("function-"):
+        assert "graphify update" in (out / ".github/workflows/ci.yml").read_text()
     assert not (out / "manifest.yaml").exists()
     found = [(c.pack, c.kind, c.path) for c in detect_project(out)]
     assert found == TEMPLATE_COMPONENTS[name]

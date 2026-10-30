@@ -442,11 +442,13 @@ Built so far (infrastructure, not yet wired into a specific phase's tests):
 Open: no phase has a real-sandbox + real-cassette playbook test wired up yet (Phase 8 was next); `make check`
 stays on the fast `FakeProject` tests, the new real-sandbox ones will live under `make check-sandbox`.
 
-## Library platform option (2026-10-30)
+## Single-function platform option (2026-10-30)
 
-*Which platform?* has a fourth choice, **Library (functions only)**: a request like "a simple calculator, just a
-function is fine" (or that answer) builds from the `library-*` template of the chosen language, with no *Which
-frontend?* question and no web view.
+*Which platform?* has a fourth choice, **Just a function (one file, no library)**. A request like "a pure function
+without any library" (or that answer) builds from a `function-python`, `function-ts` or `function-go` template: the
+function in one file, its test, and a GUIDE; no package or build config, README, CI or Graphify, and no *Which
+frontend?* question. C++ has no function template yet and falls back (with a note). Each template's test passes in
+the real sandbox (`test_a_single_function_template_passes_its_own_test_in_the_real_sandbox`).
 
 ## Plan tab agent modal (2026-10-30)
 

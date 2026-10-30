@@ -97,3 +97,32 @@ async def test_the_cli_python_template_is_scaffolded_committed_and_its_real_test
         assert not update["lint"]
     finally:
         await client.delete_session(sid)
+
+
+@pytest.mark.parametrize(
+    ("language", "template"), [("Python", "function-python"), ("Go", "function-go"), ("TypeScript", "function-ts")]
+)
+async def test_a_single_function_template_passes_its_own_test_in_the_real_sandbox(
+    workspace: tuple[SandboxClient, str, Path], language: str, template: str
+) -> None:
+    client, ws, work = workspace
+    services = RealServices(work)
+    request = "A simple calculator, a pure function without any library"
+    inputs = {"request": request, "language": language}
+    state: dict[str, Any] = {
+        **initial_state("new_app", work, request=request, language=language),
+        "project_id": None,
+        "app_name": "calc",
+        "requirements": {"title": "Calc", "summary": "Adds numbers."},
+        "choice": asdict(stacks.choose(inputs)),
+    }
+    assert state["choice"]["template"] == template
+    state.update(await na.scaffold_node(services)(state))  # type: ignore[arg-type]
+    sid = await start_session(client, ws, work)
+    try:
+        services.use(RealProject(client, sid, work))
+        update = await na.verify_node(services)(state)  # type: ignore[arg-type]
+        assert update["passed"] is True, update
+        assert update["report"]["passed"] >= 1 and update["report"]["failed"] == 0
+    finally:
+        await client.delete_session(sid)

@@ -1,0 +1,10 @@
+name: function-python
+language: Python
+pack: python
+description: One Python function in one file, with its test. No package, no build step.
+stack: [Python 3.12, pytest]
+features: [one function in one file, a test file]
+extension_points:
+  - "{{name_snake}}.py — the function (and any small helpers)"
+  - "test_{{name_snake}}.py — its tests"
+run: { kind: library }
