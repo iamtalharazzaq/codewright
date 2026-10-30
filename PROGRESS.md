@@ -454,7 +454,8 @@ gone: confirming is not an agent's step.
 `python3 -m evals.scoreboard` (or `make eval-scoreboard`) prints the newest result of each suite (router, write_code,
 explain, review-*) as one table: passed/total, rate, average seconds, per-language split and false alarms. The model-free
 part runs in CI as `agent/tests/evals`: the scoreboard on canned and recorded result files, and the review grader scoring
-the seeded repos from canned findings. **Not built yet:** new-app prompts with acceptance tests, all `EXAMPLES.md`
+the seeded repos from canned findings. `python3 -m evals.run_metrics` adds success per playbook, minutes per task, approvals (human interventions) and
+model calls from the runs already in the system (retries are not recorded per run). **Not built yet:** new-app prompts with acceptance tests, all `EXAMPLES.md`
 requests scored against Section 7, replay equivalence, retries and human-intervention counts, GPU/CPU timing, the
 nightly full-repo run. Recorded numbers today: router 118/121, write_code 10/20, review 7/9 (Go) and 9/9 (Python).
 

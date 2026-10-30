@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
-from evals import review, scoreboard
+from evals import review, run_metrics, scoreboard
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -43,3 +44,29 @@ def test_the_review_grader_finds_a_seeded_issue_and_flags_a_false_alarm() -> Non
     assert graded["issues"][0]["found"] and graded["issues"][0]["severity_ok"]
     assert not any(i["found"] for i in graded["issues"][1:])
     assert len(graded["false_alarms"]) == 1
+
+
+def test_run_metrics_count_success_without_cancelled_runs() -> None:
+    def run(id: str, status: str, end: str = "2026-01-01T00:10:00+00:00") -> dict[str, object]:
+        return {
+            "id": id,
+            "playbook": "feature",
+            "status": status,
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": end,
+        }
+
+    runs = [
+        run("a", "completed"),
+        run("b", "failed"),
+        run("c", "cancelled"),
+        run("d", "completed", "2026-01-01T00:20:00+00:00"),
+    ]
+    details: dict[str, dict[str, Any]] = {
+        "a": {"approvals": [1, 2], "usage": {"llm_calls": 10}},
+        "d": {"approvals": [], "usage": {"llm_calls": 20}},
+    }
+    m = run_metrics.summarize(runs, details)["feature"]
+    assert (m["runs"], m["completed"], m["failed"], m["cancelled"]) == (4, 2, 1, 1)
+    assert round(m["success"], 2) == 0.67 and m["minutes"] == 15 and m["approvals"] == 1 and m["llm_calls"] == 15
+    assert "feature" in run_metrics.render({"feature": m})
