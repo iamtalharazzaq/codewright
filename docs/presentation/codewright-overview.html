@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codewright Overview</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#stage{position:fixed;left:50%;top:50%;width:1920px;height:1080px;transform-origin:center center}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;box-sizing:border-box;display:none;overflow:hidden}
+.slide.on{display:flex}
+.slide p,.slide h1,.slide h2,.slide h3,.slide ul{margin:0}
+.slide ul{padding-left:36px}
+.slide table{border-collapse:collapse}
+.slide th,.slide td{padding:10px 14px;border-bottom:1px solid rgba(128,128,128,.35)}
+#hud{position:fixed;right:16px;bottom:12px;color:#8a96a3;font:14px Arial,sans-serif;z-index:9}
+#notes{position:fixed;left:0;right:0;bottom:0;max-height:34vh;overflow:auto;background:#fff;color:#111;font:18px/1.45 Arial,sans-serif;padding:16px 24px;display:none;z-index:10;border-top:3px solid #13806F}
+</style></head><body>
+<div id="stage">
+<section class="slide" id="cover" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;justify-content:center;gap:36px">
+<p style="font-size:28px;letter-spacing:3px;text-transform:uppercase;color:#4FD1BF;font-weight:700">Technical and management overview</p>
+<h1 style="font-size:150px;font-weight:700;line-height:1.0">Codewright</h1>
+<p style="font-size:48px;line-height:1.25;color:#C9D1D9;width:1400px">An AI software team you can steer: it asks first, works in steps, checks itself, and waits for your approval.</p>
+<p style="position:absolute;left:128px;bottom:64px;font-size:24px;color:#8A96A3">Runs on a 9B open model · everything executes in an isolated sandbox</p>
+
+</section>
+
+<section class="slide" id="problem" data-transition="fade" style="background:#F4F2EC;color:#12171F;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#13806F;font-weight:700">The problem</p>
+<h2 style="font-size:68px;font-weight:700;line-height:1.1">Most AI coding tools are hard to trust</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:44px;border:1px solid #DDDAD0;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700">They guess</h3>
+<p style="font-size:30px;line-height:1.35;color:#4A525B">One vague request goes straight to code. Nobody asks which language, platform or features you meant.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:44px;border:1px solid #DDDAD0;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700">They run unchecked</h3>
+<p style="font-size:30px;line-height:1.35;color:#4A525B">The code is written and handed over. Tests, lint and secrets are your problem, and a green result can still be wrong.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:16px;background:#FFFFFF;padding:44px;border:1px solid #DDDAD0;border-radius:20px">
+<h3 style="font-size:40px;font-weight:700">They are a black box</h3>
+<p style="font-size:30px;line-height:1.35;color:#4A525B">You cannot see who did what, how long it took, or what it cost, and you cannot stop it at the right moment.</p>
+</div>
+</div>
+
+</section>
+
+<section class="slide" id="idea" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;justify-content:space-between;gap:48px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#4FD1BF;font-weight:700">The idea</p>
+<h2 style="font-size:76px;font-weight:700;line-height:1.1;width:1500px">Code decides what runs next. The model only fills in one step.</h2>
+</div>
+<div style="display:flex;gap:32px">
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#1B2330;padding:40px;border-radius:20px">
+<p style="font-size:60px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace">1</p>
+<h3 style="font-size:38px;font-weight:700">A fixed workflow</h3>
+<p style="font-size:28px;line-height:1.35;color:#B7C1CB">Each task type is a graph of named steps: plan, build, verify, review, deliver.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#1B2330;padding:40px;border-radius:20px">
+<p style="font-size:60px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace">2</p>
+<h3 style="font-size:38px;font-weight:700">A small model</h3>
+<p style="font-size:28px;line-height:1.35;color:#B7C1CB">A 9B open model answers one bounded question per step, in a schema that code validates.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#1B2330;padding:40px;border-radius:20px">
+<p style="font-size:60px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace">3</p>
+<h3 style="font-size:38px;font-weight:700">Humans at the gates</h3>
+<p style="font-size:28px;line-height:1.35;color:#B7C1CB">The run pauses for approval. You approve, edit or reject, and it resumes from where it stopped.</p>
+</div>
+</div>
+
+</section>
+
+<section class="slide" id="layers" data-transition="fade" style="background:#F4F2EC;color:#12171F;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#13806F;font-weight:700">How it works</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">Six layers, top to bottom</h2>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;align-items:center;gap:28px;background:#FFFFFF;padding:16px 28px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:34px;font-weight:700;color:#13806F;width:40px;font-family:'JetBrains Mono', monospace">1</p><p style="font-size:30px;font-weight:700;width:360px">Interface</p><p style="font-size:26px;color:#4A525B">Chat, Plan tab, Preview, run page</p></div>
+<div style="display:flex;align-items:center;gap:28px;background:#FFFFFF;padding:16px 28px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:34px;font-weight:700;color:#13806F;width:40px;font-family:'JetBrains Mono', monospace">2</p><p style="font-size:30px;font-weight:700;width:360px">Decision</p><p style="font-size:26px;color:#4A525B">Intent router, clarifier, confirm card, tiers</p></div>
+<div style="display:flex;align-items:center;gap:28px;background:#FFFFFF;padding:16px 28px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:34px;font-weight:700;color:#13806F;width:40px;font-family:'JetBrains Mono', monospace">3</p><p style="font-size:30px;font-weight:700;width:360px">Orchestration</p><p style="font-size:26px;color:#4A525B">19 playbook graphs, gates, budgets, Postgres checkpoints</p></div>
+<div style="display:flex;align-items:center;gap:28px;background:#FFFFFF;padding:16px 28px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:34px;font-weight:700;color:#13806F;width:40px;font-family:'JetBrains Mono', monospace">4</p><p style="font-size:30px;font-weight:700;width:360px">Execution</p><p style="font-size:26px;color:#4A525B">Role steps, structured output, the 5-try fix loop</p></div>
+<div style="display:flex;align-items:center;gap:28px;background:#FFFFFF;padding:16px 28px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:34px;font-weight:700;color:#13806F;width:40px;font-family:'JetBrains Mono', monospace">5</p><p style="font-size:30px;font-weight:700;width:360px">Capabilities</p><p style="font-size:26px;color:#4A525B">9B model, language packs, templates, code graph, skills</p></div>
+<div style="display:flex;align-items:center;gap:28px;background:#FFFFFF;padding:16px 28px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:34px;font-weight:700;color:#13806F;width:40px;font-family:'JetBrains Mono', monospace">6</p><p style="font-size:30px;font-weight:700;width:360px">Isolation</p><p style="font-size:26px;color:#4A525B">Sandbox runner and gateway: code only runs here</p></div>
+</div>
+
+</section>
+
+<section class="slide" id="flow" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:36px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#4FD1BF;font-weight:700">One playbook: new app</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">Nine steps, four human gates</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px">
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px;border:2px solid #4FD1BF"><p style="font-size:34px;font-weight:700">1 Requirements</p><p style="font-size:26px;color:#B7C1CB">Product Manager · gate</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px;border:2px solid #4FD1BF"><p style="font-size:34px;font-weight:700">2 Design</p><p style="font-size:26px;color:#B7C1CB">Architect · gate</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px;border:2px solid #4FD1BF"><p style="font-size:34px;font-weight:700">3 Screens</p><p style="font-size:26px;color:#B7C1CB">UI/UX Designer · gate</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:34px;font-weight:700">4 Scaffold</p><p style="font-size:26px;color:#B7C1CB">DevOps · code only</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:34px;font-weight:700">5 Build</p><p style="font-size:26px;color:#B7C1CB">Backend Developer · model</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:34px;font-weight:700">6 Verify</p><p style="font-size:26px;color:#B7C1CB">QA · tests, up to 5 tries</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:34px;font-weight:700">7 Review</p><p style="font-size:26px;color:#B7C1CB">Security · secrets, lint</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:34px;font-weight:700">8 Docs</p><p style="font-size:26px;color:#B7C1CB">Tech Writer · guide</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px;border:2px solid #4FD1BF"><p style="font-size:34px;font-weight:700">9 Publish</p><p style="font-size:26px;color:#B7C1CB">Release Mgr · result gate</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;font-size:24px;color:#8A96A3">Teal border = you approve before it continues. Roles are labels on steps; most steps are code plus one bounded model call.</p>
+
+</section>
+
+<section class="slide" id="guardrails" data-transition="fade" style="background:#F4F2EC;color:#12171F;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:36px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#13806F;font-weight:700">Guardrails</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">About ten, in four layers</h2>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+<div style="display:flex;flex-direction:column;gap:10px;background:#FFFFFF;padding:32px;border:1px solid #DDDAD0;border-radius:18px"><h3 style="font-size:34px;font-weight:700">Before work starts</h3><p style="font-size:26px;line-height:1.35;color:#4A525B">Unsupported-language rule · questions with defaults · Confirm card · risk tiers 0 to 3</p></div>
+<div style="display:flex;flex-direction:column;gap:10px;background:#FFFFFF;padding:32px;border:1px solid #DDDAD0;border-radius:18px"><h3 style="font-size:34px;font-weight:700">While a step runs</h3><p style="font-size:26px;line-height:1.35;color:#4A525B">Schema-checked output · tool allowlists · model-call limits · token and time budgets · model-outage recovery</p></div>
+<div style="display:flex;flex-direction:column;gap:10px;background:#FFFFFF;padding:32px;border:1px solid #DDDAD0;border-radius:18px"><h3 style="font-size:34px;font-weight:700">Checking the result</h3><p style="font-size:26px;line-height:1.35;color:#4A525B">Tests and lint must pass · 5-try fix loop · secret scan · test code kept out of app source · approval gates</p></div>
+<div style="display:flex;flex-direction:column;gap:10px;background:#FFFFFF;padding:32px;border:1px solid #DDDAD0;border-radius:18px"><h3 style="font-size:34px;font-weight:700">Containing damage</h3><p style="font-size:26px;line-height:1.35;color:#4A525B">Docker sandbox · egress allowlist gateway · localhost-only previews · 4 session cap · workspace-locked file tools</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;font-size:24px;color:#6A727B">Not yet: a judge that checks the result against the original request (next slides).</p>
+
+</section>
+
+<section class="slide" id="reality" data-transition="fade" style="background:#F4F2EC;color:#12171F;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#13806F;font-weight:700">Agents, honestly</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">What is an agent here, and what is not</h2>
+</div>
+<div style="display:flex;gap:28px">
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDDAD0;border-radius:18px">
+<p style="font-size:84px;font-weight:700;color:#13806F;font-family:'JetBrains Mono', monospace;line-height:1">19</p>
+<h3 style="font-size:34px;font-weight:700">Playbooks</h3>
+<p style="font-size:26px;line-height:1.35;color:#4A525B">Fixed graphs for new app, bug fix, tests, review, refactor, upgrade and more.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDDAD0;border-radius:18px">
+<p style="font-size:84px;font-weight:700;color:#13806F;font-family:'JetBrains Mono', monospace;line-height:1">16</p>
+<h3 style="font-size:34px;font-weight:700">Roles</h3>
+<p style="font-size:26px;line-height:1.35;color:#4A525B">Names and prompts on steps: Product Manager, Architect, QA, Security and others.</p>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:12px;background:#FFFFFF;padding:36px;border:1px solid #DDDAD0;border-radius:18px">
+<p style="font-size:84px;font-weight:700;color:#13806F;font-family:'JetBrains Mono', monospace;line-height:1">2</p>
+<h3 style="font-size:34px;font-weight:700">True agents</h3>
+<p style="font-size:26px;line-height:1.35;color:#4A525B">Project Manager with a Business Analyst sub-agent, with tool allowlists and call limits.</p>
+</div>
+</div>
+<p style="font-size:30px;line-height:1.4;color:#12171F">The strength is the controlled workflow, not free-roaming agents. A mixed-request Planner is designed but not built yet.</p>
+
+</section>
+
+<section class="slide" id="speed" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:30px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#4FD1BF;font-weight:700">Model speed, measured</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">About 65 tokens per second out</h2>
+</div>
+<div style="display:flex;gap:20px">
+<div style="flex:1;display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:64px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace;line-height:1">65</p><p style="font-size:26px;color:#B7C1CB">output tokens/s, average (middle 61, range 41 to 84)</p></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:64px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace;line-height:1">210</p><p style="font-size:26px;color:#B7C1CB">total tokens/s, prompt and output together</p></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:64px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace;line-height:1">6.2 s</p><p style="font-size:26px;color:#B7C1CB">average call: 897 tokens in, 403 out</p></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px;background:#1B2330;padding:26px;border-radius:16px"><p style="font-size:64px;font-weight:700;color:#4FD1BF;font-family:'JetBrains Mono', monospace;line-height:1">2,149</p><p style="font-size:26px;color:#B7C1CB">successful calls in the sample</p></div>
+</div>
+<table style="font-size:26px;color:#F4F2EC;width:1664px">
+<tr><th style="width:34%;text-align:left">Task</th><th style="width:22%;text-align:right">Output tokens</th><th style="width:20%;text-align:right">Seconds</th><th style="width:24%;text-align:right">Output tok/s</th></tr>
+<tr><td>Route the request</td><td style="text-align:right">40</td><td style="text-align:right">1.8</td><td style="text-align:right">22</td></tr>
+<tr><td>Check what is missing</td><td style="text-align:right">225</td><td style="text-align:right">4.5</td><td style="text-align:right">50</td></tr>
+<tr><td>Write code</td><td style="text-align:right">382</td><td style="text-align:right">6.0</td><td style="text-align:right">64</td></tr>
+<tr><td>Write tests</td><td style="text-align:right">708</td><td style="text-align:right">10.2</td><td style="text-align:right">69</td></tr>
+</table>
+<p style="position:absolute;left:128px;bottom:64px;font-size:24px;color:#8A96A3">Qwen3.5 9B (Q4_K_M) on llama.cpp, remote GPU through a tunnel; call time includes network and prompt processing. CPU profile not measured.</p>
+
+</section>
+
+<section class="slide" id="results" data-transition="fade" style="background:#F4F2EC;color:#12171F;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:36px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#13806F;font-weight:700">Evals, run live on 30 October</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">Strong at routing, weaker at writing code</h2>
+</div>
+<table style="font-size:28px;color:#12171F;width:1664px">
+<tr><th style="width:40%;text-align:left">Suite</th><th style="width:40%;text-align:left">What it checks</th><th style="width:20%;text-align:right">Result</th></tr>
+<tr><td>Intent router</td><td>Picks the right task type</td><td style="text-align:right"><b>118 / 121</b></td></tr>
+<tr><td>Golden rules</td><td>Asks language, 5 questions max, waits for Start</td><td style="text-align:right"><b>62 / 66</b></td></tr>
+<tr><td>Explain code</td><td>Cites the right files and facts</td><td style="text-align:right"><b>11 / 11</b></td></tr>
+<tr><td>Code review</td><td>Finds seeded bugs (Python, Go)</td><td style="text-align:right"><b>9/9, 7/9</b></td></tr>
+<tr><td>New apps</td><td>Builds small apps that pass checks</td><td style="text-align:right"><b>5 / 7</b></td></tr>
+<tr><td>Code snippets</td><td>Own tests pass after up to 5 tries</td><td style="text-align:right"><b>9 / 20</b></td></tr>
+</table>
+
+</section>
+
+<section class="slide" id="found" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:36px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#4FD1BF;font-weight:700">Why we run evals</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">The live run found real bugs, now fixed</h2>
+</div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="background:#1B2330;padding:24px 32px;border-radius:14px"><p style="font-size:30px;line-height:1.3"><b>Routing:</b> "Make a to-do list app" was treated as a feature on an existing project and never asked for a language.</p></div>
+<div style="background:#1B2330;padding:24px 32px;border-radius:14px"><p style="font-size:30px;line-height:1.3"><b>Sandbox sessions:</b> all 4 were held for 2 hours, so the fifth app failed. The longest-idle one is now released.</p></div>
+<div style="background:#1B2330;padding:24px 32px;border-radius:14px"><p style="font-size:30px;line-height:1.3"><b>Blank page:</b> the model wrote test code into app source, which a browser cannot load. Verify now flags it.</p></div>
+<div style="background:#1B2330;padding:24px 32px;border-radius:14px"><p style="font-size:30px;line-height:1.3"><b>False green:</b> "0 tests passed" and a template with no calculator in it both read as success. Both are now failures.</p></div>
+</div>
+
+</section>
+
+<section class="slide" id="demo" data-transition="fade" style="background:#F4F2EC;color:#12171F;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#13806F;font-weight:700">Live demo</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">Make a calculator, five moves</h2>
+</div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;gap:24px;align-items:center;background:#FFFFFF;padding:20px 30px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:40px;font-weight:700;color:#13806F;width:50px;font-family:'JetBrains Mono', monospace">1</p><p style="font-size:30px">Type "Make a calculator" and answer the dropdown questions</p></div>
+<div style="display:flex;gap:24px;align-items:center;background:#FFFFFF;padding:20px 30px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:40px;font-weight:700;color:#13806F;width:50px;font-family:'JetBrains Mono', monospace">2</p><p style="font-size:30px">Read the Confirm card, then press Start</p></div>
+<div style="display:flex;gap:24px;align-items:center;background:#FFFFFF;padding:20px 30px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:40px;font-weight:700;color:#13806F;width:50px;font-family:'JetBrains Mono', monospace">3</p><p style="font-size:30px">Watch the Plan tab, and click a step to see who got the request</p></div>
+<div style="display:flex;gap:24px;align-items:center;background:#FFFFFF;padding:20px 30px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:40px;font-weight:700;color:#13806F;width:50px;font-family:'JetBrains Mono', monospace">4</p><p style="font-size:30px">Approve the gates, then open the web view and run the app</p></div>
+<div style="display:flex;gap:24px;align-items:center;background:#FFFFFF;padding:20px 30px;border:1px solid #DDDAD0;border-radius:14px"><p style="font-size:40px;font-weight:700;color:#13806F;width:50px;font-family:'JetBrains Mono', monospace">5</p><p style="font-size:30px">Repeat as "just a function, no library" to get one file and a test</p></div>
+</div>
+
+</section>
+
+<section class="slide" id="next" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:40px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#4FD1BF;font-weight:700">Limits and next steps</p>
+<h2 style="font-size:60px;font-weight:700;line-height:1.1">What we know is missing</h2>
+</div>
+<div style="display:flex;gap:28px">
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#1B2330;padding:36px;border-radius:18px">
+<h3 style="font-size:36px;font-weight:700;color:#E8A94B">Known limits</h3>
+<ul style="font-size:28px;line-height:1.4;color:#D5DCE3"><li>A 9B model fails many algorithm tests (9 of 20)</li><li>React builds sometimes put JSX in plain .js files</li><li>Nothing checks the app against the original request</li><li>Mixed requests are not split into steps yet</li></ul>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:14px;background:#1B2330;padding:36px;border-radius:18px">
+<h3 style="font-size:36px;font-weight:700;color:#4FD1BF">Next</h3>
+<ul style="font-size:28px;line-height:1.4;color:#D5DCE3"><li>An acceptance guardrail: criteria from the requirements, checked against the built app</li><li>A planner for mixed requests</li><li>A stronger fix loop for TypeScript and JavaScript</li><li>Nightly evals with the live model</li></ul>
+</div>
+</div>
+
+</section>
+
+<section class="slide" id="close" data-transition="fade" style="background:#12171F;color:#F4F2EC;font-family:'DM Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;justify-content:center;gap:40px">
+<p style="font-size:28px;letter-spacing:3px;text-transform:uppercase;color:#4FD1BF;font-weight:700">Where this leaves us</p>
+<h2 style="font-size:84px;font-weight:700;line-height:1.1;width:1500px">A controlled AI team that is honest about where it fails</h2>
+<div style="display:flex;gap:48px">
+<p style="font-size:32px;line-height:1.35;color:#C9D1D9;width:760px"><b>For the team:</b> a model that is stronger at routing and rules than at writing algorithms, with every failure visible.</p>
+<p style="font-size:32px;line-height:1.35;color:#C9D1D9;width:760px"><b>For managers:</b> a decision on a stronger model or hosting, and on building the acceptance guardrail next.</p>
+</div>
+
+</section>
+
+</div>
+<div id="hud"></div><div id="notes"></div>
+<script>
+const N=["Open with the one-line promise: it is not a chatbot that dumps code. It is a controlled workflow. Tell the audience the deck has four parts: why, how it works, the evidence including model speed, then a live demo and what we need.", "Keep this short. The three points map to the three things Codewright adds: asking first, checking the result, and showing the work. Managers care about the third: visibility and control.", "This is the core design choice. A 9B model with a 4K context loops and overflows if you let it roam, so the graph is in code and the model is used like a function. For managers: this is why it is cheap to run and predictable. For engineers: LangGraph state graphs with Postgres checkpoints.", "Walk down the layers once. A request goes 1 to 6 and the result comes back up. Point out layer 3 for engineers: LangGraph graphs checkpointed in Postgres, so a run survives a restart. Point out layer 6 for security: only the sandbox runner holds the Docker socket, never the API.", "Use the Plan tab in the product to show this live. Click a step to open the modal: where it received the request, where it went next, how it worked. Be honest: roles are labels on steps, not separate autonomous agents. Scaffold, verify and review are mostly code.", "Every guardrail stops a different failure, so they all stay. For managers: nothing changes your code without an approval, and spending is capped by budgets. For security: code never runs on the host. Be upfront about the gap: structural checks pass even when the app does not do what was asked. That is the next guardrail to build.", "This is the honest slide for the technical audience. Do not oversell agents. The roles you see in the Plan tab are labels; the two real agents are the Project Manager and Business Analyst built on the deepagents library. Everything else is a fixed LangGraph step with one bounded model call.", "Source: the traces table, 2,149 successful remote-GPU model calls from the last days. Tokens per second is completion tokens divided by call time, so short answers look slower because fixed overhead dominates. A typical new app takes about 1.5 to 3 minutes end to end on this setup. The local CPU model was not running, so we have no CPU figure; say so if asked.", "Be straight about the weak rows. The router and rules are strong because code does most of the work. Writing correct algorithms is the 9B model's limit: 9 of 20 snippets, with C++ and Go the weakest. The guardrails make those failures visible in the Done card instead of hidden. Three of the 4 golden-rule misses were the scorer, fixed; one was a real routing bug, also fixed.", "This is the management slide: a measured process that finds and fixes defects, with the numbers to prove it. Each of these four came from running the evals against the live model, not from reading code. The honest follow-up is that the tests could not tell whether the app did what was asked, which is the acceptance check on the next slide.", "Do a dry run first. A build takes about 1.5 to 3 minutes, so talk through the Plan tab while it runs. Check the model tunnel is live an hour before. Keep a recorded run and one finished project as a fallback. Use scenarios that passed in the evals: the calculator, the BMI calculator and the single function.", "Present limits as measured, with the plan beside each one. The acceptance guardrail is the highest value item: it is the check that would have caught a calculator app that had no calculator in it.", "End on the decision you want. The model size is the main lever for code quality; the acceptance guardrail is the main lever for trust. Invite questions here and keep the demo ready."];
+const slides=[...document.querySelectorAll('.slide')];
+let i=Math.min(Math.max(parseInt(location.hash.slice(1)||'1',10)-1,0),slides.length-1);
+function fit(){const s=Math.min(innerWidth/1920,innerHeight/1080);document.getElementById('stage').style.transform='translate(-50%,-50%) scale('+s+')'}
+function show(n){i=Math.min(Math.max(n,0),slides.length-1);slides.forEach((s,k)=>s.classList.toggle('on',k===i));
+document.getElementById('hud').textContent=(i+1)+' / '+slides.length+'   ←/→ move · F full screen · N notes';
+document.getElementById('notes').textContent=N[i];history.replaceState(null,'','#'+(i+1))}
+addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' ','Enter'].includes(e.key))show(i+1);
+else if(['ArrowLeft','PageUp','Backspace'].includes(e.key))show(i-1);
+else if(e.key==='Home')show(0);else if(e.key==='End')show(slides.length-1);
+else if(e.key==='f'||e.key==='F'){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}
+else if(e.key==='n'||e.key==='N'){const n=document.getElementById('notes');n.style.display=n.style.display==='block'?'none':'block'}});
+addEventListener('click',e=>{if(e.target.closest('#notes'))return;show(e.clientX>innerWidth/2?i+1:i-1)});
+addEventListener('resize',fit);fit();show(i);
+</script></body></html>
