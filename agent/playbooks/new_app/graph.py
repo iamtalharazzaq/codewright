@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, NotRequired
 
@@ -499,6 +500,8 @@ def verify_node(services: RunServices) -> Any:
         lint = await project.lint(None)
         report = _merge_reports(results)
         lint_bad = [r for r in lint if not r.get("ok", True)]
+        if misplaced := misplaced_tests(project.work, state.get("written", [])):
+            lint_bad.append({"step": "tests in app code", "ok": False, "output": "\n".join(misplaced)})
         template = templates.get(_choice(state).template)
         summary = (f"{report.get('passed', 0)} test(s) passed" if ok else f"tests failing: {why[:120]}") + (
             f"; {len(lint_bad)} lint step(s) failed" if lint_bad else ""
@@ -514,6 +517,24 @@ def verify_node(services: RunServices) -> Any:
         )  # fmt: skip
 
     return node
+
+
+_TEST_FILE = re.compile(r"(\.(test|spec)\.[jt]sx?$|(^|/)tests?/|(^|/)test_[^/]*\.py$|_test\.(go|py)$)")
+_TEST_IMPORT = re.compile(r"""from\s+['"](vitest|jest|@jest/globals)['"]|^\s*(import pytest|def test_)""", re.MULTILINE)
+
+
+def misplaced_tests(work: Path, written: list[str]) -> list[str]:
+    """App source files that hold test code (the model put `describe(...)` in `calc.js`): a browser cannot load
+    `vitest`, so the app opens as a blank page, and the tests never run. Test files themselves are skipped."""
+    found = []
+    for rel in written:
+        path = work / rel
+        if _TEST_FILE.search(rel) or path.suffix not in {".js", ".jsx", ".ts", ".tsx", ".py"} or not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if _TEST_IMPORT.search(text):
+            found.append(f"{rel}: test code inside app source (move it to a test file)")
+    return found
 
 
 def failure_report(why: str, lint_bad: list[dict[str, Any]]) -> str:

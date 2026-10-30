@@ -331,3 +331,18 @@ def test_the_failure_log_goes_to_a_report_not_the_chat_card() -> None:
     }
     brief = na._brief(state)  # type: ignore[arg-type]
     assert "Report tab" in brief and "very long failing" not in brief
+
+
+def test_test_code_inside_app_source_is_found_but_test_files_are_not(tmp_path: Path) -> None:
+    files = {
+        "src/lib/calc.js": "import { describe, it } from 'vitest';\nexport const add = (a, b) => a + b;\n",
+        "src/lib/calc.test.js": "import { describe, it } from 'vitest';\n",
+        "src/App.jsx": "export const App = () => null;\n",
+        "tests/test_core.py": "def test_x():\n    pass\n",
+        "src/app.py": "def test_helper():\n    pass\n",
+    }
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    found = na.misplaced_tests(tmp_path, list(files))
+    assert [f.split(":")[0] for f in found] == ["src/lib/calc.js", "src/app.py"]

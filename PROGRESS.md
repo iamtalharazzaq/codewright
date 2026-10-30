@@ -300,7 +300,10 @@ again (flagged as a regression).
   new app's Done card has an **Open web view** button that only opens the Preview tab (which follows the run's own
   project, not the chat's); the app is started there by the user with **Run app**, never automatically. A FastAPI
   app has no page at `/` (it answered `{"detail": "Not Found"}`), so its preview link opens `/docs`: a preview now
-  carries a `path` (runner `PreviewSpec.path`, default `/`; the API sends `/docs` for uvicorn apps).
+  carries a `path` (runner `PreviewSpec.path`, default `/`; the API sends `/docs` for uvicorn apps). A blank preview
+  page came from the model writing `describe(...)` and `import ... from 'vitest'` into an app source file (a browser
+  cannot load vitest): `verify` now flags test code inside non-test source files (`misplaced_tests`) as a failing
+  check, so the run reads red instead of green.
 - **Phase 13: `scaffold` + `verify` real-verified, Python only** (`test_new_app_sandbox.py`). Drove
   `scaffold_node` then `verify_node` directly on the real `cli-python` template with hand-built requirements/choice
   state: the template is copied into the new project and committed, then its own tests and linters really run in the
