@@ -18,9 +18,8 @@ Working rules (from the previous sessions):
 - Pause and tell me if free disk drops below 15 GB (it is about 8.9 GB now: ask before `docker image prune -a`).
 
 Finish, in this order:
-1. Phase 20 (Evals): everything is built (see PROGRESS.md "Phase 20"). What is left is running it: bring the model up
-   (the GPU tunnel was offline, 404 from ngrok), run `make eval-nightly`, fix what the new suites find, and record the
-   numbers in PROGRESS.md. Replay equivalence has no eval of its own (Phase 7 replay test only).
+1. Phase 20 (Evals) is built and was run live (numbers and findings in PROGRESS.md "Phase 20"). Next: the model-quality
+   failures it found (JSX in .js files, Go/C++ write_code, the Go run that hung in verify), then re-run `make eval-nightly`.
 2. Build quality for new_app: (a) verify must fail an app that does not implement the request (acceptance check, not just
    the template's sample tests); (b) the fix loop for TypeScript/JavaScript apps (tsc errors, tests that contradict the code);
    (c) why "Write a calculator app" with no platform answer picked the API template; (d) C++ function template (falls back now).

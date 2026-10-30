@@ -1,0 +1,218 @@
+[
+  {
+    "run": "a96b7e8c-0bc9-4d4c-b532-a851b20ecf5d",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_reverse_list_preserves_object_identity: assert <solution.ListNode object at 0x7e867a2aa420> is None\n +  where <solution.ListNode o",
+    "error": null,
+    "n": 1,
+    "request": "Write code to reverse a linked list (iterative)",
+    "language": "Python",
+    "seconds": 81
+  },
+  {
+    "run": "adf26a13-5a74-48e9-aca4-be66c14ae8b7",
+    "status": "completed",
+    "passed": true,
+    "verify": "12 test(s) passed",
+    "error": null,
+    "n": 2,
+    "request": "Check if a string is a palindrome (ignore case, spaces and punctuation; empty string is true)",
+    "language": "Python",
+    "seconds": 21
+  },
+  {
+    "run": "c4d5737c-ee07-4f4d-8654-00fc8ba2c4a1",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_large_n_100: AssertionError: assert 'Buzz' == 'FizzBuzz'\n  \n  - FizzBuzz\n  + Buzz\n---\n=================================== FAILURES",
+    "error": null,
+    "n": 3,
+    "request": "FizzBuzz from 1 to 100",
+    "language": "Python",
+    "seconds": 76
+  },
+  {
+    "run": "d6968dc9-6101-4c5f-a282-2972a614cafa",
+    "status": "completed",
+    "passed": true,
+    "verify": "12 test(s) passed",
+    "error": null,
+    "n": 4,
+    "request": "Binary search in a sorted array (not found, first and last element, duplicates)",
+    "language": "Python",
+    "seconds": 31
+  },
+  {
+    "run": "84b4f7b1-9bfa-4632-be51-b12437a8072b",
+    "status": "completed",
+    "passed": true,
+    "verify": "12 test(s) passed",
+    "error": null,
+    "n": 5,
+    "request": "Two Sum: indices of two numbers adding to a target, O(n) with a hash map (no solution, negatives)",
+    "language": "Python",
+    "seconds": 41
+  },
+  {
+    "run": "612fa2fa-e316-4309-ac90-e96d9f7d47f1",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_merge_negative_numbers: assert [-2, -4, -1, -3] == [-4, -3, -2, -1]\n  \n  At index 0 diff: -2 != -4\n  \n  Full diff:\n    [\n  +     -",
+    "error": null,
+    "n": 6,
+    "request": "Merge two sorted linked lists (one or both empty)",
+    "language": "Python",
+    "seconds": 81
+  },
+  {
+    "run": "ed985271-8d67-44d2-afe1-321ee750a8bc",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_long_list_cycle_middle: assert None is <solution.ListNode object at 0x75076f987490>\n +  where None = detect_cycle(<solution.ListNo",
+    "error": null,
+    "n": 7,
+    "request": "Detect a cycle in a linked list with Floyd's algorithm (no cycle, cycle at head)",
+    "language": "Python",
+    "seconds": 91
+  },
+  {
+    "run": "8ad0113a-f4d5-474b-a7d6-0ad7c752bb97",
+    "status": "completed",
+    "passed": false,
+    "verify": "0 test(s) passed",
+    "error": null,
+    "n": 8,
+    "request": "Check balanced parentheses (mixed brackets, empty, unmatched)",
+    "language": "Python",
+    "seconds": 181
+  },
+  {
+    "run": "4feab8b4-b4e5-488e-981f-ecd5d7ea7019",
+    "status": "completed",
+    "passed": true,
+    "verify": "11 test(s) passed",
+    "error": null,
+    "n": 9,
+    "request": "Implement an LRU cache with O(1) get and put (capacity 1, eviction order)",
+    "language": "Python",
+    "seconds": 31
+  },
+  {
+    "run": "b7903374-a632-4f3a-af86-d8075c0e9ea2",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: snippet_tests::snippet_tests: \n---\n1/1 Test #1: snippet_tests ....................***Exception: SegFault  0.10 sec\n0% tests passed, 1 tests failed out",
+    "error": null,
+    "n": 10,
+    "request": "Merge sort and quick sort (empty, duplicates, already sorted)",
+    "language": "C++",
+    "seconds": 111
+  },
+  {
+    "run": "fc13940c-24c8-4093-bffc-058083bb9bdc",
+    "status": "completed",
+    "passed": true,
+    "verify": "10 test(s) passed",
+    "error": null,
+    "n": 11,
+    "request": "Fibonacci with memoization (n = 0, 1, large n)",
+    "language": "Python",
+    "seconds": 31
+  },
+  {
+    "run": "1c1b095b-7a11-44fc-aa27-76acdbf77b6f",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: test_solution::test_unicode_characters: AssertionError: assert 2 == 1\n +  where 2 = len({'acf\u00e9': ['caf\u00e9'], 'af\u00e7\u00e9': ['fa\u00e7\u00e9']})\ntest_solution::test_spec",
+    "error": null,
+    "n": 12,
+    "request": "Group anagrams (empty strings, single word)",
+    "language": "Python",
+    "seconds": 71
+  },
+  {
+    "run": "860ab4b3-5c7e-4635-894f-9e45d349e296",
+    "status": "completed",
+    "passed": true,
+    "verify": "10 test(s) passed",
+    "error": null,
+    "n": 13,
+    "request": "BFS and DFS on a graph (disconnected graph, cycles)",
+    "language": "Python",
+    "seconds": 66
+  },
+  {
+    "run": "d93b29c8-9f7f-4d98-9c6b-a939a00f60dc",
+    "status": "completed",
+    "passed": true,
+    "verify": "1 test(s) passed",
+    "error": null,
+    "n": 14,
+    "request": "Implement a stack and a queue (empty pop, peek)",
+    "language": "C++",
+    "seconds": 41
+  },
+  {
+    "run": "be8a6caa-57bc-453c-8f95-de1084f353ee",
+    "status": "completed",
+    "passed": true,
+    "verify": "12 test(s) passed",
+    "error": null,
+    "n": 15,
+    "request": "Implement a Trie with insert, search and startsWith (prefix vs full word)",
+    "language": "TypeScript",
+    "seconds": 46
+  },
+  {
+    "run": "58f22e01-f850-4ff7-9000-591dd07b4015",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: snippet_tests::snippet_tests: \n---\nErrors while running CTest\n1/1 Test #1: snippet_tests ....................Subprocess aborted***Exception:   0.13 se",
+    "error": null,
+    "n": 16,
+    "request": "Dijkstra's shortest path (unreachable nodes, ties)",
+    "language": "C++",
+    "seconds": 131
+  },
+  {
+    "run": "34767dad-f74d-4204-9963-91af81c2877c",
+    "status": "completed",
+    "passed": false,
+    "verify": "Still failing after 5 attempts: snippet::TestRotateMatrix90/2x2: === RUN   TestRotateMatrix90/2x2\n    solution_test.go:42: got 2, want 3\n    solution_test.go:42: got 4, want 1\n    so",
+    "error": null,
+    "n": 17,
+    "request": "Rotate a matrix 90 degrees (1x1, n x n)",
+    "language": "Go",
+    "seconds": 56
+  },
+  {
+    "run": "d67dcfcb-8cbb-4f30-ab76-c018eeceacea",
+    "status": "completed",
+    "passed": true,
+    "verify": "31 test(s) passed",
+    "error": null,
+    "n": 18,
+    "request": "Debounce function (rapid calls, trailing call, cancel)",
+    "language": "JavaScript",
+    "seconds": 111
+  },
+  {
+    "passed": false,
+    "status": "error",
+    "error": "run ba9f8a8d-c843-4693-b55a-c6b0ad254332: nothing after 900s",
+    "n": 19,
+    "request": "Reverse a linked list in Go",
+    "language": "Go",
+    "seconds": 902
+  },
+  {
+    "passed": false,
+    "status": "error",
+    "error": "HTTP Error 409: Conflict",
+    "n": 20,
+    "request": "Matrix multiplication, as fast as possible (non-square, mismatched sizes)",
+    "language": "C++",
+    "seconds": 0
+  }
+]

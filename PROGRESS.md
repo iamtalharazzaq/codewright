@@ -458,20 +458,30 @@ summary), **Sent to** (the next step, and the files this step produced) and **Ho
 calls, tokens and time, files; "No model call: done by code" for code steps). The "Confirm what to make / You" row is
 gone: confirming is not an agent's step.
 
-## Phase 20: Evals (built 2026-10-30; the live runs of the two new suites are still to do)
+## Phase 20: Evals (built and run live 2026-10-30)
 
 | Piece | How | State |
 |---|---|---|
 | Scoreboard | `python3 -m evals.scoreboard` / `make eval-scoreboard`: newest result of each suite, rate, seconds, per-language | built, runs on the recorded results |
 | Run metrics | `python3 -m evals.run_metrics`: per playbook success, minutes (and by GPU/CPU profile), approvals (human interventions), model calls, **retries** | built; retries are new (`retries` in `GET /runs/{id}`: steps that started again) |
-| New-app prompts with acceptance tests | `python3 -m evals.new_app`: 7 `EXAMPLES.md` §3 apps built end to end; passes when the run completed, tests passed, the source matches every `must` pattern and holds no test code | built, grader tested offline; **not run live**: the GPU tunnel answered 404 (ngrok offline) |
-| All EXAMPLES.md requests vs §8 | `python3 -m evals.examples`: every quoted request (66) in a real chat; checks 2-4 (language asked or declined, at most 5 questions each with a default, confirm card and no run before Start) | built, grader tested offline; **not run live** (same tunnel) |
+| New-app prompts with acceptance tests | `python3 -m evals.new_app`: 7 `EXAMPLES.md` §3 apps built end to end; passes when the run completed, tests passed, the source matches every `must` pattern and holds no test code | built; run live: **5/7** (the plain function, calculator, tic-tac-toe, to-do and BMI apps pass; guess-number has no tests in its test file, password-generator's CLI tests exit with code 2) |
+| All EXAMPLES.md requests vs §8 | `python3 -m evals.examples`: every quoted request (66) in a real chat; checks 2-4 (language asked or declined, at most 5 questions each with a default, confirm card and no run before Start) | built; run live: **62/66** first time; the 4 misses were 3 scorer errors (fixed) and one real routing bug (fixed, see below) |
 | Fixtures in CI, nightly | `agent/tests/evals` runs with the normal tests; `.github/workflows/nightly-evals.yml` (fixtures, no remote yet); `make eval-nightly` runs the live suites | built |
 | Replay equivalence | covered by the Phase 7 replay (`test_replay_sandbox.py`); no separate eval | not built |
 | §8 checks 1, 5-9 | need a full build per request; `evals.new_app` covers 5 (works) and 7 (tests) for its 7 apps | partial |
 
-Recorded numbers today: router 118/121, explain 11/11, write_code 10/20, review 7/9 (Go) and 9/9 (Python).
-**To finish:** bring the model up, then `make eval-nightly` and record the numbers here.
+Numbers (live, 2026-10-30): router 118/121 (98%), EXAMPLES.md §8 checks 2-4 62/66, new_app 5/7, write_code 9/20
+(was 10/20 on 2026-10-29: Python 6/12, C++ 1/4, Go 0/2, JS 1/1, TS 1/1), explain 11/11, review 7/9 (Go) and 9/9 (Python).
+
+Bugs the live runs found, all fixed and committed: "Make a to-do list app" with no project was routed as a feature
+(rule added: make/build/create a ... app with nothing attached is a new app); a React app with frontend tests unticked
+failed verify for having no test runner; **all 4 sandbox sessions were held for 2 hours, so the fifth app built in that time
+failed with "at most 4 sandbox sessions"** (the runner now drops the longest-idle session); the write_code grader counted
+"0 test(s) passed" as a pass.
+
+Still failing, model quality (not fixed): JSX written into `.js` files breaks the Vite build; write_code misses on
+C++ (3/4) and Go (2/2: a rotate-matrix test, and one Go run stuck in verify for 15 minutes, which also made the next
+example fail with 409), several Python algorithms fail their own edge-case tests after 5 attempts.
 
 ## Phase 19: Deepen the Language Packs (complete for this pass, 2026-10-29 — more framework coverage can land later)
 
