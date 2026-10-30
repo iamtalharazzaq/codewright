@@ -46,8 +46,8 @@ check-host:    ## The same checks on the host (needs uv and pnpm; DB tests need 
 eval-scoreboard:  ## The newest result of each eval suite as one table (no model needed)
 	docker compose --profile checks run --rm --no-deps api-checks python3 -m evals.scoreboard
 
-eval-nightly:  ## The live suites in turn (needs the stack up and the model reachable), then the scoreboard
-	python3 -m evals.router
+eval-nightly:  ## (export LLM_REMOTE_GPU_URL first) The live suites in turn (needs the stack up and the model reachable), then the scoreboard
+	$(CHECKS) run --rm -v $(CURDIR)/evals:/app/evals -e LLM_URL=$${LLM_REMOTE_GPU_URL} api-checks sh -c 'python3 -m evals.router --url $$LLM_URL'
 	python3 -m evals.examples
 	python3 -m evals.new_app
 	python3 -m evals.write_code

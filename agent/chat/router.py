@@ -6,6 +6,7 @@ The model only classifies; tiers come from `config/tiers.yaml`, raised by app/ch
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
@@ -147,6 +148,8 @@ async def route(
         max_tokens=200,
     )
     out = result.value
+    if not has_project and out.intent in _NOT_NEW and _MAKE_AN_APP.match(text.strip()):
+        out.intent = "new_app"  # "Make a to-do list app" with nothing attached is a new app, whatever the model said
     if out.intent == "off_topic":
         return Route(
             None,
@@ -168,6 +171,15 @@ async def route(
         skill=out.skill if out.skill and out.skill in {n for n, _ in skills} else None,
         usage=result.usage,
     )
+
+
+_NOT_NEW = {"write_code", "add_feature", "frontend_modernize"}
+_MAKE_AN_APP = re.compile(
+    r"^(please\s+)?(make|build|create|develop)\s+(me\s+)?(a|an|my)\s+(?!function\b|algorithm\b)[\w\s\-/']{0,60}?"
+    r"\b(app|application|game|website|site|page|tool|tracker|timer|calculator|generator|converter|previewer|"
+    r"manager|system|platform|script|bot|dashboard)\b",
+    re.I,
+)
 
 
 def _declined(decline: LanguageDecline) -> Route:

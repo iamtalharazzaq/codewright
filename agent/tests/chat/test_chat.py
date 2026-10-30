@@ -192,3 +192,12 @@ async def test_the_card_promises_only_what_was_ticked() -> None:
         client, "new_app", "A calculator", answers=[("x", "Additional things to be added ")], round_no=2
     )
     assert none.card.deliver == "A working app in Preview, GUIDE.md and a Done card"
+
+
+@pytest.mark.parametrize("text", ["Make a to-do list app", "Build me a password generator", "Create a booking app"])
+async def test_make_an_app_with_no_project_is_a_new_app_even_if_the_model_says_otherwise(text: str) -> None:
+    reply = json.dumps({"intent": "add_feature", "confidence": 0.9, "size": "small", "targets": []})
+    client, _ = client_returning(reply, reply, reply)
+    assert (await router.route(client, text)).intent == "new_app"
+    assert (await router.route(client, text, has_project=True)).intent == "add_feature"
+    assert (await router.route(client, "Make a function that adds")).intent == "add_feature"

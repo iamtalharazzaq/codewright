@@ -25,6 +25,7 @@ from evals.review import call
 EXAMPLES = Path(__file__).resolve().parent.parent / "EXAMPLES.md"
 ROW = re.compile(r'^\|\s*(\d+)\s*\|\s*"([^"]+)"')
 MAX_QUESTIONS = 5
+NAMED_LANGUAGE = re.compile(r"\b(in|using|with)\s+(python|typescript|javascript|go|golang|c\+\+)\b", re.I)
 
 
 def requests_in(text: str) -> list[tuple[int, str, str]]:
@@ -39,14 +40,15 @@ def requests_in(text: str) -> list[tuple[int, str, str]]:
     return found
 
 
-def grade(messages: list[dict[str, Any]], started_run: bool) -> dict[str, Any]:
+def grade(messages: list[dict[str, Any]], started_run: bool, request: str = "") -> dict[str, Any]:
     """Checks 2-4 from the assistant messages of one chat."""
     kinds = [m["kind"] for m in messages if m["role"] == "assistant"]
     asked = [m for m in messages if m["kind"] == "questions"]
     questions = [q for m in asked for q in (m["data"].get("questions") or [])]
-    declined = any(m["kind"] == "text" and re.search(r"isn.t supported|not supported|don.t support", m["content"], re.I)
-                   for m in messages if m["role"] == "assistant")  # fmt: skip
-    asks_language = any(re.search(r"language", q["question"], re.I) for q in questions)
+    declined = any(m["kind"] == "decline" for m in messages if m["role"] == "assistant")
+    asks_language = any(re.search(r"language", q["question"], re.I) for q in questions) or bool(
+        request and NAMED_LANGUAGE.search(request)  # "... in Go": the user already chose, so nothing to ask
+    )
     confirmed = "confirm" in kinds
     one_message = len(asked) <= 1 or all(len(m["data"].get("questions") or []) <= MAX_QUESTIONS for m in asked)
     return {
@@ -84,7 +86,7 @@ def score(api: str, request: str, wait: float) -> dict[str, Any]:
         call(api, "POST", f"/conversations/{conv}/messages", {"content": "Defaults are fine."})
         detail = settle(api, conv, wait)
     started = any(m.get("run_id") for m in detail["messages"])
-    return {"conversation": conv, **grade(detail["messages"], started)}
+    return {"conversation": conv, **grade(detail["messages"], started, request)}
 
 
 def main() -> None:

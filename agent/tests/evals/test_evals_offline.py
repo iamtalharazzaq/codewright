@@ -102,5 +102,7 @@ def test_examples_md_requests_are_found_and_graded_on_checks_2_to_4() -> None:
     assert not examples.passed(examples.grade(good, started_run=True))  # a run began without Start
     no_language = [msg("assistant", "questions", questions=[{"question": "Which style?", "default": "x"}])]
     assert not examples.grade([*no_language, msg("assistant", "confirm")], False)["language_asked_or_declined"]
-    declined = [msg("assistant", "text", "PHP isn't supported. I can build it in Python.")]
+    declined = [msg("assistant", "decline", "PHP isn't supported. I can build it in Python.")]
+    named = [msg("assistant", "confirm")]
+    assert examples.passed(examples.grade(named, started_run=False, request="Reverse a linked list in Go"))
     assert examples.passed(examples.grade(declined, started_run=False))
