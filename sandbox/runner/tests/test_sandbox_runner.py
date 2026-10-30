@@ -186,6 +186,19 @@ async def test_session_limit_and_cleanup(runner: tuple[Runner, FakeDocker]) -> N
     assert sessions[0].network not in docker.nets
 
 
+async def test_a_preview_link_opens_the_path_it_was_given(runner: tuple[Runner, FakeDocker], tmp_path: Path) -> None:
+    r, _ = runner
+    session = await r.create_session(SessionSpec(workspace="p"))
+    page = await r.start_preview(session.id, PreviewSpec(kind="web", toolchain="node", cmd=["x"], port=3000))
+    api = await r.start_preview(
+        session.id, PreviewSpec(kind="web", toolchain="python", cmd=["uvicorn"], port=8000, path="/docs")
+    )
+    assert page.as_dict()["url"].endswith("/") and not page.as_dict()["url"].endswith("/docs")
+    assert api.as_dict()["url"] == f"http://localhost:{api.host_port}/docs"
+    with pytest.raises(ValidationError):
+        PreviewSpec(kind="web", toolchain="node", cmd=["x"], port=3000, path="http://evil.example/")
+
+
 async def test_web_preview_routes(runner: tuple[Runner, FakeDocker], tmp_path: Path) -> None:
     r, docker = runner
     session = await r.create_session(SessionSpec(workspace="p"))

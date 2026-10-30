@@ -344,6 +344,8 @@ class SandboxService:
             "env": spec.env,
             "port": spec.port,
             "name": spec.name or c.path,
+            # A FastAPI app has no page at "/": its link opens the interactive docs.
+            **({"path": "/docs"} if "uvicorn" in spec.cmd else {}),
             **({"share_network_of": partner} if partner else {}),
         }
         preview = await self.client.start_preview(sid, body)

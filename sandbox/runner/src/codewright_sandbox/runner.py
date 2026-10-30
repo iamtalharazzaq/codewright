@@ -109,6 +109,8 @@ class PreviewSpec(ProcessSpec):
     name: str = ""  # a label for the UI ("api", "web")
     # Share another preview's network (same `localhost`): a frontend dev server that proxies to localhost:<api>.
     share_network_of: str | None = None
+    # Where the preview's link opens: "/" for a page; an API with no page at "/" opens its docs ("/docs").
+    path: str = Field(default="/", pattern=r"^/[A-Za-z0-9._~/-]*$")
 
 
 class SqlSpec(BaseModel):
@@ -162,6 +164,7 @@ class Preview:
     cmd: list[str]
     target_port: int | None = None
     host_port: int | None = None
+    path: str = "/"
     address: str | None = None  # a web preview's IP on its session network
     output: Output = field(default_factory=Output)
     writer: asyncio.StreamWriter | None = None
@@ -176,7 +179,7 @@ class Preview:
             "name": self.name,
             "cmd": self.cmd,
             "port": self.target_port,
-            "url": f"http://localhost:{self.host_port}/" if self.host_port else None,
+            "url": f"http://localhost:{self.host_port}{self.path}" if self.host_port else None,
             "running": not self.output.closed,
             "exit_code": self.output.exit_code,
             "started_at": self.started_at,
@@ -570,6 +573,7 @@ class Runner:
                     info = await self.docker.inspect(container)
                     preview.address = info["NetworkSettings"]["Networks"][self._network_name(session)]["IPAddress"]
                 preview.target_port = spec.port
+                preview.path = spec.path
                 preview.host_port = self._free_port()
                 self._write_routes()
             preview.tasks.append(asyncio.create_task(self._watch_exit(preview)))
