@@ -146,6 +146,7 @@ Not a substitute for the automated tests (`make check`) — this is for a human 
   `GRAPHIFY.md`/`mcp.example.json`, no `README.md` and no browser-code tests. Tick them: they come back.
 - On the Done card of a new app click **Open web view**. **Expect:** the Preview tab opens with a **Run app** button and
   nothing is running until you click it.
+- Click any step in the **Plan** tab. **Expect:** a modal with *Received from*, *Sent to* and *How it worked*.
 - Watch the side panel's **Plan** tab while the questions are open: Product Manager is in progress; after the card
   shows it is done, then your confirmation, then the run's steps. A red build: the chat card says the log is in the
   **Report** tab ("Failures"), where the test and lint output is.

@@ -3,6 +3,7 @@
 import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AgentModal } from "@/components/chat/agent-modal";
 import { getRun, type ChatMessage, type PlanItem } from "@/lib/api";
 import { roleLabel } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -26,19 +27,12 @@ export function intakeRows(messages: ChatMessage[], hasRun: boolean): PlanRow[] 
   const confirm = last("confirm");
   if (!questions && !confirm && !hasRun) return [];
   const gathered = !!confirm || hasRun;
-  const confirmed = hasRun || (!!confirm && !["open", "changing"].includes(confirm.data.state ?? "open"));
   return [
     {
       id: "gather",
       title: "Gather the missing details",
       role: "product_manager",
       status: gathered ? "done" : "in_progress",
-    },
-    {
-      id: "confirm",
-      title: "Confirm what to make",
-      role: "you",
-      status: confirmed ? "done" : gathered ? "in_progress" : "pending",
     },
   ];
 }
@@ -67,6 +61,7 @@ export function PlanTab({
   runTick: number;
 }) {
   const [steps, setSteps] = useState<PlanItem[]>([]);
+  const [open, setOpen] = useState<PlanRow | null>(null);
   useEffect(() => {
     if (!runId) return;
     const ctrl = new AbortController();
@@ -83,19 +78,29 @@ export function PlanTab({
     );
   }
   return (
-    <ol aria-label="Plan" className="flex flex-col gap-1 overflow-y-auto p-4">
-      {rows.map((r) => (
-        <li key={r.id} className="flex items-start gap-3 rounded-md px-2 py-2">
-          <span className="mt-0.5">{ICON[r.status]}</span>
-          <span className="flex min-w-0 flex-col">
-            <span className={cn("text-sm", r.status === "pending" ? "text-muted-foreground" : "font-medium")}>
-              {r.title}
-              <span className="sr-only"> ({STATE_WORD[r.status]})</span>
-            </span>
-            <span className="text-xs text-muted-foreground">{r.role === "you" ? "You" : roleLabel(r.role)}</span>
-          </span>
-        </li>
-      ))}
-    </ol>
+    <>
+      <ol aria-label="Plan" className="flex flex-col gap-1 overflow-y-auto p-4">
+        {rows.map((r) => (
+          <li key={r.id}>
+            <button
+              type="button"
+              onClick={() => setOpen(r)}
+              aria-label={`${r.title}, ${roleLabel(r.role)}: show details`}
+              className="flex w-full items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <span className="mt-0.5">{ICON[r.status]}</span>
+              <span className="flex min-w-0 flex-col">
+                <span className={cn("text-sm", r.status === "pending" ? "text-muted-foreground" : "font-medium")}>
+                  {r.title}
+                  <span className="sr-only"> ({STATE_WORD[r.status]})</span>
+                </span>
+                <span className="text-xs text-muted-foreground">{roleLabel(r.role)}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+      <AgentModal row={open} rows={rows} runId={runId} onClose={() => setOpen(null)} />
+    </>
   );
 }

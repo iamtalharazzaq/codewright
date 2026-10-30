@@ -442,6 +442,13 @@ Built so far (infrastructure, not yet wired into a specific phase's tests):
 Open: no phase has a real-sandbox + real-cassette playbook test wired up yet (Phase 8 was next); `make check`
 stays on the fast `FakeProject` tests, the new real-sandbox ones will live under `make check-sandbox`.
 
+## Plan tab agent modal (2026-10-30)
+
+The Plan tab's rows are buttons: clicking an agent opens a modal with **Received from** (the previous step and its
+summary), **Sent to** (the next step, and the files this step produced) and **How it worked** (its summary, model
+calls, tokens and time, files; "No model call: done by code" for code steps). The "Confirm what to make / You" row is
+gone: confirming is not an agent's step.
+
 ## Phase 20: Evals (first slice, 2026-10-30)
 
 `python3 -m evals.scoreboard` (or `make eval-scoreboard`) prints the newest result of each suite (router, write_code,
