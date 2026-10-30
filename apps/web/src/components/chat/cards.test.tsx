@@ -53,6 +53,12 @@ describe("DoneCard preview", () => {
     expect(onShowTab).toHaveBeenCalledExactlyOnceWith("preview");
   });
 
+  it("has no web-view button for a plain function, which has nothing to open", () => {
+    const done = { ...message({ summary: "Calc finished.", playbook: "new_app", viewable: false }), run_id: "r1" };
+    render(<DoneCard message={done} onSend={vi.fn()} onShowTab={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Open web view" })).not.toBeInTheDocument();
+  });
+
   it("has no web-view button for a run that is not a new app", () => {
     render(<DoneCard message={message({ summary: "Fixed." })} onSend={vi.fn()} onShowTab={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Open web view" })).not.toBeInTheDocument();

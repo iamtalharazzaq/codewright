@@ -468,6 +468,8 @@ export interface ChatMessage {
     guide?: string | null;
     suggestions?: string[];
     playbook?: string;
+    /** A new app that can be opened in the Preview tab (false for a plain function or library). */
+    viewable?: boolean;
     /** A "done" message's own honest pass/fail (a step may have failed even though the run reached "completed"). */
     passed?: boolean;
     [key: string]: unknown;

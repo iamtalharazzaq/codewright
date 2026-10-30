@@ -26,6 +26,7 @@ from sqlalchemy import select, update
 from agent.chat import corrections, explain, intake, router, skill_draft
 from agent.chat.answer import stream_answer
 from agent.chat.intents import INTENT_LABELS, PLAYBOOK_PHASE, intent_config, named_language, split_slash
+from agent.language_packs import templates
 from agent.llm.client import LLMClient, LLMError, LLMUnavailable
 from agent.llm.client import Message as LLMMessage
 from agent.llm.structured import StructuredOutputError
@@ -938,8 +939,18 @@ class ChatService:
                 "suggestions": _suggestions(run.playbook),
                 "skill": skill,
                 "playbook": run.playbook,
+                "viewable": _viewable(state),
             },
         }
+
+
+def _viewable(state: dict[str, Any]) -> bool:
+    """Whether the app has something to open in the Preview tab: not a plain function or a library."""
+    template = (state.get("choice") or {}).get("template")
+    try:
+        return bool(template) and templates.get(str(template)).run.get("kind") != "library"
+    except KeyError:
+        return True
 
 
 def _context(project: Project | None, memory: list[MemoryItem], uploads: list[Upload]) -> str:

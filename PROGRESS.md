@@ -448,7 +448,8 @@ stays on the fast `FakeProject` tests, the new real-sandbox ones will live under
 without any library" (or that answer) builds from a `function-python`, `function-ts` or `function-go` template: the
 function in one file, its test, and a GUIDE; no package or build config, README, CI or Graphify, and no *Which
 frontend?* question. C++ has no function template yet and falls back (with a note). Each template's test passes in
-the real sandbox (`test_a_single_function_template_passes_its_own_test_in_the_real_sandbox`).
+the real sandbox (`test_a_single_function_template_passes_its_own_test_in_the_real_sandbox`). The Done card has no
+**Open web view** button for a function or library (`viewable: false`, set from the template's run kind).
 
 ## Plan tab agent modal (2026-10-30)
 

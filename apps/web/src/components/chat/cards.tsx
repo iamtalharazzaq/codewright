@@ -301,7 +301,7 @@ export function DoneCard({
           <Markdown>{guide}</Markdown>
         </details>
       )}
-      {message.data.playbook === "new_app" && message.run_id && onShowTab && (
+      {message.data.playbook === "new_app" && message.data.viewable !== false && message.run_id && onShowTab && (
         <div>
           {/* Only opens the Preview tab: the app is started there, by the user, with "Run app". */}
           <Button size="sm" variant="outline" onClick={() => onShowTab("preview")}>
