@@ -553,7 +553,7 @@ def failure_report(why: str, lint_bad: list[dict[str, Any]]) -> str:
 
 def tests_green(results: list[dict[str, Any]], need_tests: bool = True) -> tuple[bool, str]:
     if not need_tests:  # tests were not asked for: a component with no test runner at all is fine
-        results = [r for r in results if r.get("report") or r.get("steps")]
+        results = [r for r in results if r.get("report")]
         if not results:
             return True, ""
     ok = bool(results) and all(is_green(r.get("report")) for r in results)

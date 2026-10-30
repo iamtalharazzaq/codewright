@@ -280,6 +280,12 @@ class Runner:
     async def create_session(self, spec: SessionSpec) -> Session:
         async with self._lock:
             if len(self.sessions) >= self.config.max_sessions:
+                # Make room: the session that has been idle the longest and has nothing running in it (no command, no
+                # preview). Its workspace is on disk, so the next action on that project starts a fresh session.
+                idle = [s for s in self.sessions.values() if not s.jobs and not s.previews]
+                if idle:
+                    await self.delete_session(min(idle, key=lambda s: s.touched_at).id)
+            if len(self.sessions) >= self.config.max_sessions:
                 raise SandboxError(f"at most {self.config.max_sessions} sandbox sessions at a time", 429)
             for svc in spec.services:
                 if self.config.service_kind(svc.image) is None:

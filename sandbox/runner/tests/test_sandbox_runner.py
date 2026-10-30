@@ -176,14 +176,22 @@ async def test_sql_uses_the_services_own_env(runner: tuple[Runner, FakeDocker]) 
         await r.run_sql(session.id, "nope", "select 1")
 
 
-async def test_session_limit_and_cleanup(runner: tuple[Runner, FakeDocker]) -> None:
+async def test_session_limit_evicts_the_oldest_idle_session_and_cleans_up(runner: tuple[Runner, FakeDocker]) -> None:
     r, docker = runner
     sessions = [await r.create_session(SessionSpec(workspace=f"p{i}")) for i in range(CONFIG.max_sessions)]
+    sessions[1].touched_at -= 100  # the longest idle
+    extra = await r.create_session(SessionSpec(workspace="one-more"))
+    assert sessions[1].id not in r.sessions and extra.id in r.sessions and len(r.sessions) == CONFIG.max_sessions
+    assert sessions[1].network not in docker.nets
+    for s in r.sessions.values():  # every session is busy: nothing can be evicted
+        s.jobs.add("job")
     with pytest.raises(SandboxError) as e:
-        await r.create_session(SessionSpec(workspace="one-more"))
+        await r.create_session(SessionSpec(workspace="no-room"))
     assert e.value.status == 429
-    await r.delete_session(sessions[0].id)
-    assert sessions[0].network not in docker.nets
+    for s in r.sessions.values():
+        s.jobs.clear()
+    await r.delete_session(extra.id)
+    assert extra.network not in docker.nets
 
 
 async def test_a_preview_link_opens_the_path_it_was_given(runner: tuple[Runner, FakeDocker], tmp_path: Path) -> None:

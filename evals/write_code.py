@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -60,7 +61,7 @@ def run_one(api: str, request: str, language: str, seconds: float) -> dict[str, 
 
     final = wait(f"run {rid}", finished, seconds, every=5)
     verify = (final.get("steps") or {}).get("verify", {}).get("summary", "")
-    passed = final["status"] == "completed" and "test(s) passed" in verify
+    passed = final["status"] == "completed" and bool(re.search(r"\b[1-9]\d* test\(s\) passed", verify))  # not "0 tests"
     return {"run": rid, "status": final["status"], "passed": passed, "verify": verify, "error": final.get("error")}
 
 
