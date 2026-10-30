@@ -102,7 +102,12 @@ async def test_intake_always_asks_the_language_for_new_work() -> None:
     result = await intake.check(client, "new_app", "Make a calculator")
     assert _names(result) == ["Which language?", "Which platform?", "Which frontend?", "Additional things to be added"]
     assert result.questions[0].options[0] == "TypeScript"
-    assert result.questions[1].options == ["Browser app", "Terminal (command line)", "API (REST)"]
+    assert result.questions[1].options == [
+        "Browser app",
+        "Terminal (command line)",
+        "API (REST)",
+        "Library (functions only)",
+    ]
     assert result.questions[2].options[0] == "React + TypeScript" and result.questions[2].options[-1] == "None"
     extra = result.questions[3]
     assert extra.multi and extra.default == "Test cases (backend)"

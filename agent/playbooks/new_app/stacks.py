@@ -64,7 +64,8 @@ KINDS: dict[str, AppKind] = {k.name: k for k in (
 # Not "users": the requirements Q&A text almost always contains it (e.g. the model's own answer to "who is the
 # main user?"), so it drowned out a real signal like "terminal" below. "multi-user" still counts.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("library", ("library", "package", "sdk", "module for")),
+    ("library", ("library", "package", "sdk", "module for", "functions only", "just a function", "only a function",
+                 "just functions")),
     ("systems", ("algorithm", "performance-critical", "systems-level", "high-performance", "low-level")),
     ("script", ("script", "automation", "automate", "scrape", "csv", "data processing", "rename files")),
     ("api", ("rest api", " api", "backend service", "microservice", "endpoint", "webhook")),
@@ -321,7 +322,19 @@ CI = "CI workflow (GitHub Actions)"
 README, GRAPHIFY = "README file", "Graphify"
 BACKEND_TESTS, FRONTEND_TESTS = "Test cases (backend)", "Test cases (frontend)"
 ADDITIONS = (CI, README, GRAPHIFY, BACKEND_TESTS, FRONTEND_TESTS)
-_NO_UI_WORDS = ("terminal", "cli", "command line", "console", "api", "rest api")
+_NO_UI_WORDS = (
+    "terminal",
+    "cli",
+    "command line",
+    "console",
+    "api",
+    "rest api",
+    "library",
+    "functions only",
+    "just a function",
+    "only a function",
+    "just functions",
+)
 
 
 def frontend_open(inputs: dict[str, Any]) -> bool:
@@ -334,8 +347,9 @@ def frontend_default(language: str) -> str:
 
 
 PLATFORM_QUESTION = "Which platform?"
-PLATFORMS = ("Browser app", "Terminal (command line)", "API (REST)")
-_PLATFORM_WORDS = ("browser", "web", "website", "terminal", "cli", "command line", "console", "api", "rest api")
+PLATFORMS = ("Browser app", "Terminal (command line)", "API (REST)", "Library (functions only)")
+_PLATFORM_WORDS = ("browser", "web", "website", "terminal", "cli", "command line", "console", "api", "rest api",
+                   "library", "functions only", "just a function", "only a function", "just functions")  # fmt: skip
 
 
 def platform_stated(inputs: dict[str, Any]) -> bool:
@@ -348,6 +362,10 @@ def platform_stated(inputs: dict[str, Any]) -> bool:
 def default_platform(inputs: dict[str, Any]) -> str:
     """The platform the rules would pick for this request: the question's default."""
     kind = app_kind({"request": inputs.get("request", "")})
-    return {"cli": PLATFORMS[1], "script": PLATFORMS[1], "systems": PLATFORMS[1], "api": PLATFORMS[2]}.get(
-        kind, PLATFORMS[0]
-    )
+    return {
+        "cli": PLATFORMS[1],
+        "script": PLATFORMS[1],
+        "systems": PLATFORMS[1],
+        "api": PLATFORMS[2],
+        "library": PLATFORMS[3],
+    }.get(kind, PLATFORMS[0])

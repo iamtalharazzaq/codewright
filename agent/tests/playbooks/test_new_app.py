@@ -360,3 +360,13 @@ def test_a_browser_app_without_tests_ticked_has_no_vitest_and_still_passes_verif
         [{"component": ".", "steps": [], "report": None, "error": "no test runner"}], need_tests=False
     )[0]
     assert not na.tests_green([{"component": ".", "steps": [], "report": None}], need_tests=True)[0]
+
+
+def test_a_function_only_calculator_is_a_library_with_no_frontend_question() -> None:
+    assert "Library (functions only)" in stacks.PLATFORMS
+    asked = {"request": "I need a simple calculator, just a function is fine", "answers": []}
+    assert stacks.platform_stated(asked) and stacks.app_kind(asked) == "library"
+    assert stacks.default_platform(asked) == "Library (functions only)" and not stacks.frontend_open(asked)
+    picked = {"request": "A simple calculator", "answers": [["Which platform?", "Library (functions only)"]]}
+    assert stacks.app_kind(picked) == "library" and not stacks.frontend_open(picked)
+    assert stacks.choose({**picked, "language": "Python"}).template == "library-python"

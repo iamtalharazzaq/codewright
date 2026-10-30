@@ -442,6 +442,12 @@ Built so far (infrastructure, not yet wired into a specific phase's tests):
 Open: no phase has a real-sandbox + real-cassette playbook test wired up yet (Phase 8 was next); `make check`
 stays on the fast `FakeProject` tests, the new real-sandbox ones will live under `make check-sandbox`.
 
+## Library platform option (2026-10-30)
+
+*Which platform?* has a fourth choice, **Library (functions only)**: a request like "a simple calculator, just a
+function is fine" (or that answer) builds from the `library-*` template of the chosen language, with no *Which
+frontend?* question and no web view.
+
 ## Plan tab agent modal (2026-10-30)
 
 The Plan tab's rows are buttons: clicking an agent opens a modal with **Received from** (the previous step and its
