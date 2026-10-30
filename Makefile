@@ -3,7 +3,7 @@ PNPM ?= corepack pnpm
 WEB := apps/web
 CHECKS := docker compose --profile checks
 
-.PHONY: up down logs check check-api check-web check-host check-sandbox check-sandbox-host sandbox-images
+.PHONY: up down logs check check-api check-web check-host check-sandbox check-sandbox-host sandbox-images eval-scoreboard
 
 up: sandbox-images  ## Build and start Codewright (http://localhost:3000)
 	docker compose up -d --build --wait
@@ -42,3 +42,6 @@ check-host:    ## The same checks on the host (needs uv and pnpm; DB tests need 
 	uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 	cd $(WEB) && $(PNPM) install --frozen-lockfile && $(PNPM) lint && $(PNPM) typecheck && \
 		$(PNPM) format:check && $(PNPM) test
+
+eval-scoreboard:  ## The newest result of each eval suite as one table (no model needed)
+	docker compose --profile checks run --rm --no-deps api-checks python3 -m evals.scoreboard
