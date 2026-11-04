@@ -14,6 +14,38 @@ make logs    # follow logs
 
 The LLM runs on a GPU you host. See [docs/setup/remote-gpu.md](docs/setup/remote-gpu.md).
 
+## Architecture
+
+```mermaid
+flowchart LR
+    U["Browser"] --> WEB["Web app<br/>Next.js"]
+    WEB <-->|"REST + SSE"| API["API<br/>FastAPI"]
+    API --> ORC["Orchestrator<br/>LangGraph + deepagents<br/>playbooks and agents"]
+    ORC --> LLM["LLM server<br/>Ollama / llama.cpp<br/>remote GPU or local CPU"]
+    ORC --> GF["Graphify<br/>code graph"]
+    ORC --> PG[("PostgreSQL + pgvector<br/>chats, runs, checkpoints,<br/>graph, memory")]
+    ORC --> FS[("Workspaces<br/>and uploads")]
+    ORC -->|"HTTP"| SR["Sandbox runner<br/>(holds the Docker socket)"]
+    SR --> SB["Sandbox containers<br/>Python, Go, Node, C++,<br/>tools, browser"]
+    API --> CON["Connectors<br/>GitHub, ZIP, Drive, local"]
+```
+
+The API never touches the Docker socket. Only the sandbox runner does, so generated code runs in throwaway containers it controls.
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Web app | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| API | Python 3.12, FastAPI, Pydantic v2, Alembic |
+| Agents | LangGraph, LangChain, deepagents |
+| Code understanding | Graphify |
+| Storage | PostgreSQL 17 with pgvector, local disk |
+| LLM | Self-hosted model through Ollama or llama.cpp |
+| Sandbox | Docker, one toolchain image per language |
+| Tooling | uv, pnpm, ruff, mypy, pytest, Vitest, ESLint, Prettier |
+| Packaging | Docker Compose |
+
 ## Checks
 
 ```
